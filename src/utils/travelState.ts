@@ -35,7 +35,7 @@ export interface TravelState {
   customExpenses: { id: string; category: string; amountUSD: number; description: string }[];
 }
 
-export const ALL_ATTRACTIONS: Attraction[] = [
+export const DEFAULT_ATTRACTIONS: Attraction[] = [
   {
     id: "central-park",
     name: "Central Park & Bethesda Terrace",
@@ -234,6 +234,23 @@ export const ALL_ATTRACTIONS: Attraction[] = [
   }
 ];
 
+export function getStoredAttractions(): Attraction[] {
+  const saved = localStorage.getItem("viagem_dos_sonhos_attractions");
+  if (saved) {
+    try {
+      return JSON.parse(saved);
+    } catch (e) {
+      console.error("Erro ao carregar atrações", e);
+    }
+  }
+  localStorage.setItem("viagem_dos_sonhos_attractions", JSON.stringify(DEFAULT_ATTRACTIONS));
+  return DEFAULT_ATTRACTIONS;
+}
+
+export function saveStoredAttractions(attractions: Attraction[]) {
+  localStorage.setItem("viagem_dos_sonhos_attractions", JSON.stringify(attractions));
+}
+
 const DEFAULT_PROFILE: UserProfile = {
   style: "couple",
   interests: ["culture", "food", "views", "classic"],
@@ -259,6 +276,8 @@ const DEFAULT_EXPENSES = [
 
 export function getTravelState(): TravelState {
   const saved = localStorage.getItem("viagem_dos_sonhos_state");
+  const attractions = getStoredAttractions();
+
   if (saved) {
     try {
       return JSON.parse(saved);
@@ -267,38 +286,38 @@ export function getTravelState(): TravelState {
     }
   }
 
-  // Se não houver estado salvo, gera um roteiro padrão de 4 dias
+  // Se não houver estado salvo, gera um roteiro padrão de 4 dias usando as atrações dinâmicas
   const defaultItinerary: ItineraryDay[] = [
     {
       dayNumber: 1,
       attractions: [
-        ALL_ATTRACTIONS.find(a => a.id === "central-park")!,
-        ALL_ATTRACTIONS.find(a => a.id === "the-met")!,
-        ALL_ATTRACTIONS.find(a => a.id === "top-of-the-rock")!
+        attractions.find(a => a.id === "central-park")!,
+        attractions.find(a => a.id === "the-met")!,
+        attractions.find(a => a.id === "top-of-the-rock")!
       ].filter(Boolean)
     },
     {
       dayNumber: 2,
       attractions: [
-        ALL_ATTRACTIONS.find(a => a.id === "high-line")!,
-        ALL_ATTRACTIONS.find(a => a.id === "chelsea-market")!,
-        ALL_ATTRACTIONS.find(a => a.id === "moma")!
+        attractions.find(a => a.id === "high-line")!,
+        attractions.find(a => a.id === "chelsea-market")!,
+        attractions.find(a => a.id === "moma")!
       ].filter(Boolean)
     },
     {
       dayNumber: 3,
       attractions: [
-        ALL_ATTRACTIONS.find(a => a.id === "statue-liberty")!,
-        ALL_ATTRACTIONS.find(a => a.id === "brooklyn-bridge")!,
-        ALL_ATTRACTIONS.find(a => a.id === "joes-pizza")!
+        attractions.find(a => a.id === "statue-liberty")!,
+        attractions.find(a => a.id === "brooklyn-bridge")!,
+        attractions.find(a => a.id === "joes-pizza")!
       ].filter(Boolean)
     },
     {
       dayNumber: 4,
       attractions: [
-        ALL_ATTRACTIONS.find(a => a.id === "soho-shopping")!,
-        ALL_ATTRACTIONS.find(a => a.id === "katzs-delicatessen")!,
-        ALL_ATTRACTIONS.find(a => a.id === "broadway-show")!
+        attractions.find(a => a.id === "soho-shopping")!,
+        attractions.find(a => a.id === "katzs-delicatessen")!,
+        attractions.find(a => a.id === "broadway-show")!
       ].filter(Boolean)
     }
   ];
@@ -319,8 +338,10 @@ export function saveTravelState(state: TravelState) {
 }
 
 export function generateSmartItinerary(profile: UserProfile): ItineraryDay[] {
+  const attractions = getStoredAttractions();
+
   // Filtra atrações compatíveis com os interesses do usuário
-  const matched = ALL_ATTRACTIONS.filter(attr => {
+  const matched = attractions.filter(attr => {
     // Se o orçamento for $, remove atrações $$$$
     if (profile.budget === "$" && attr.costLevel === "$$$$") return false;
     return profile.interests.includes(attr.category) || attr.category === "classic";
@@ -341,9 +362,9 @@ export function generateSmartItinerary(profile: UserProfile): ItineraryDay[] {
         dayAttractions.push(sorted[attractionIndex]);
         attractionIndex++;
       } else {
-        // Se acabarem as atrações personalizadas, repete algumas clássicas ou pega do banco geral
-        const fallback = ALL_ATTRACTIONS[Math.floor(Math.random() * ALL_ATTRACTIONS.length)];
-        if (!dayAttractions.some(a => a.id === fallback.id)) {
+        // Se acabarem as atrações personalizadas, pega do banco geral dinâmico
+        const fallback = attractions[Math.floor(Math.random() * attractions.length)];
+        if (fallback && !dayAttractions.some(a => a.id === fallback.id)) {
           dayAttractions.push(fallback);
         }
       }

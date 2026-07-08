@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import {
   ArrowRight,
@@ -20,174 +20,201 @@ import {
   Wallet,
   type LucideIcon,
 } from "lucide-react";
+import { getStoredAttractions, Attraction } from "@/utils/travelState";
 
 const HERO_IMAGE = "/hero-ny.webp";
 
-type CategoryKey =
-  | "sight"
-  | "food"
-  | "cafe"
-  | "park"
-  | "shop"
-  | "culture"
-  | "view"
-  | "bar"
-  | "museum";
-
-const CATEGORIES: Record<
-  CategoryKey,
-  { label: string; icon: LucideIcon; color: string }
-> = {
-  sight: { label: "Ponto Turístico", icon: Landmark, color: "#8A9A86" },
-  food: { label: "Restaurante", icon: UtensilsCrossed, color: "#D98A6C" },
-  cafe: { label: "Café", icon: Coffee, color: "#A67C52" },
-  park: { label: "Parque", icon: Trees, color: "#4E8054" },
-  shop: { label: "Compras", icon: ShoppingBag, color: "#B55C75" },
-  culture: { label: "Cultura", icon: Palette, color: "#8E5CB5" },
-  view: { label: "Mirante", icon: Mountain, color: "#4A7BB0" },
-  bar: { label: "Bar", icon: Wine, color: "#9E4A4A" },
-  museum: { label: "Museu", icon: Building2, color: "#6B7280" },
+const CATEGORY_ICONS: Record<string, { icon: LucideIcon; color: string }> = {
+  culture: { icon: Landmark, color: "#8E5CB5" },
+  food: { icon: UtensilsCrossed, color: "#D98A6C" },
+  views: { icon: Mountain, color: "#4A7BB0" },
+  nature: { icon: Trees, color: "#4E8054" },
+  shopping: { icon: ShoppingBag, color: "#B55C75" },
+  classic: { icon: Sparkles, color: "#8A9A86" }
 };
 
-type Place = {
-  id: string;
-  name: string;
-  neighborhood: string;
-  vibe: string;
-  category: CategoryKey;
-  tags: string[];
-  image: string;
-};
-
-const PLACES: Place[] = [
+const PILLARS = [
   {
-    id: "top-of-the-rock",
-    name: "Top of the Rock",
-    neighborhood: "Midtown",
-    vibe: "Skyline no fim da tarde",
-    category: "view",
-    tags: ["pôr do sol", "icônico"],
-    image:
-      "https://images.unsplash.com/photo-1500916434205-0c77489c6cf7?w=1200&q=85",
+    kicker: "01",
+    title: "Compatibilidade.",
+    body: "Descubra quais atrações, restaurantes e experiências combinam com o seu perfil — cada lugar recebe um match a partir do que você ama.",
+    icon: Sparkles,
   },
   {
-    id: "central-park",
-    name: "Central Park",
-    neighborhood: "Manhattan",
-    vibe: "Respiro verde no meio da cidade",
-    category: "park",
-    tags: ["caminhada", "romântico"],
-    image:
-      "https://images.unsplash.com/photo-1534270804882-6b5048b1c1fc?w=1200&q=85",
+    kicker: "02",
+    title: "Roteiro Inteligente.",
+    body: "Passeios organizados na melhor ordem, reduzindo deslocamentos e deixando você aproveitar cada dia sem se preocupar com logística.",
+    icon: MapPin,
   },
   {
-    id: "katz",
-    name: "Katz's Delicatessen",
-    neighborhood: "Lower East Side",
-    vibe: "O pastrami que vira memória",
-    category: "food",
-    tags: ["clássico", "casual"],
-    image:
-      "https://images.unsplash.com/photo-1568901346375-23c9450c58cd?w=1200&q=85",
-  },
-  {
-    id: "moma",
-    name: "MoMA",
-    neighborhood: "Midtown",
-    vibe: "Arte moderna sem pressa",
-    category: "museum",
-    tags: ["arte", "curadoria"],
-    image:
-      "https://images.unsplash.com/photo-1544967082-d9d25d867d66?w=1200&q=85",
-  },
-  {
-    id: "high-line",
-    name: "The High Line",
-    neighborhood: "Chelsea",
-    vibe: "Trilha suspensa entre prédios",
-    category: "sight",
-    tags: ["a pé", "design"],
-    image:
-      "https://images.unsplash.com/photo-1518235506717-e1ed3306a89b?w=1200&q=85",
-  },
-  {
-    id: "blue-bottle",
-    name: "Blue Bottle Coffee",
-    neighborhood: "Nolita",
-    vibe: "Café de especialidade sem pose",
-    category: "cafe",
-    tags: ["manhã", "quietude"],
-    image:
-      "https://images.unsplash.com/photo-1509042239860-f550ce710b93?w=1200&q=85",
-  },
-  {
-    id: "brooklyn-bridge",
-    name: "Brooklyn Bridge",
-    neighborhood: "DUMBO",
-    vibe: "Travessia entre dois mundos",
-    category: "sight",
-    tags: ["a pé", "vista"],
-    image:
-      "https://images.unsplash.com/photo-1543716091-a840c05249ec?w=1200&q=85",
-  },
-  {
-    id: "le-bernardin",
-    name: "Le Bernardin",
-    neighborhood: "Midtown",
-    vibe: "Jantar que vira cinema",
-    category: "food",
-    tags: ["reserva", "estrelas"],
-    image:
-      "https://images.unsplash.com/photo-1414235077428-338989a2e8c0?w=1200&q=85",
-  },
-  {
-    id: "guggenheim",
-    name: "Guggenheim",
-    neighborhood: "Upper East Side",
-    vibe: "Espiral de arte que hipnotiza",
-    category: "culture",
-    tags: ["arquitetura", "contemplativo"],
-    image:
-      "https://images.unsplash.com/photo-1554907984-15263bfd63bd?w=1200&q=85",
-  },
-  {
-    id: "soho",
-    name: "SoHo",
-    neighborhood: "Manhattan",
-    vibe: "Vitrines entre prédios de ferro",
-    category: "shop",
-    tags: ["moda", "flânerie"],
-    image:
-      "https://images.unsplash.com/photo-1519121785383-3229633bb75b?w=1200&q=85",
-  },
-  {
-    id: "employees-only",
-    name: "Employees Only",
-    neighborhood: "West Village",
-    vibe: "Coquetéis atrás de uma cortina",
-    category: "bar",
-    tags: ["noite", "clássico"],
-    image:
-      "https://images.unsplash.com/photo-1470337458703-46ad1756a187?w=1200&q=85",
-  },
-  {
-    id: "washington-square",
-    name: "Washington Square",
-    neighborhood: "Greenwich Village",
-    vibe: "Piano na rua, gente que dança",
-    category: "park",
-    tags: ["música", "gente"],
-    image:
-      "https://images.unsplash.com/photo-1524231757912-21f4fe3a7200?w=1200&q=85",
+    kicker: "03",
+    title: "Orçamento Inteligente.",
+    body: "Acompanhe os custos em USD e BRL em tempo real e receba sugestões para economizar sem abrir mão do que realmente vale a pena viver.",
+    icon: Wallet,
   },
 ];
 
 export default function Index() {
+  const [attractions, setAttractions] = useState<Attraction[]>([]);
+  const [activeCategory, setActiveCategory] = useState<string>("all");
+  const [favorites, setFavorites] = useState<Set<string>>(new Set());
+
+  useEffect(() => {
+    setAttractions(getStoredAttractions());
+  }, []);
+
+  const toggleFav = (id: string) => {
+    setFavorites((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const visibleAttractions = activeCategory === "all" 
+    ? attractions 
+    : attractions.filter(a => a.category === activeCategory);
+
   return (
     <div className="min-h-screen bg-[#FAF8F5] text-[#1C1E21] flex flex-col">
       <SiteNav />
       <Hero />
-      <Collection />
+      
+      {/* Collection Section */}
+      <section id="descobrir" className="mx-auto max-w-[1240px] px-6 pt-8 pb-24 md:px-10 md:pt-16 md:pb-32">
+        <div className="flex flex-col gap-6 md:flex-row md:items-end md:justify-between">
+          <div>
+            <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-slate-400">
+              <span className="text-[#C5A85C]">✦</span> Sua coleção de descobertas
+            </p>
+            <h2 className="mt-3 font-serif text-4xl font-light leading-[1.05] text-[#0D0E10] md:text-5xl">
+              Cada lugar,
+              <br />
+              <span className="italic text-slate-700">uma figurinha para colecionar.</span>
+            </h2>
+          </div>
+          <p className="max-w-sm text-sm leading-relaxed text-slate-500 md:text-base">
+            Descubra cantos, sabores e vistas de Nova York. Salve os que te chamarem — o roteiro se monta em torno da sua coleção.
+          </p>
+        </div>
+
+        {/* Category Chips */}
+        <div className="mt-8 -mx-6 overflow-x-auto px-6 md:mx-0 md:px-0">
+          <div className="flex min-w-max items-center gap-2">
+            <button
+              onClick={() => setActiveCategory("all")}
+              className={`inline-flex items-center gap-2 rounded-full border px-4 py-2 text-xs font-medium transition-all ${
+                activeCategory === "all"
+                  ? "border-[#0D0E10] bg-[#0D0E10] text-white shadow-md"
+                  : "border-[#EAE6DF] bg-white/70 text-slate-600 hover:border-slate-400 hover:bg-white"
+              }`}
+            >
+              <Sparkles className="h-3.5 w-3.5" />
+              Tudo
+            </button>
+            {Object.entries(CATEGORY_ICONS).map(([key, val]) => {
+              const Icon = val.icon;
+              const isSelected = activeCategory === key;
+              return (
+                <button
+                  key={key}
+                  onClick={() => setActiveCategory(key)}
+                  className={`inline-flex items-center gap-2 rounded-full border px-4 py-2 text-xs font-medium transition-all ${
+                    isSelected
+                      ? "border-[#0D0E10] bg-[#0D0E10] text-white shadow-md"
+                      : "border-[#EAE6DF] bg-white/70 text-slate-600 hover:border-slate-400 hover:bg-white"
+                  }`}
+                >
+                  <Icon className="h-3.5 w-3.5" style={!isSelected ? { color: val.color } : undefined} />
+                  {key === "culture" && "Arte & Cultura"}
+                  {key === "food" && "Gastronomia"}
+                  {key === "views" && "Mirantes"}
+                  {key === "nature" && "Parques"}
+                  {key === "shopping" && "Compras"}
+                  {key === "classic" && "Clássicos"}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Attractions Grid */}
+        <div className="mt-10 grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+          {visibleAttractions.map((place) => {
+            const catInfo = CATEGORY_ICONS[place.category] || { icon: Compass, color: "#C5A85C" };
+            const Icon = catInfo.icon;
+            const favorited = favorites.has(place.id);
+
+            return (
+              <article
+                key={place.id}
+                className="group relative flex flex-col overflow-hidden rounded-3xl border border-[#EAE6DF] bg-white transition-all duration-300 hover:-translate-y-1 hover:border-slate-300 shadow-sm hover:shadow-md"
+              >
+                {/* Photo */}
+                <div className="relative aspect-[4/5] overflow-hidden">
+                  <img
+                    src={place.image}
+                    alt={place.name}
+                    loading="lazy"
+                    className="h-full w-full object-cover transition-transform duration-700 group-hover:scale-[1.06]"
+                  />
+                  <div
+                    aria-hidden
+                    className="pointer-events-none absolute inset-0 opacity-0 mix-blend-overlay transition-opacity duration-500 group-hover:opacity-70"
+                    style={{
+                      background: "linear-gradient(115deg, transparent 30%, rgba(255,255,255,0.35) 45%, rgba(255,220,160,0.2) 55%, transparent 70%)",
+                    }}
+                  />
+                  <div
+                    aria-hidden
+                    className="pointer-events-none absolute inset-x-0 bottom-0 h-24"
+                    style={{ background: "linear-gradient(to top, rgba(13,13,13,0.35), transparent)" }}
+                  />
+
+                  {/* Category badge */}
+                  <div className="absolute left-3 top-3 inline-flex items-center gap-1.5 rounded-full border border-white/40 bg-white/25 px-2.5 py-1 backdrop-blur-md">
+                    <Icon className="h-3.5 w-3.5" strokeWidth={2.25} style={{ color: catInfo.color }} />
+                    <span className="text-[10px] font-semibold uppercase tracking-[0.14em]" style={{ color: catInfo.color }}>
+                      {place.categoryLabel}
+                    </span>
+                  </div>
+
+                  {/* Favorite Button */}
+                  <button
+                    type="button"
+                    onClick={() => toggleFav(place.id)}
+                    className="absolute right-3 top-3 grid h-8 w-8 place-items-center rounded-full border border-white/40 bg-white/25 backdrop-blur-md transition-transform hover:scale-110 active:scale-95"
+                  >
+                    <Heart className={`h-4 w-4 transition-all ${favorited ? "fill-current text-red-500" : "text-white"}`} strokeWidth={2} />
+                  </button>
+                </div>
+
+                {/* Body */}
+                <div className="flex flex-1 flex-col p-5">
+                  <div aria-hidden className="h-px w-8" style={{ backgroundColor: catInfo.color }} />
+                  <h3 className="mt-3 font-serif text-xl font-medium leading-tight text-[#0D0E10]">
+                    {place.name}
+                  </h3>
+                  <p className="mt-1 text-xs uppercase tracking-[0.16em] text-slate-400">
+                    {place.neighborhood}
+                  </p>
+                  <p className="mt-3 text-sm leading-relaxed text-slate-600">{place.description}</p>
+                  <div className="mt-4 flex flex-wrap gap-1.5">
+                    <span className="rounded-full border border-[#EAE6DF] bg-[#F3EFEA]/50 px-2 py-0.5 text-[10.5px] uppercase tracking-[0.14em] text-slate-500">
+                      {place.bestTime}
+                    </span>
+                    <span className="rounded-full border border-[#EAE6DF] bg-[#F3EFEA]/50 px-2 py-0.5 text-[10.5px] uppercase tracking-[0.14em] text-slate-500">
+                      {place.costLevel}
+                    </span>
+                  </div>
+                </div>
+              </article>
+            );
+          })}
+        </div>
+      </section>
+
       <Feeling />
       <Pillars />
       <TwoWays />
@@ -253,7 +280,7 @@ function Hero() {
           <p className="mt-8 max-w-lg text-base leading-relaxed text-slate-600 md:text-lg">
             Nossa IA analisa seu perfil, seus interesses e seu orçamento para
             desenhar um roteiro sob medida em Nova York. Ela escolhe as
-            atrações imperdíveis, organiza a melhor rota para cada dia e ajuda
+            atrações imperdíveis, organizes a melhor rota para cada dia e ajuda
             você a economizar tempo e dinheiro — como ter um concierge cinco
             estrelas ao seu lado o tempo todo.
           </p>
@@ -303,220 +330,6 @@ function Hero() {
   );
 }
 
-function Collection() {
-  const [active, setActive] = useState<CategoryKey | "all">("all");
-  const [favorites, setFavorites] = useState<Set<string>>(new Set());
-
-  const toggleFav = (id: string) => {
-    setFavorites((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
-  };
-
-  const visible =
-    active === "all" ? PLACES : PLACES.filter((p) => p.category === active);
-
-  return (
-    <section
-      id="descobrir"
-      className="mx-auto max-w-[1240px] px-6 pt-8 pb-24 md:px-10 md:pt-16 md:pb-32"
-    >
-      <div className="flex flex-col gap-6 md:flex-row md:items-end md:justify-between">
-        <div>
-          <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-slate-400">
-            <span className="text-[#C5A85C]">✦</span> Sua coleção de descobertas
-          </p>
-          <h2 className="mt-3 font-serif text-4xl font-light leading-[1.05] text-[#0D0E10] md:text-5xl">
-            Cada lugar,
-            <br />
-            <span className="italic text-slate-700">uma figurinha para colecionar.</span>
-          </h2>
-        </div>
-        <p className="max-w-sm text-sm leading-relaxed text-slate-500 md:text-base">
-          Descubra cantos, sabores e vistas de Nova York. Salve os que te
-          chamarem — o roteiro se monta em torno da sua coleção.
-        </p>
-      </div>
-
-      <CategoryChips active={active} onChange={setActive} />
-
-      <div className="mt-10 grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-        {visible.map((place) => (
-          <PlaceCard
-            key={place.id}
-            place={place}
-            favorited={favorites.has(place.id)}
-            onToggleFav={() => toggleFav(place.id)}
-          />
-        ))}
-      </div>
-    </section>
-  );
-}
-
-function CategoryChips({
-  active,
-  onChange,
-}: {
-  active: CategoryKey | "all";
-  onChange: (key: CategoryKey | "all") => void;
-}) {
-  const entries: Array<{
-    key: CategoryKey | "all";
-    label: string;
-    icon: LucideIcon | null;
-    color?: string;
-  }> = [
-    { key: "all", label: "Tudo", icon: Sparkles },
-    ...Object.entries(CATEGORIES).map(([key, cat]) => ({
-      key: key as CategoryKey,
-      label: cat.label,
-      icon: cat.icon,
-      color: cat.color,
-    })),
-  ];
-
-  return (
-    <div className="mt-8 -mx-6 overflow-x-auto px-6 md:mx-0 md:px-0">
-      <div className="flex min-w-max items-center gap-2">
-        {entries.map((e) => {
-          const isActive = active === e.key;
-          const Icon = e.icon;
-          return (
-            <button
-              key={e.key}
-              type="button"
-              onClick={() => onChange(e.key)}
-              className={
-                "inline-flex items-center gap-2 rounded-full border px-4 py-2 text-xs font-medium transition-all " +
-                (isActive
-                  ? "border-[#0D0E10] bg-[#0D0E10] text-white shadow-md"
-                  : "border-[#EAE6DF] bg-white/70 text-slate-600 hover:border-slate-400 hover:bg-white")
-              }
-            >
-              {Icon && (
-                <Icon
-                  className="h-3.5 w-3.5"
-                  strokeWidth={2}
-                  style={
-                    !isActive && e.color ? { color: e.color } : undefined
-                  }
-                />
-              )}
-              {e.label}
-            </button>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
-
-function PlaceCard({
-  place,
-  favorited,
-  onToggleFav,
-}: {
-  place: Place;
-  favorited: boolean;
-  onToggleFav: () => void;
-}) {
-  const cat = CATEGORIES[place.category];
-  const Icon = cat.icon;
-
-  return (
-    <article
-      className="group relative flex flex-col overflow-hidden rounded-3xl border border-[#EAE6DF] bg-white transition-all duration-300 hover:-translate-y-1 hover:border-slate-300 shadow-sm hover:shadow-md"
-    >
-      {/* Photo */}
-      <div className="relative aspect-[4/5] overflow-hidden">
-        <img
-          src={place.image}
-          alt={place.name}
-          loading="lazy"
-          className="h-full w-full object-cover transition-transform duration-700 group-hover:scale-[1.06]"
-        />
-        {/* Holographic sheen */}
-        <div
-          aria-hidden
-          className="pointer-events-none absolute inset-0 opacity-0 mix-blend-overlay transition-opacity duration-500 group-hover:opacity-70"
-          style={{
-            background:
-              "linear-gradient(115deg, transparent 30%, rgba(255,255,255,0.35) 45%, rgba(255,220,160,0.2) 55%, transparent 70%)",
-          }}
-        />
-        {/* Bottom gradient for legibility */}
-        <div
-          aria-hidden
-          className="pointer-events-none absolute inset-x-0 bottom-0 h-24"
-          style={{
-            background:
-              "linear-gradient(to top, rgba(13,13,13,0.35), transparent)",
-          }}
-        />
-
-        {/* Category badge (glass) */}
-        <div
-          className="absolute left-3 top-3 inline-flex items-center gap-1.5 rounded-full border border-white/40 bg-white/25 px-2.5 py-1 backdrop-blur-md"
-        >
-          <Icon className="h-3.5 w-3.5" strokeWidth={2.25} style={{ color: cat.color }} />
-          <span
-            className="text-[10px] font-semibold uppercase tracking-[0.14em]"
-            style={{ color: cat.color }}
-          >
-            {cat.label}
-          </span>
-        </div>
-
-        {/* Favorite */}
-        <button
-          type="button"
-          onClick={onToggleFav}
-          aria-label={favorited ? "Remover dos favoritos" : "Adicionar aos favoritos"}
-          className="absolute right-3 top-3 grid h-8 w-8 place-items-center rounded-full border border-white/40 bg-white/25 backdrop-blur-md transition-transform hover:scale-110 active:scale-95"
-        >
-          <Heart
-            className={
-              "h-4 w-4 transition-all " +
-              (favorited ? "fill-current text-red-500" : "text-white")
-            }
-            strokeWidth={2}
-          />
-        </button>
-      </div>
-
-      {/* Body */}
-      <div className="flex flex-1 flex-col p-5">
-        <div
-          aria-hidden
-          className="h-px w-8"
-          style={{ backgroundColor: cat.color }}
-        />
-        <h3 className="mt-3 font-serif text-xl font-medium leading-tight text-[#0D0E10]">
-          {place.name}
-        </h3>
-        <p className="mt-1 text-xs uppercase tracking-[0.16em] text-slate-400">
-          {place.neighborhood}
-        </p>
-        <p className="mt-3 text-sm leading-relaxed text-slate-600">{place.vibe}</p>
-        <div className="mt-4 flex flex-wrap gap-1.5">
-          {place.tags.map((t) => (
-            <span
-              key={t}
-              className="rounded-full border border-[#EAE6DF] bg-[#F3EFEA]/50 px-2 py-0.5 text-[10.5px] uppercase tracking-[0.14em] text-slate-500"
-            >
-              {t}
-            </span>
-          ))}
-        </div>
-      </div>
-    </article>
-  );
-}
-
 function Feeling() {
   return (
     <section className="border-y border-[#EAE6DF] bg-[#F3EFEA]/30">
@@ -533,27 +346,6 @@ function Feeling() {
     </section>
   );
 }
-
-const PILLARS = [
-  {
-    kicker: "01",
-    title: "Compatibilidade.",
-    body: "Descubra quais atrações, restaurantes e experiências combinam com o seu perfil — cada lugar recebe um match a partir do que você ama.",
-    icon: Sparkles,
-  },
-  {
-    kicker: "02",
-    title: "Roteiro Inteligente.",
-    body: "Passeios organizados na melhor ordem, reduzindo deslocamentos e deixando você aproveitar cada dia sem se preocupar com logística.",
-    icon: MapPin,
-  },
-  {
-    kicker: "03",
-    title: "Orçamento Inteligente.",
-    body: "Acompanhe os custos em USD e BRL em tempo real e receba sugestões para economizar sem abrir mão do que realmente vale a pena viver.",
-    icon: Wallet,
-  },
-];
 
 function Pillars() {
   return (
@@ -804,6 +596,7 @@ function SiteFooter() {
           </span>
         </div>
         <div className="flex items-center gap-6">
+          <Link to="/admin" className="hover:text-[#0D0E10] transition-colors">Admin</Link>
           <a href="#descobrir" className="hover:text-[#0D0E10] transition-colors">
             Descobrir
           </a>

@@ -1,12 +1,12 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import { 
   Compass, Search, Filter, Sparkles, Plus, Check, 
   MapPin, Clock, DollarSign, Landmark, Utensils, Eye, ShoppingBag
 } from "lucide-react";
-import { getTravelState, saveTravelState, ALL_ATTRACTIONS, Attraction } from "@/utils/travelState";
+import { getTravelState, saveTravelState, getStoredAttractions, Attraction } from "@/utils/travelState";
 import { showSuccess } from "@/utils/toast";
 
 const CATEGORIES = [
@@ -20,9 +20,14 @@ const CATEGORIES = [
 
 export default function Catalog() {
   const [state, setState] = useState(getTravelState());
+  const [attractions, setAttractions] = useState<Attraction[]>([]);
   const [selectedCategory, setSelectedCategory] = useState("all");
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedDay, setSelectedDay] = useState(1);
+
+  useEffect(() => {
+    setAttractions(getStoredAttractions());
+  }, []);
 
   const handleAddAttraction = (attraction: Attraction) => {
     // Verifica se a atração já está no roteiro
@@ -51,7 +56,7 @@ export default function Catalog() {
     showSuccess(`${attraction.name} adicionada ao Dia ${selectedDay}!`);
   };
 
-  const filteredAttractions = ALL_ATTRACTIONS.filter(attr => {
+  const filteredAttractions = attractions.filter(attr => {
     const matchesCategory = selectedCategory === "all" || attr.category === selectedCategory;
     const matchesSearch = attr.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
                           attr.neighborhood.toLowerCase().includes(searchQuery.toLowerCase()) ||
