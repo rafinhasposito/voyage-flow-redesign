@@ -4,7 +4,8 @@ import React, { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import { 
   Compass, Plus, Trash2, Edit3, Save, RotateCcw, 
-  Image as ImageIcon, DollarSign, Clock, Sparkles, MapPin, Check
+  Image as ImageIcon, DollarSign, Clock, Sparkles, MapPin, Check,
+  Search, ExternalLink
 } from "lucide-react";
 import { getStoredAttractions, saveStoredAttractions, DEFAULT_ATTRACTIONS, Attraction } from "@/utils/travelState";
 import { showSuccess, showError } from "@/utils/toast";
@@ -18,9 +19,43 @@ const CATEGORY_OPTIONS = [
   { id: "classic", label: "Clássicos Imperdíveis" }
 ];
 
+// Mock de resultados do GetYourGuide (simulando API)
+const MOCK_GETYOURGUIDE_RESULTS: Record<string, {
+  name: string;
+  description: string;
+  image: string;
+  price: string;
+  affiliateLink: string;
+}> = {
+  "central-park": {
+    name: "Central Park Bicycle Tour",
+    description: "Explore o Central Park de bicicleta com um guia local. Rota ciclista pelos pontos mais fotogênicos do parque.",
+    image: "https://images.unsplash.com/photo-1501594907352-04cda38ebc29?w=600&q=80",
+    price: "A partir de $45",
+    affiliateLink: "https://www.getyourguide.com/central-park-l57/bicycle-tour-tickets-r123456.html"
+  },
+  "the-met": {
+    name: "The Met Priority Entrance Ticket",
+    description: "Pule as filas e entre diretamente no Metropolitan Museum of Art. Válido por 1 ano.",
+    image: "https://images.unsplash.com/photo-1601887389937-0b02c26b6c3c?w=600&q=80",
+    price: "A partir de $30",
+    affiliateLink: "https://www.getyourguide.com/metropolitan-museum-l57/priority-ticket-r234567.html"
+  },
+  "top-of-the-rock": {
+    name: "Top of the Rock Sunset Experience",
+    description: "Vista panorâmica de 360° com opção especial para pôr do sol. Inclui acesso prioritário.",
+    image: "https://images.unsplash.com/photo-1534430480872-3498386e7856?w=600&q=80",
+    price: "A partir de $45",
+    affiliateLink: "https://www.getyourguide.com/top-of-the-rock-l57/sunset-ticket-r345678.html"
+  }
+};
+
 export default function Admin() {
   const [attractions, setAttractions] = useState<Attraction[]>([]);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searchResults, setSearchResults] = useState<any[]>([]);
+  const [isSearching, setIsSearching] = useState(false);
   
   // Form State
   const [form, setForm] = useState<Partial<Attraction>>({
@@ -33,7 +68,8 @@ export default function Admin() {
     neighborhood: "",
     matchScore: 90,
     durationHours: 2,
-    bestTime: "Tarde"
+    bestTime: "Tarde",
+    affiliateLink: ""
   });
 
   useEffect(() => {
@@ -61,6 +97,34 @@ export default function Admin() {
     setEditingId(attr.id);
     setForm(attr);
     window.scrollTo({ top: 0, behavior: "smooth" });
+  };
+
+  const handleSearchGetYourGuide = () => {
+    if (!searchQuery.trim()) return;
+    
+    setIsSearching(true);
+    // Simulação de busca - na versão real, isso chamaria nosso backend
+    // que por sua vez consultaria a API do GetYourGuide
+    setTimeout(() => {
+      const results = Object.values(MOCK_GETYOURGUIDE_RESULTS).filter(r => 
+        r.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        r.description.toLowerCase().includes(searchQuery.toLowerCase())
+      );
+      setSearchResults(results);
+      setIsSearching(false);
+    }, 1000);
+  };
+
+  const handleUseSearchResult = (result: any) => {
+    setForm({
+      ...form,
+      name: result.name,
+      description: result.description,
+      image: result.image,
+      affiliateLink: result.affiliateLink
+    });
+    setSearchResults([]);
+    showSuccess("Informações preenchidas! Complete os demais campos.");
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -98,7 +162,8 @@ export default function Admin() {
         neighborhood: form.neighborhood!,
         matchScore: Number(form.matchScore || 90),
         durationHours: Number(form.durationHours || 2),
-        bestTime: form.bestTime || "Tarde"
+        bestTime: form.bestTime || "Tarde",
+        affiliateLink: form.affiliateLink || ""
       };
       const updated = [newAttr, ...attractions];
       setAttractions(updated);
@@ -117,7 +182,8 @@ export default function Admin() {
       neighborhood: "",
       matchScore: 90,
       durationHours: 2,
-      bestTime: "Tarde"
+      bestTime: "Tarde",
+      affiliateLink: ""
     });
   };
 
@@ -158,6 +224,47 @@ export default function Admin() {
             <h2 className="font-serif text-2xl font-light text-[#0D0E10] mb-6">
               {editingId ? "Editar Experiência" : "Nova Experiência"}
             </h2>
+
+            {/* GetYourGuide Search */}
+            <div className="mb-6 p-4 bg-[#F3EFEA]/50 rounded-2xl border border-[#EAE6DF]">
+              <p className="text-xs font-medium text-slate-500 mb-2 flex items-center gap-1">
+                <Search className="h-3.5 w-3.5" />
+                Buscar no GetYourGuide (Demo)
+              </p>
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  placeholder="Ex: Central Park, Top of the Rock..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="flex-1 bg-white border border-[#EAE6DF] rounded-xl px-3 py-2 text-sm text-[#0D0E10] focus:outline-none focus:border-[#C5A85C]"
+                />
+                <button
+                  type="button"
+                  onClick={handleSearchGetYourGuide}
+                  disabled={isSearching}
+                  className="px-4 rounded-xl bg-[#0D0E10] text-white text-xs font-medium hover:bg-slate-800 transition-colors disabled:opacity-50"
+                >
+                  {isSearching ? "Buscando..." : "Buscar"}
+                </button>
+              </div>
+
+              {/* Search Results */}
+              {searchResults.length > 0 && (
+                <div className="mt-3 space-y-2 max-h-48 overflow-y-auto">
+                  {searchResults.map((result, idx) => (
+                    <button
+                      key={idx}
+                      onClick={() => handleUseSearchResult(result)}
+                      className="w-full text-left p-3 rounded-xl bg-white border border-[#EAE6DF] hover:border-[#C5A85C] transition-colors"
+                    >
+                      <p className="font-medium text-sm text-[#0D0E10]">{result.name}</p>
+                      <p className="text-xs text-slate-500 mt-0.5">{result.price}</p>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
 
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="space-y-1.5">
@@ -221,6 +328,20 @@ export default function Admin() {
                   onChange={(e) => setForm({ ...form, image: e.target.value })}
                   className="w-full bg-[#FAF8F5] border border-[#EAE6DF] rounded-2xl px-4 py-3 text-sm text-[#0D0E10] focus:outline-none focus:border-[#C5A85C]"
                 />
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-xs font-medium text-slate-500">Link de Afiliado (GetYourGuide)</label>
+                <input
+                  type="url"
+                  placeholder="https://www.getyourguide.com/..."
+                  value={form.affiliateLink}
+                  onChange={(e) => setForm({ ...form, affiliateLink: e.target.value })}
+                  className="w-full bg-[#FAF8F5] border border-[#EAE6DF] rounded-2xl px-4 py-3 text-sm text-[#0D0E10] focus:outline-none focus:border-[#C5A85C]"
+                />
+                <p className="text-[10px] text-slate-400 mt-1">
+                  Adicione o link de afiliado para reserva direta no roteiro final
+                </p>
               </div>
 
               <div className="grid grid-cols-3 gap-4">
@@ -311,7 +432,8 @@ export default function Admin() {
                         neighborhood: "",
                         matchScore: 90,
                         durationHours: 2,
-                        bestTime: "Tarde"
+                        bestTime: "Tarde",
+                        affiliateLink: ""
                       });
                     }}
                     className="px-4 rounded-2xl border border-[#EAE6DF] text-slate-500 hover:bg-slate-50 text-sm"
@@ -352,6 +474,17 @@ export default function Admin() {
                         {attr.name}
                       </h3>
                       <div className="flex items-center gap-1 shrink-0">
+                        {attr.affiliateLink && (
+                          <a
+                            href={attr.affiliateLink}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="p-1.5 text-[#C5A85C] hover:bg-white rounded-lg transition-colors"
+                            title="Ver link de afiliado"
+                          >
+                            <ExternalLink className="h-3.5 w-3.5" />
+                          </a>
+                        )}
                         <button
                           onClick={() => handleEdit(attr)}
                           className="p-1.5 text-slate-400 hover:text-[#C5A85C] hover:bg-white rounded-lg transition-colors"
@@ -377,6 +510,12 @@ export default function Admin() {
                       <span>{attr.neighborhood}</span>
                       <span>•</span>
                       <span className="text-slate-600">{attr.costUSD === 0 ? "Grátis" : `U$ ${attr.costUSD}`}</span>
+                      {attr.affiliateLink && (
+                        <>
+                          <span>•</span>
+                          <span className="text-emerald-600">Afiliado</span>
+                        </>
+                      )}
                     </div>
                   </div>
                 </div>

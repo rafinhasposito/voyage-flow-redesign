@@ -13,6 +13,7 @@ export interface Attraction {
   matchScore: number;
   durationHours: number;
   bestTime: string;
+  affiliateLink?: string;
 }
 
 export interface UserProfile {
@@ -48,7 +49,8 @@ export const DEFAULT_ATTRACTIONS: Attraction[] = [
     neighborhood: "Midtown / Upper Side",
     matchScore: 98,
     durationHours: 3,
-    bestTime: "Manhã"
+    bestTime: "Manhã",
+    affiliateLink: "https://www.getyourguide.com/new-york-l57/central-park-bike-tour-tickets-r123456.html"
   },
   {
     id: "the-met",
@@ -62,7 +64,8 @@ export const DEFAULT_ATTRACTIONS: Attraction[] = [
     neighborhood: "Upper East Side",
     matchScore: 95,
     durationHours: 4,
-    bestTime: "Tarde"
+    bestTime: "Tarde",
+    affiliateLink: "https://www.getyourguide.com/new-york-l57/met-museum-priority-ticket-tickets-r234567.html"
   },
   {
     id: "top-of-the-rock",
@@ -76,7 +79,8 @@ export const DEFAULT_ATTRACTIONS: Attraction[] = [
     neighborhood: "Midtown",
     matchScore: 94,
     durationHours: 2,
-    bestTime: "Pôr do sol"
+    bestTime: "Pôr do sol",
+    affiliateLink: "https://www.getyourguide.com/new-york-l57/top-of-the-rock-skip-the-line-tickets-r345678.html"
   },
   {
     id: "high-line",
