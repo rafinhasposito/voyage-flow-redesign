@@ -48,11 +48,15 @@ export interface TravelExperience {
 // Para manter compatibilidade com o código atual
 export type Attraction = TravelExperience;
 
-export interface RecommendedExperience {
-  experience: TravelExperience;
-  finalScore: number;
-  matchPercentage: number;
-  humanJustification: string;
+export interface UserPreferenceSignal {
+  experienceId: string;
+  action: "like" | "dislike" | "save" | "detail_view";
+  timestamp: string;
+  context: {
+    companionship: TravelCompanionship;
+    season: "winter" | "spring" | "summer" | "autumn" | "all";
+    budget: "$" | "$$" | "$$$" | "$$$$";
+  };
 }
 
 export interface EngineWeights {
@@ -68,10 +72,30 @@ export const DEFAULT_ENGINE_WEIGHTS: EngineWeights = {
   personaAffinity: 0.35,
   tagAffinity: 0.25,
   seasonalMatch: 0.15,
-  budgetCompatibility: 0.10,
+  budgetCompatibility: 0.15,
   companionshipMatch: 0.10,
   behavioralLearning: 0.05
 };
+
+export interface RecommendationContext {
+  profile: UserProfile;
+  trip: TripContext;
+  weights: EngineWeights;
+  currentDate: string;
+}
+
+export interface MatchExplanation {
+  reasons: string[];
+  warnings: string[];
+  humanJustification: string;
+}
+
+export interface RecommendedExperience {
+  experience: TravelExperience;
+  finalScore: number;
+  confidence: number;
+  explanation: MatchExplanation;
+}
 
 export type TravelerPersona = 
   | "explorador_visual"
@@ -577,7 +601,7 @@ export const DEFAULT_ATTRACTIONS: TravelExperience[] = [
     dressCode: "casual",
     reservationRequired: false,
     availability: "Aberto até altas horas",
-    accessibility: ["none"], // tiny space
+    accessibility: ["none"],
     rating: 4.8,
     tags: ["food", "pizza", "iconic", "budget", "nightlife"],
     personaWeights: {
@@ -811,7 +835,6 @@ export function getStoredAttractions(): TravelExperience[] {
   if (saved) {
     try {
       const parsed = JSON.parse(saved);
-      // Migração: se não tem campos ricos como 'emotionalDescription', reiniciamos do mock rico
       if (parsed.length > 0 && !parsed[0].emotionalDescription) {
         console.warn("Dados legados detectados nas atrações. Atualizando para TravelExperiences ricas.");
         localStorage.setItem("viagem_dos_sonhos_attractions", JSON.stringify(DEFAULT_ATTRACTIONS));
@@ -932,7 +955,6 @@ export function getTravelState(): TravelState {
   const saved = localStorage.getItem("viagem_dos_sonhos_state");
   const attractions = getStoredAttractions();
 
-  // Perfis padrão caso não tenha estado
   const DEFAULT_PROFILE: UserProfile = {
     style: "couple",
     interests: ["culture", "food", "views", "classic"],
@@ -980,14 +1002,10 @@ export function getTravelState(): TravelState {
   if (saved) {
     try {
       const state = JSON.parse(saved) as any;
-      
-      // Realiza a migração do perfil e da viagem
       state.profile = migrateProfile(state.profile);
       if (!state.trip) {
         state.trip = migrateTrip(state.profile);
       }
-      
-      // Temporariamente, se houver roteiro antigo, mantemos, mas a UI não vai quebrar por causa do alias `Attraction = TravelExperience`
       return state as TravelState;
     } catch (e) {
       console.error("Erro ao carregar estado", e);
@@ -1028,38 +1046,436 @@ export function saveTravelState(state: TravelState) {
   localStorage.setItem("viagem_dos_sonhos_state", JSON.stringify(state));
 }
 
-// Futuro: Fase 2.3 integrará o RecommendationEngine aqui. Por enquanto, mantém lógica base para retrocompatibilidade
+// ==========================================
+// EXPERIENCE MATCHING ENGINE (PURE DOMAIN)
+// ==========================================
+export class ExperienceMatchingEngine {
+  static calculateScore(
+    experience: TravelExperience,
+    context: RecommendationContext
+  ): RecommendedExperience {
+    const { profile, trip, weights } = context;
+    const reasons: string[] = [];
+    const warnings: string[] = [];
+
+    // 1. PERSONA MATCH (0.0 a 1.0)
+    let personaScore = 0;
+    if (experience.personaWeights && profile.personaAffinity) {
+      let weightSum = 0;
+      let userSum = 0;
+      for (const key in experience.personaWeights) {
+        const p = key as TravelerPersona;
+        const eWeight = experience.personaWeights[p] || 0;
+        const uAff = profile.personaAffinity[p] || 0;
+        personaScore += eWeight * uAff;
+        weightSum += eWeight;
+        userSum += uAff;
+      }
+      if (weightSum > 0 && userSum > 0) {
+        personaScore = personaScore / Math.min(weightSum, userSum);
+      }
+    }
+    personaScore = Math.max(0, Math.min(1, personaScore));
+    if (personaScore > 0.75) {
+      reasons.push("Alinhado com o seu perfil psicográfico");
+    }
+
+    // 2. TAG MATCH (0.0 a 1.0)
+    let tagScore = 0.5;
+    if (experience.tags && experience.tags.length > 0) {
+      let sum = 0;
+      let count = 0;
+      experience.tags.forEach(tag => {
+        const aff = profile.tagAffinity[tag] !== undefined ? profile.tagAffinity[tag] : 0.5;
+        sum += aff;
+        count++;
+      });
+      tagScore = sum / count;
+    }
+    if (tagScore > 0.75) {
+      reasons.push("Compatível com seu histórico de interesses");
+    }
+
+    // 3. SEASON MATCH (0.0 a 1.0)
+    let seasonScore = 0.7;
+    const tripSeason = trip.atmosphere.theme;
+    const mappingSeason: Record<string, string> = {
+      winter_magic: "winter",
+      romantic_spring: "spring",
+      sunny_summer: "summer",
+      golden_autumn: "autumn"
+    };
+    const currentSeasonStr = mappingSeason[tripSeason] || "all";
+
+    if (experience.recommendedSeasons) {
+      if (experience.recommendedSeasons.includes("all") || experience.recommendedSeasons.includes(currentSeasonStr as any)) {
+        seasonScore = 1.0;
+        reasons.push("Excelente opção para esta estação do ano");
+      } else if (!experience.isIndoor && currentSeasonStr === "winter") {
+        seasonScore = 0.25;
+        warnings.push("Atividade ao ar livre recomendada para clima quente");
+      } else {
+        seasonScore = 0.6;
+      }
+    }
+
+    // 4. BUDGET MATCH (0.0 a 1.0)
+    let budgetScore = 1.0;
+    const budgetMap: Record<string, number> = { "$": 1, "$$": 2, "$$$": 3, "$$$$": 4 };
+    const userBudgetLevel = budgetMap[profile.budget] || 2;
+    const expBudgetLevel = budgetMap[experience.costLevel] || 2;
+
+    if (userBudgetLevel < expBudgetLevel) {
+      const diff = expBudgetLevel - userBudgetLevel;
+      if (diff === 1) {
+        budgetScore = 0.6;
+        warnings.push("Experiência com custo ligeiramente acima do seu orçamento usual");
+      } else {
+        budgetScore = 0.2;
+        warnings.push("Custo significativamente acima do seu perfil de gastos");
+      }
+    } else {
+      budgetScore = 1.0;
+      if (experience.costLevel === "$") {
+        reasons.push("Ótima alternativa para economizar no orçamento");
+      }
+    }
+
+    // 5. COMPANIONSHIP MATCH (0.0 a 1.0)
+    let companionshipScore = 0.7;
+    let compKey: "couple" | "family" | "solo" | "friends" = "friends";
+    if (profile.companionship === "solo") compKey = "solo";
+    else if (profile.companionship === "couple" || profile.companionship === "romantic") compKey = "couple";
+    else if (profile.companionship === "family") compKey = "family";
+    else compKey = "friends";
+
+    if (experience.companionshipCompatibility && experience.companionshipCompatibility[compKey] !== undefined) {
+      companionshipScore = experience.companionshipCompatibility[compKey];
+    }
+    if (companionshipScore > 0.85) {
+      if (compKey === "couple") reasons.push("Perfeito para uma viagem a dois");
+      else if (compKey === "family") reasons.push("Muito bem recomendado para famílias");
+      else if (compKey === "solo") reasons.push("Altamente recomendado para viajantes solo");
+    }
+
+    // 6. EXCLUSIVITY & PREFERENCES
+    if (experience.exclusivityLevel === "exclusive" || experience.exclusivityLevel === "invite_only") {
+      if (profile.financial.investmentProfile === "unique_experiences" || profile.financial.investmentProfile === "no_limits") {
+        reasons.push("Uma experiência VIP altamente exclusiva");
+      } else {
+        warnings.push("Experiência de alto padrão com acesso restrito/reservado");
+      }
+    }
+    if (experience.reservationRequired) {
+      warnings.push("Necessita de reserva antecipada");
+    }
+
+    // PESOS GLOBAIS DO ENGINEWEIGHTS (Sem hardcoding na fórmula)
+    const wPersona = weights.personaAffinity;
+    const wTag = weights.tagAffinity;
+    const wSeason = weights.seasonalMatch;
+    const wBudget = weights.budgetCompatibility;
+    const wCompanionship = weights.companionshipMatch;
+
+    const totalWeight = wPersona + wTag + wSeason + wBudget + wCompanionship;
+    const rawScore = 
+      (personaScore * wPersona +
+       tagScore * wTag +
+       seasonScore * wSeason +
+       budgetScore * wBudget +
+       companionshipScore * wCompanionship) / (totalWeight || 1);
+
+    let finalScore = Math.round(rawScore * 1000);
+
+    // Sobrescritas por Swipes
+    if (profile.swipedRightIds && profile.swipedRightIds.includes(experience.id)) {
+      finalScore = 10000;
+    } else if (profile.swipedLeftIds && profile.swipedLeftIds.includes(experience.id)) {
+      finalScore = -10000;
+    }
+
+    // Nível de Confiança
+    const interactionCount = (profile.swipedRightIds?.length || 0) + (profile.swipedLeftIds?.length || 0);
+    const confidence = Math.min(0.95, 0.5 + (interactionCount * 0.05));
+
+    // Storytelling dinâmico
+    let humanJustification = "";
+    if (finalScore >= 10000) {
+      humanJustification = `Esta experiência foi selecionada e favoritada por você no Tinder de Viagens.`;
+    } else if (finalScore <= -10000) {
+      humanJustification = `Experiência removida do seu roteiro por decisão de swipe.`;
+    } else {
+      const positiveTraits: string[] = [];
+      if (personaScore > 0.75) positiveTraits.push("combina com sua vibe");
+      if (companionshipScore > 0.85) {
+        if (compKey === "couple") positiveTraits.push("é fantástica para curtir a dois");
+        else if (compKey === "family") positiveTraits.push("é ideal para aproveitar com a família");
+        else positiveTraits.push("se encaixa muito bem com seu grupo de viagem");
+      }
+      if (seasonScore > 0.8) {
+        if (currentSeasonStr === "winter") positiveTraits.push("é uma ótima pedida para o inverno nova-iorquino");
+        else positiveTraits.push("combina demais com o clima atual");
+      }
+
+      if (positiveTraits.length > 0) {
+        humanJustification = `Escolhemos o ${experience.name} porque ele ${positiveTraits.join(", ")}. Uma curadoria pensada para seu momento.`;
+      } else {
+        humanJustification = `Recomendamos o ${experience.name} por possuir boa sinergia de localização e custo-benefício para seu estilo.`;
+      }
+    }
+
+    return {
+      experience,
+      finalScore,
+      confidence,
+      explanation: {
+        reasons,
+        warnings,
+        humanJustification
+      }
+    };
+  }
+
+  static rankExperiences(
+    experiences: TravelExperience[],
+    context: RecommendationContext
+  ): RecommendedExperience[] {
+    return experiences
+      .map(exp => this.calculateScore(exp, context))
+      .sort((a, b) => b.finalScore - a.finalScore);
+  }
+
+  // Aprendizado Comportamental Suave (EMA)
+  static processSwipe(
+    signal: UserPreferenceSignal,
+    profile: UserProfile,
+    weights: EngineWeights
+  ): UserProfile {
+    const newProfile = { ...profile };
+    newProfile.tagAffinity = { ...profile.tagAffinity };
+    newProfile.personaAffinity = { ...profile.personaAffinity };
+
+    const experience = DEFAULT_ATTRACTIONS.find(a => a.id === signal.experienceId);
+    if (!experience) return newProfile;
+
+    const L = weights.behavioralLearning || 0.05;
+
+    // EMA para tagAffinity
+    if (experience.tags) {
+      experience.tags.forEach(tag => {
+        const currentAff = newProfile.tagAffinity[tag] !== undefined ? newProfile.tagAffinity[tag] : 0.5;
+        const targetValue = signal.action === "like" || signal.action === "save" ? 1.0 : 0.0;
+        newProfile.tagAffinity[tag] = parseFloat(
+          (currentAff * (1 - L) + targetValue * L).toFixed(4)
+        );
+      });
+    }
+
+    // EMA extremamente suave para PersonaAffinity (Dampened Update)
+    if (experience.personaWeights && newProfile.personaAffinity) {
+      const Lp = L / 2;
+      for (const key in experience.personaWeights) {
+        const p = key as TravelerPersona;
+        const eWeight = experience.personaWeights[p] || 0;
+        const uAff = newProfile.personaAffinity[p] || 0.5;
+        newProfile.personaAffinity[p] = parseFloat(
+          (uAff * (1 - Lp) + eWeight * Lp).toFixed(4)
+        );
+      }
+    }
+
+    // Registra a interação no histórico
+    if (!newProfile.interactions) {
+      newProfile.interactions = [];
+    }
+    newProfile.interactions.push({
+      tripId: "active-trip",
+      attractionId: signal.experienceId,
+      action: signal.action === "like" || signal.action === "save" ? "liked" : "disliked",
+      timestamp: signal.timestamp
+    });
+
+    // Listas de Swipes para exclusão / atração determinística
+    if (signal.action === "like" || signal.action === "save") {
+      if (!newProfile.swipedRightIds.includes(signal.experienceId)) {
+        newProfile.swipedRightIds.push(signal.experienceId);
+      }
+      newProfile.swipedLeftIds = newProfile.swipedLeftIds.filter(id => id !== signal.experienceId);
+    } else if (signal.action === "dislike") {
+      if (!newProfile.swipedLeftIds.includes(signal.experienceId)) {
+        newProfile.swipedLeftIds.push(signal.experienceId);
+      }
+      newProfile.swipedRightIds = newProfile.swipedRightIds.filter(id => id !== signal.experienceId);
+    }
+
+    return newProfile;
+  }
+
+  // Suite de diagnósticos offline (executável localmente)
+  static runDiagnostics(): string {
+    const mockTrip: TripContext = {
+      id: "trip-test",
+      destination: "Nova York",
+      startDate: "2026-12-25",
+      endDate: "2026-12-29",
+      days: 4,
+      hasFlightBought: false,
+      boardingPass: {
+        currentStep: "destination_selected",
+        ticketNumber: "VF-TEST",
+        seatNumber: "12A",
+        gate: "GATE B3",
+        boardingGroup: "Group A",
+        isUnlocked: { passenger: true, destination: true, dates: true, atmosphere: true }
+      },
+      atmosphere: {
+        theme: "winter_magic",
+        title: "Winter Magic",
+        primaryColor: "#4A7BB0",
+        textColor: "#FFFFFF",
+        backgroundImage: "",
+        greetings: []
+      }
+    };
+
+    const mockWeights = DEFAULT_ENGINE_WEIGHTS;
+
+    // Cenário 1: Viajante Econômico Solo em busca de Natureza
+    const profileEconomicSolo: UserProfile = {
+      style: "solo",
+      interests: ["nature", "classic"],
+      budget: "$",
+      days: 4,
+      startDate: "2026-12-25",
+      passengerName: "Bob Econômico",
+      personaAffinity: { explorador_visual: 0.4, curador_experiencias: 0.2, descobridor: 0.9, aproveitador: 0.5, slow_traveler: 0.8 },
+      tagAffinity: {},
+      pace: "equilibrado",
+      companionship: "solo",
+      transport: "metro",
+      financial: { investmentProfile: "save_explore", spendingPriorities: ["tours"] },
+      swipedRightIds: [],
+      swipedLeftIds: [],
+      interactions: []
+    };
+
+    // Cenário 2: Casal Premium/Luxo (Rooftops, Fine Dining)
+    const profilePremiumCouple: UserProfile = {
+      style: "couple",
+      interests: ["food", "views"],
+      budget: "$$$$",
+      days: 4,
+      startDate: "2026-12-25",
+      passengerName: "Alice & Carlos Premium",
+      personaAffinity: { explorador_visual: 0.9, curador_experiencias: 1.0, descobridor: 0.3, aproveitador: 0.7, slow_traveler: 0.5 },
+      tagAffinity: {},
+      pace: "relaxado",
+      companionship: "couple",
+      transport: "uber",
+      financial: { investmentProfile: "no_limits", spendingPriorities: ["gastronomy", "hotels"] },
+      swipedRightIds: [],
+      swipedLeftIds: [],
+      interactions: []
+    };
+
+    const ctxEconomic = { profile: profileEconomicSolo, trip: mockTrip, weights: mockWeights, currentDate: "2026-12-25" };
+    const ctxPremium = { profile: profilePremiumCouple, trip: mockTrip, weights: mockWeights, currentDate: "2026-12-25" };
+
+    const rankEco = this.rankExperiences(DEFAULT_ATTRACTIONS, ctxEconomic);
+    const rankPre = this.rankExperiences(DEFAULT_ATTRACTIONS, ctxPremium);
+
+    let output = "=== DIAGNÓSTICO DO ENGINE DE CURADORIA ===\n\n";
+
+    output += `VIAJANTE: ${profileEconomicSolo.passengerName} (Orçamento $, Solo, Foco Natureza/Slow)\n`;
+    output += "TOP 3 RECOMENDAÇÕES:\n";
+    rankEco.slice(0, 3).forEach((r, i) => {
+      output += `${i+1}. ${r.experience.name} | Score: ${r.finalScore} | Justificativa: ${r.explanation.humanJustification}\n`;
+    });
+    output += "\n";
+
+    output += `VIAJANTE: ${profilePremiumCouple.passengerName} (Orçamento $$$$, Casal, Foco Luxo/Visual)\n`;
+    output += "TOP 3 RECOMENDAÇÕES:\n";
+    rankPre.slice(0, 3).forEach((r, i) => {
+      output += `${i+1}. ${r.experience.name} | Score: ${r.finalScore} | Justificativa: ${r.explanation.humanJustification}\n`;
+    });
+
+    return output;
+  }
+}
+
+// ==========================================
+// ROTEIRO INTELIGENTE (INTEGRADO À ENGINE)
+// ==========================================
 export function generateSmartItinerary(profile: UserProfile): ItineraryDay[] {
-  const attractions = getStoredAttractions();
+  const experiences = getStoredAttractions();
 
-  const matched = attractions.filter(attr => {
-    if (profile.budget === "$" && attr.costLevel === "$$$$") return false;
-    return profile.interests.includes(attr.category) || attr.category === "classic";
+  // 1. Constrói o contexto dinâmico da viagem a partir do perfil do viajante
+  const trip = migrateTrip(profile);
+  const context: RecommendationContext = {
+    profile,
+    trip,
+    weights: DEFAULT_ENGINE_WEIGHTS,
+    currentDate: profile.startDate || new Date().toISOString().split("T")[0]
+  };
+
+  // 2. Classifica e ordena todas as experiências disponíveis no catálogo
+  const rankedResults = ExperienceMatchingEngine.rankExperiences(experiences, context);
+
+  // Filtra as experiências ativas (não rejeitadas por swipe left)
+  const availableRanked = rankedResults.filter(r => r.finalScore > -9000);
+
+  // 3. Auditoria de Log Temporário para calibração fina da inteligência
+  console.log(`=== [AUDITORIA] GERAÇÃO DE ROTEIRO PARA: ${profile.passengerName} ===`);
+  availableRanked.forEach((r, idx) => {
+    console.log(
+      `Rank ${idx + 1}: ${r.experience.name} | Score: ${r.finalScore} | Confiança: ${r.confidence.toFixed(2)} | ` +
+      `Fatores: [${r.explanation.reasons.join(", ")}] | Alertas: [${r.explanation.warnings.join(", ")}] | ` +
+      `Justificativa: "${r.explanation.humanJustification}"`
+    );
   });
-
-  const sorted = [...matched].sort((a, b) => b.matchScore - a.matchScore);
+  console.log(`================================================================`);
 
   const itinerary: ItineraryDay[] = [];
-  let attractionIndex = 0;
+  let rankedIndex = 0;
 
   for (let d = 1; d <= profile.days; d++) {
-    const dayAttractions: TravelExperience[] = [];
-    
+    const dayRecommendations: RecommendedExperience[] = [];
+    const dayAttractionsLegacy: TravelExperience[] = [];
+
     for (let i = 0; i < 3; i++) {
-      if (attractionIndex < sorted.length) {
-        dayAttractions.push(sorted[attractionIndex]);
-        attractionIndex++;
+      if (rankedIndex < availableRanked.length) {
+        const rec = availableRanked[rankedIndex];
+        dayRecommendations.push(rec);
+        dayAttractionsLegacy.push(rec.experience);
+        rankedIndex++;
       } else {
-        const fallback = attractions[Math.floor(Math.random() * attractions.length)];
-        if (fallback && !dayAttractions.some(a => a.id === fallback.id)) {
-          dayAttractions.push(fallback);
+        // Fallback determinístico para preencher dias extras (viagens longas ou catálogo curto):
+        // Reinicia o ponteiro circulando pelas experiências recomendadas do usuário,
+        // garantindo que não duplicamos a mesma experiência NO MESMO DIA.
+        let fallbackFound = false;
+        for (let attempt = 0; attempt < availableRanked.length; attempt++) {
+          const fallbackRec = availableRanked[attempt % availableRanked.length];
+          if (!dayRecommendations.some(r => r.experience.id === fallbackRec.experience.id)) {
+            dayRecommendations.push(fallbackRec);
+            dayAttractionsLegacy.push(fallbackRec.experience);
+            fallbackFound = true;
+            break;
+          }
+        }
+        // No pior cenário teórico onde o total de recomendados é menor que as atrações do dia,
+        // permitimos duplicidade para não quebrar a integridade do loop.
+        if (!fallbackFound && availableRanked.length > 0) {
+          const fallbackRec = availableRanked[0];
+          dayRecommendations.push(fallbackRec);
+          dayAttractionsLegacy.push(fallbackRec.experience);
         }
       }
     }
 
     itinerary.push({
       dayNumber: d,
-      attractions: dayAttractions
+      attractions: dayAttractionsLegacy, // Compatibilidade visual (Dashboard legado)
+      recommendations: dayRecommendations // Nova camada rica com justificativas e scores
     });
   }
 

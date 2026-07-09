@@ -7,8 +7,11 @@ import {
   CheckSquare, Square, Plus, Trash2, ArrowRight, ChevronRight, 
   Briefcase, Award, RefreshCw, Heart
 } from "lucide-react";
-import { getTravelState, saveTravelState, Attraction, ItineraryDay } from "@/utils/travelState";
+import { getTravelState, saveTravelState, Attraction, ItineraryDay, RecommendedExperience } from "@/utils/travelState";
 import { showSuccess } from "@/utils/toast";
+import { MatchScoreBadge } from "@/components/MatchScoreBadge";
+import { ConciergeExplanation } from "@/components/ConciergeExplanation";
+import { ExperienceWarning } from "@/components/ExperienceWarning";
 
 export default function Dashboard() {
   const navigate = useNavigate();
@@ -34,7 +37,8 @@ export default function Dashboard() {
       if (day.dayNumber === dayNumber) {
         return {
           ...day,
-          attractions: day.attractions.filter(a => a.id !== attractionId)
+          attractions: day.attractions.filter(a => a.id !== attractionId),
+          recommendations: day.recommendations ? day.recommendations.filter(r => r.experience.id !== attractionId) : []
         };
       }
       return day;
@@ -147,56 +151,74 @@ export default function Dashboard() {
 
             {currentDayData && currentDayData.attractions.length > 0 ? (
               <div className="relative border-l-2 border-[#EAE6DF] ml-4 pl-6 space-y-8">
-                {currentDayData.attractions.map((attr, idx) => (
-                  <div key={attr.id} className="relative group">
-                    {/* Timeline Dot */}
-                    <span className="absolute -left-[31px] top-1.5 grid h-4 w-4 place-items-center rounded-full bg-white border-2 border-[#C5A85C] group-hover:bg-[#C5A85C] transition-colors" />
+                {currentDayData.attractions.map((attr, idx) => {
+                  const rec = currentDayData.recommendations?.find(r => r.experience.id === attr.id);
+                  return (
+                    <div key={attr.id} className="relative group">
+                      {/* Timeline Dot */}
+                      <span className="absolute -left-[31px] top-1.5 grid h-4 w-4 place-items-center rounded-full bg-white border-2 border-[#C5A85C] group-hover:bg-[#C5A85C] transition-colors" />
 
-                    <div className="grid gap-4 md:grid-cols-[120px_1fr] items-start">
-                      {/* Attraction Image */}
-                      <div className="aspect-[4/3] md:aspect-square rounded-xl overflow-hidden bg-slate-100 border border-[#EAE6DF]">
-                        <img src={attr.image} alt={attr.name} className="h-full w-full object-cover" />
-                      </div>
-
-                      {/* Attraction Details */}
-                      <div className="space-y-2">
-                        <div className="flex items-start justify-between gap-2">
-                          <div>
-                            <span className="text-[10px] font-semibold uppercase tracking-wider text-[#C5A85C]">
-                              {attr.categoryLabel}
-                            </span>
-                            <h4 className="font-serif text-lg font-medium text-[#0D0E10] mt-0.5">
-                              {attr.name}
-                            </h4>
-                          </div>
-                          <button
-                            onClick={() => handleRemoveAttraction(activeDay, attr.id)}
-                            className="text-slate-300 hover:text-red-500 p-1 transition-colors"
-                            title="Remover do roteiro"
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </button>
+                      <div className="grid gap-4 md:grid-cols-[120px_1fr] items-start">
+                        {/* Attraction Image */}
+                        <div className="aspect-[4/3] md:aspect-square rounded-xl overflow-hidden bg-slate-100 border border-[#EAE6DF] relative">
+                          <img src={attr.image} alt={attr.name} className="h-full w-full object-cover" />
+                          {rec && (
+                            <div className="absolute top-2 right-2">
+                              <MatchScoreBadge score={rec.finalScore} />
+                            </div>
+                          )}
                         </div>
 
-                        <p className="text-xs text-slate-500 leading-relaxed">{attr.description}</p>
+                        {/* Attraction Details */}
+                        <div className="space-y-2">
+                          <div className="flex items-start justify-between gap-2">
+                            <div>
+                              <span className="text-[10px] font-semibold uppercase tracking-wider text-[#C5A85C]">
+                                {attr.categoryLabel}
+                              </span>
+                              <h4 className="font-serif text-lg font-medium text-[#0D0E10] mt-0.5">
+                                {attr.name}
+                              </h4>
+                            </div>
+                            <button
+                              onClick={() => handleRemoveAttraction(activeDay, attr.id)}
+                              className="text-slate-300 hover:text-red-500 p-1 transition-colors"
+                              title="Remover do roteiro"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </button>
+                          </div>
 
-                        <div className="flex flex-wrap items-center gap-x-4 gap-y-2 pt-1 text-xs text-slate-400">
-                          <span className="flex items-center gap-1">
-                            <MapPin className="h-3.5 w-3.5 text-slate-300" />
-                            {attr.neighborhood}
-                          </span>
-                          <span className="flex items-center gap-1">
-                            <Clock className="h-3.5 w-3.5 text-slate-300" />
-                            {attr.durationHours}h · {attr.bestTime}
-                          </span>
-                          <span className="flex items-center gap-0.5 font-medium text-slate-600">
-                            Custo: {attr.costUSD === 0 ? "Grátis" : `U$ ${attr.costUSD}`}
-                          </span>
+                          <p className="text-xs text-slate-500 leading-relaxed">{attr.description}</p>
+
+                          {rec && (
+                            <>
+                              <ConciergeExplanation 
+                                justification={rec.explanation.humanJustification}
+                                reasons={rec.explanation.reasons}
+                              />
+                              <ExperienceWarning warnings={rec.explanation.warnings} />
+                            </>
+                          )}
+
+                          <div className="flex flex-wrap items-center gap-x-4 gap-y-2 pt-1 text-xs text-slate-400">
+                            <span className="flex items-center gap-1">
+                              <MapPin className="h-3.5 w-3.5 text-slate-300" />
+                              {attr.neighborhood}
+                            </span>
+                            <span className="flex items-center gap-1">
+                              <Clock className="h-3.5 w-3.5 text-slate-300" />
+                              {attr.durationHours}h · {attr.bestTime}
+                            </span>
+                            <span className="flex items-center gap-0.5 font-medium text-slate-600">
+                              Custo: {attr.costUSD === 0 ? "Grátis" : `U$ ${attr.costUSD}`}
+                            </span>
+                          </div>
                         </div>
                       </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             ) : (
               <div className="text-center py-12 space-y-4">

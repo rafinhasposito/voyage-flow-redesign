@@ -6,8 +6,10 @@ import {
   Compass, Search, Filter, Sparkles, Plus, Check, 
   MapPin, Clock, DollarSign, Landmark, Utensils, Eye, ShoppingBag
 } from "lucide-react";
-import { getTravelState, saveTravelState, getStoredAttractions, Attraction } from "@/utils/travelState";
+import { getTravelState, saveTravelState, getStoredAttractions, Attraction, ExperienceMatchingEngine, DEFAULT_ENGINE_WEIGHTS, migrateTrip } from "@/utils/travelState";
 import { showSuccess } from "@/utils/toast";
+import { MatchScoreBadge } from "@/components/MatchScoreBadge";
+import { ExperienceWarning } from "@/components/ExperienceWarning";
 
 const CATEGORIES = [
   { id: "all", label: "Todos", icon: Compass },
@@ -40,11 +42,21 @@ export default function Catalog() {
       return;
     }
 
+    const trip = migrateTrip(state.profile);
+    const context = {
+      profile: state.profile,
+      trip,
+      weights: DEFAULT_ENGINE_WEIGHTS,
+      currentDate: state.profile.startDate || new Date().toISOString().split("T")[0]
+    };
+    const rec = ExperienceMatchingEngine.calculateScore(attraction, context);
+
     const updatedItinerary = state.itinerary.map(day => {
       if (day.dayNumber === selectedDay) {
         return {
           ...day,
-          attractions: [...day.attractions, attraction]
+          attractions: [...day.attractions, attraction],
+          recommendations: day.recommendations ? [...day.recommendations, rec] : [rec]
         };
       }
       return day;
@@ -165,6 +177,15 @@ export default function Catalog() {
               day.attractions.some(a => a.id === attr.id)
             );
 
+            const trip = migrateTrip(state.profile);
+            const context = {
+              profile: state.profile,
+              trip,
+              weights: DEFAULT_ENGINE_WEIGHTS,
+              currentDate: state.profile.startDate || new Date().toISOString().split("T")[0]
+            };
+            const rec = ExperienceMatchingEngine.calculateScore(attr, context);
+
             return (
               <article 
                 key={attr.id}
@@ -177,9 +198,11 @@ export default function Catalog() {
                     alt={attr.name} 
                     className="h-full w-full object-cover group-hover:scale-105 transition-transform duration-500"
                   />
-                  <div className="absolute top-4 right-4 bg-white/90 backdrop-blur px-3 py-1.5 rounded-full flex items-center gap-1 text-xs font-semibold text-[#0D0E10] shadow-sm">
-                    <Sparkles className="h-3.5 w-3.5 text-[#C5A85C]" />
-                    <span>{attr.matchScore}% Match</span>
+                  <div className="absolute top-3 right-3 flex flex-col gap-1.5 items-end">
+                    <div className="bg-white/90 backdrop-blur px-2.5 py-1 rounded-full flex items-center gap-1 text-[10px] font-medium text-slate-400 shadow-sm border border-slate-200">
+                      <span>Estático: {attr.matchScore}% Match</span>
+                    </div>
+                    <MatchScoreBadge score={rec.finalScore} label="Personalizado" />
                   </div>
                 </div>
 
@@ -208,6 +231,10 @@ export default function Catalog() {
                         {attr.costUSD === 0 ? "Grátis" : `U$ ${attr.costUSD}`}
                       </span>
                     </div>
+
+                    {rec.explanation.warnings.length > 0 && (
+                      <ExperienceWarning warnings={rec.explanation.warnings} />
+                    )}
 
                     {/* Add Button */}
                     <button
