@@ -19,6 +19,31 @@ export default {
     },
     extend: {
       colors: {
+        vf: {
+          lime: {
+            DEFAULT: "var(--vf-lime)",
+            dark: "var(--vf-lime-dark)",
+          },
+          black: "var(--vf-black)",
+          bg: "var(--vf-bg)",
+          surface: "var(--vf-surface)",
+          border: "var(--vf-border)",
+          muted: "var(--vf-muted)",
+          text: {
+            1: "var(--vf-text-1)",
+            2: "var(--vf-text-2)",
+            3: "var(--vf-text-3)",
+          },
+          success: "var(--vf-success)",
+          warning: "var(--vf-warning)",
+          danger: "var(--vf-danger)",
+          info: "var(--vf-info)",
+          gyg: "var(--vf-gyg)",
+          viator: "var(--vf-viator)",
+          civitatis: "var(--vf-civitatis)",
+          booking: "var(--vf-booking)",
+        },
+        // Legacy shadcn variables mapping
         border: "hsl(var(--border))",
         input: "hsl(var(--input))",
         ring: "hsl(var(--ring))",
@@ -52,38 +77,33 @@ export default {
           DEFAULT: "hsl(var(--card))",
           foreground: "hsl(var(--card-foreground))",
         },
-        sidebar: {
-          DEFAULT: "hsl(var(--sidebar-background))",
-          foreground: "hsl(var(--sidebar-foreground))",
-          primary: "hsl(var(--sidebar-primary))",
-          "primary-foreground": "hsl(var(--sidebar-primary-foreground))",
-          accent: "hsl(var(--sidebar-accent))",
-          "accent-foreground": "hsl(var(--sidebar-accent-foreground))",
-          border: "hsl(var(--sidebar-border))",
-          ring: "hsl(var(--sidebar-ring))",
-        },
+      },
+      fontFamily: {
+        sans: ["Inter", "sans-serif"],
+        serif: ["Inter", "sans-serif"],
       },
       borderRadius: {
-        lg: "var(--radius)",
-        md: "calc(var(--radius) - 2px)",
-        sm: "calc(var(--radius) - 4px)",
+        sm: "var(--vf-radius-sm)",
+        md: "var(--vf-radius-md)",
+        lg: "var(--vf-radius-lg)",
+        xl: "var(--vf-radius-xl)",
+        "2xl": "var(--vf-radius-2xl)",
+        full: "var(--vf-radius-full)",
+      },
+      boxShadow: {
+        "vf-sm": "var(--vf-shadow-sm)",
+        "vf-md": "var(--vf-shadow-md)",
+        "vf-lg": "var(--vf-shadow-lg)",
+        "vf-xl": "var(--vf-shadow-xl)",
       },
       keyframes: {
         "accordion-down": {
-          from: {
-            height: "0",
-          },
-          to: {
-            height: "var(--radix-accordion-content-height)",
-          },
+          from: { height: "0" },
+          to: { height: "var(--radix-accordion-content-height)" },
         },
         "accordion-up": {
-          from: {
-            height: "var(--radix-accordion-content-height)",
-          },
-          to: {
-            height: "0",
-          },
+          from: { height: "var(--radix-accordion-content-height)" },
+          to: { height: "0" },
         },
       },
       animation: {
