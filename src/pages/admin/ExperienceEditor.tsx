@@ -292,6 +292,8 @@ export default function ExperienceEditor() {
   const [isSaving, setIsSaving] = useState(false);
   const [isLoading, setIsLoading] = useState(!isNew);
   const [isSyncingAI, setIsSyncingAI] = useState(false);
+  const [enrichUrl, setEnrichUrl] = useState('');
+  const [isEnriching, setIsEnriching] = useState(false);
 
   const [activeTab, setActiveTab] = useState<'basic' | 'engine' | 'media'>('basic');
 
@@ -420,42 +422,109 @@ export default function ExperienceEditor() {
     }
   };
 
+  // ── URL Enrichment (REAL — calls import-bulk Edge Function) ─────────────────
+  const handleUrlEnrich = async () => {
+    if (!enrichUrl.trim()) { toast.error('Cole um link válido.'); return; }
+    setIsEnriching(true);
+    const toastId = toast.loading('IA lendo a página e extraindo informações...');
+    try {
+      const { data, error } = await supabase.functions.invoke('import-bulk', {
+        body: { target_url: enrichUrl.trim() }
+      });
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+      const exp = data?.experiences?.[0];
+      if (!exp) throw new Error('IA não encontrou dados nesta URL.');
+
+      // Populate form with real AI data
+      setForm(prev => ({
+        ...prev,
+        title: exp.title || prev.title,
+        type: exp.type || prev.type,
+        description: exp.description || exp.short_description || prev.description,
+        address: exp.address || prev.address,
+        neighborhood: exp.neighborhood || prev.neighborhood,
+        location_lat: exp.location_lat ?? prev.location_lat,
+        location_lng: exp.location_lng ?? prev.location_lng,
+        media_urls: exp.media_urls?.length ? exp.media_urls : prev.media_urls,
+        affiliateLink: enrichUrl.trim(), // set the source URL as affiliate link
+        rating: exp.rating ?? prev.rating,
+        reviews_count: exp.reviews_count ?? prev.reviews_count,
+        tags: exp.tags?.length ? exp.tags : prev.tags,
+        base_cost: exp.base_cost ?? prev.base_cost,
+        duration_minutes: exp.duration_minutes ?? prev.duration_minutes,
+        reservation_required: exp.reservation_required ?? prev.reservation_required,
+      }));
+
+      toast.success('✅ Dados importados! Revise e salve.', { id: toastId });
+      setEnrichUrl('');
+    } catch (e: any) {
+      toast.error('Erro: ' + (e.message || 'Falha na importação'), { id: toastId });
+    } finally {
+      setIsEnriching(false);
+    }
+  };
+
+  // ── AI Engine Sync (engine weights inference via Edge Function) ───────────────
   const handleAiSync = async () => {
-    if (!form.affiliateLink && !form.title) {
-      toast.error('Coloque um link do GetYourGuide ou um título para sincronizar.');
+    if (!form.title.trim()) {
+      toast.error('Preencha ao menos o título para sincronizar a Engine.');
       return;
     }
     setIsSyncingAI(true);
-    const toastId = toast.loading('IA lendo o contexto e inferindo matemática (Firecrawl + LLM)...');
-    
-    // Simulate AI extraction and mathematical inference for the Engine
-    setTimeout(() => {
-      setForm(p => ({
-        ...p,
-        personaWeights: {
-          explorador_visual: 90,
-          curador_experiencias: 75,
-          descobridor: 60,
-          aproveitador: 85,
-          slow_traveler: 30
-        },
-        companionshipCompatibility: {
-          solo: 60,
-          couple: 95,
-          family: 40,
-          friends: 80
-        },
-        recommendedSeasons: ['spring', 'summer', 'autumn'],
-        weatherCompatibility: ['all'],
-        exclusivityLevel: 'premium',
-        physicalEnergyRequired: 'low',
-        tags: [...p.tags, 'imperdivel', 'romantico', 'por_do_sol'],
-        duration_minutes: p.duration_minutes || 90,
-      }));
-      toast.success('Sincronização matemática da IA concluída!', { id: toastId });
+    const toastId = toast.loading('Calculando pesos da Engine de Matching...');
+    try {
+      // Call the AI engine scoring edge function
+      const { data, error } = await supabase.functions.invoke('ai-engine-score', {
+        body: {
+          title: form.title,
+          category: form.type,
+          description: form.description,
+          tags: form.tags,
+          neighborhood: form.neighborhood,
+          base_cost: form.base_cost,
+          duration_minutes: form.duration_minutes,
+        }
+      });
+
+      if (error || !data) {
+        // Fallback: intelligent local inference based on form data
+        const isOutdoor = !form.is_indoor;
+        const isExpensive = form.base_cost > 80;
+        const isLong = form.duration_minutes > 90;
+
+        setForm(p => ({
+          ...p,
+          personaWeights: {
+            explorador_visual: isOutdoor ? 85 : 55,
+            curador_experiencias: isExpensive ? 80 : 50,
+            descobridor: 70,
+            aproveitador: isLong ? 40 : 80,
+            slow_traveler: !isLong && !isExpensive ? 75 : 30,
+          },
+          companionshipCompatibility: {
+            solo: form.base_cost < 30 ? 80 : 60,
+            couple: 75,
+            family: form.type === 'attraction' ? 70 : 45,
+            friends: 80,
+          },
+          recommendedSeasons: isOutdoor ? ['spring', 'summer', 'autumn'] : ['all'],
+          weatherCompatibility: form.is_indoor ? ['all'] : ['sunny', 'cloudy'],
+          exclusivityLevel: isExpensive ? 'premium' : 'accessible',
+          physicalEnergyRequired: isLong ? 'high' : isOutdoor ? 'medium' : 'low',
+        }));
+        toast.success('✅ Engine calibrada com inteligência local!', { id: toastId });
+      } else {
+        setForm(p => ({ ...p, ...data }));
+        toast.success('✅ Engine sincronizada com IA!', { id: toastId });
+      }
+
       setActiveTab('engine');
+    } catch (e: any) {
+      toast.error('Erro na Engine: ' + e.message, { id: toastId });
+    } finally {
       setIsSyncingAI(false);
-    }, 2500);
+    }
   };
 
   const handleMapClick = (e: any) => {
@@ -474,6 +543,39 @@ export default function ExperienceEditor() {
 
   return (
     <div className="max-w-[1400px] mx-auto p-6 vf-fade-in">
+      {/* ── URL Enrichment Banner ──────────────────────────────────────── */}
+      <div className="mb-4 rounded-[20px] p-4 border-2 border-dashed border-indigo-200 bg-indigo-50/50">
+        <div className="flex items-center gap-3">
+          <div className="w-9 h-9 rounded-[14px] bg-indigo-600 flex items-center justify-center flex-shrink-0">
+            <Link2 className="w-4 h-4 text-white" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-xs font-black text-indigo-800 mb-0.5">Cole o link → IA preenche tudo</p>
+            <p className="text-[10px] text-indigo-500">GetYourGuide · Viator · Civitatis · Google Maps · Booking · Blog de viagem</p>
+          </div>
+        </div>
+        <div className="flex gap-2 mt-3">
+          <input
+            value={enrichUrl}
+            onChange={e => setEnrichUrl(e.target.value)}
+            onKeyDown={e => e.key === 'Enter' && handleUrlEnrich()}
+            placeholder="https://www.getyourguide.com/new-york/..."
+            className="flex-1 text-xs px-4 py-2.5 rounded-[12px] border border-indigo-200 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:border-transparent placeholder-slate-300"
+            disabled={isEnriching}
+          />
+          <button
+            onClick={handleUrlEnrich}
+            disabled={isEnriching || !enrichUrl.trim()}
+            className="flex items-center gap-2 px-5 py-2.5 rounded-[12px] text-xs font-black text-white bg-indigo-600 hover:bg-indigo-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex-shrink-0"
+          >
+            {isEnriching
+              ? <><Wand2 className="w-3.5 h-3.5 animate-spin" /> Importando...</>
+              : <><Wand2 className="w-3.5 h-3.5" /> Enriquecer com IA</>
+            }
+          </button>
+        </div>
+      </div>
+
       {/* ── Header ─────────────────────────────────────────────────── */}
       <div className="flex items-center justify-between mb-6 bg-white p-4 rounded-[24px] shadow-sm border border-slate-100">
         <div className="flex items-center gap-4">
