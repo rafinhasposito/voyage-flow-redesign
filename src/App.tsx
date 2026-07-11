@@ -14,7 +14,6 @@ import NotFound from "./pages/NotFound";
 import AdminLayout from "./components/admin/AdminLayout";
 import AdminDashboard from "./pages/admin/AdminDashboard";
 import ExperiencesList from "./pages/admin/ExperiencesList";
-import HotelsList from "./pages/admin/HotelsList";
 import QualityDashboard from "./pages/admin/QualityDashboard";
 import ExperienceEditor from "./pages/admin/ExperienceEditor";
 import DestinationsList from "./pages/admin/DestinationsList";
@@ -77,8 +76,6 @@ const App = () => {
             <Route path="experiences" element={<ExperiencesList />} />
             <Route path="experiences/new" element={<ExperienceEditor />} />
             <Route path="experiences/:id" element={<ExperienceEditor />} />
-            
-            <Route path="hotels" element={<HotelsList />} />
             <Route path="quality" element={<QualityDashboard />} />
             <Route path="import" element={<Import />} />
             

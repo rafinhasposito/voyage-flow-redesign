@@ -32,12 +32,12 @@ const navigation: NavSection[] = [
   {
     label: 'Conteúdo',
     items: [
-      { name: 'Catálogo',      href: '/admin/experiences',    icon: Library },
-      { name: 'Hospedagens',   href: '/admin/hotels',         icon: Hotel },
-      { name: 'Restaurantes',  href: '/admin/restaurants',    icon: Utensils,   soon: true },
-      { name: 'Eventos',       href: '/admin/events',         icon: Calendar,   soon: true },
-      { name: 'Destinos',      href: '/admin/destinations',   icon: Globe },
-      { name: 'Importar URL',  href: '/admin/import',         icon: UploadCloud },
+      { name: 'Catálogo',      href: '/admin/experiences',             icon: Library },
+      { name: 'Hospedagens',   href: '/admin/experiences?type=Hotel',  icon: Hotel },
+      { name: 'Restaurantes',  href: '/admin/experiences?type=restaurant', icon: Utensils },
+      { name: 'Eventos',       href: '/admin/experiences?type=event',  icon: Calendar },
+      { name: 'Destinos',      href: '/admin/destinations',            icon: Globe },
+      { name: 'Importar URL',  href: '/admin/import',                  icon: UploadCloud },
     ]
   },
   {
@@ -69,8 +69,16 @@ export default function AdminLayout() {
   const location = useLocation();
   const [collapsed, setCollapsed] = useState(false);
 
-  const isActive = (href: string) => location.pathname === href || (href !== '/admin/dashboard' && location.pathname.startsWith(href));
-
+  const isActive = (href: string) => {
+    const [path, search] = href.split('?');
+    if (location.pathname !== path) return false;
+    if (href === '/admin/dashboard' && location.pathname !== '/admin/dashboard') return false;
+    if (search) {
+      return location.search.includes(search);
+    }
+    // Se não tem search, só é ativo se a rota não tiver um '?type=' que pertença a outro item
+    return !location.search.includes('type=');
+  };
   return (
     <div className="flex h-screen" style={{ background: '#F0F2F5' }}>
       
