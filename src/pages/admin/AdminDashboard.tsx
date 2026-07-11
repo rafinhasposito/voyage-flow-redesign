@@ -3,7 +3,8 @@ import { Link } from "react-router-dom";
 import {
   Library, Hotel, Globe, Activity, ArrowUpRight,
   Sparkles, TrendingUp, AlertCircle, CheckCircle2, Zap,
-  Users, DollarSign, Utensils, Crown
+  Users, DollarSign, Utensils, Crown,
+  CreditCard, MousePointerClick, Percent, Target, HeartPulse, BrainCircuit, BarChart3, Clock, LineChart, Star, MapPin
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 
@@ -44,7 +45,14 @@ function StatChip({
 
 // ─────────────────────────────────────────────────────────────────────────────
 export default function AdminDashboard() {
-  const [stats, setStats] = useState({ exp: 0, hotels: 0, restaurants: 0, users: 0, subscribers: 0, revenue: 0, issues: 0 });
+  const [stats, setStats] = useState({
+    exp: 0, hotels: 0, restaurants: 0, issues: 0,
+    // SaaS Metrics (Mocks until affiliate tables are live)
+    usersActive: 1254, subscribers: 342,
+    revenueDaily: 840, revenueMonthly: 25200, revenueAnnual: 302400,
+    growth: 14.2, conversions: 8.5, clicks: 12450, commission: 1250, epc: 0.10,
+    partners: 12, matchAvg: 94
+  });
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -56,15 +64,13 @@ export default function AdminDashboard() {
           supabase.from("experiences").select("id", { count: "exact", head: true }).eq("type", "restaurant"),
           supabase.from("experiences").select("id", { count: "exact", head: true }).is("location_lat", null),
         ]);
-        setStats({
+        setStats(prev => ({
+          ...prev,
           exp: expRes.count || 0,
           hotels: hotelRes.count || 0,
           restaurants: restRes.count || 0,
-          users: 142,
-          subscribers: 89,
-          revenue: 12500,
           issues: issueRes.count || 0,
-        });
+        }));
       } finally {
         setLoading(false);
       }
@@ -116,99 +122,68 @@ export default function AdminDashboard() {
         <div className="absolute right-32 top-4 w-20 h-20 rounded-full bg-white/15 blur-lg pointer-events-none" />
       </div>
 
-      {/* ── STAT CHIPS (4 cards Bento) ─────────────────────── */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        <StatChip
-          label="Experiências" value={v(stats.exp)} sub="No catálogo ativo"
-          icon={Library} bg="#FAF8F3" iconColor="text-amber-600" to="/admin/experiences"
-        />
-        <StatChip
-          label="Hospedagens" value={v(stats.hotels)} sub="Hotéis & basecamps"
-          icon={Hotel} bg="#F4FBF7" iconColor="text-emerald-600" to="/admin/hotels"
-        />
-        <StatChip
-          label="Restaurantes" value={v(stats.restaurants)} sub="Gastronomia mapeada"
-          icon={Utensils} bg="#FFF5F1" iconColor="text-orange-500" to="/admin/experiences?type=restaurant"
-        />
-        <StatChip
-          label="Anomalias" value={v(stats.issues)} sub="Dados incompletos"
-          icon={stats.issues > 0 ? AlertCircle : CheckCircle2}
-          bg={stats.issues > 0 ? "#FFF1F1" : "#F4FBF7"}
-          iconColor={stats.issues > 0 ? "text-rose-500" : "text-emerald-600"}
-          to="/admin/quality"
-        />
-        <StatChip
-          label="Faturamento Hoje" value={loading ? "—" : `$${(stats.revenue / 1000).toFixed(1)}k`} sub="Receita de assinaturas"
-          icon={DollarSign} bg="#F0FDFA" iconColor="text-teal-600" to="/admin/financial"
-        />
-        <StatChip
-          label="Usuários" value={v(stats.users)} sub="Cadastros na plataforma"
-          icon={Users} bg="#F8FAFC" iconColor="text-slate-600" to="/admin/users"
-        />
-        <StatChip
-          label="Assinantes" value={v(stats.subscribers)} sub="Plano Premium ativo"
-          icon={Crown} bg="#FEF2F2" iconColor="text-red-500" to="/admin/users?filter=premium"
-        />
-        <StatChip
-          label="Destinos" value="1" sub="Nova York (MVP)"
-          icon={Globe} bg="#EEF2FF" iconColor="text-indigo-600" to="/admin/destinations"
-        />
+      {/* ── METRICS GRID: FINANCIALS & AFFILIATES ─────────────────────── */}
+      <h2 className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400 mt-8 mb-2 px-1">Performance & Financeiro</h2>
+      <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
+        <StatChip label="Receita Dia" value={`$${v(stats.revenueDaily)}`} sub={`+${stats.growth}% vs ontem`} icon={DollarSign} bg="#F0FDFA" iconColor="text-teal-600" to="/admin/financial" />
+        <StatChip label="Receita Mês" value={`$${v(stats.revenueMonthly / 1000)}k`} sub="Recorrente (MRR)" icon={LineChart} bg="#F4FBF7" iconColor="text-emerald-600" to="/admin/financial" />
+        <StatChip label="Comissão" value={`$${v(stats.commission)}`} sub="Afiliados" icon={CreditCard} bg="#FEFCE8" iconColor="text-yellow-600" to="/admin/affiliates" />
+        <StatChip label="EPC" value={`$${v(stats.epc)}`} sub="Earnings / Click" icon={Target} bg="#EEF2FF" iconColor="text-indigo-600" to="/admin/affiliates" />
+        <StatChip label="Conversões" value={`${v(stats.conversions)}%`} sub={`${v(stats.clicks)} cliques`} icon={MousePointerClick} bg="#F8FAFC" iconColor="text-slate-600" to="/admin/analytics" />
+      </div>
+
+      {/* ── METRICS GRID: PRODUCT & CATALOG ─────────────────────── */}
+      <h2 className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400 mt-8 mb-2 px-1">Produto & Catálogo</h2>
+      <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
+        <StatChip label="Match Médio" value={`${v(stats.matchAvg)}%`} sub="Satisfação da IA" icon={HeartPulse} bg="#FFF1F2" iconColor="text-rose-500" to="/admin/quality" />
+        <StatChip label="Usuários Ativos" value={v(stats.usersActive)} sub="Últimos 30 dias" icon={Users} bg="#F0F9FF" iconColor="text-sky-500" to="/admin/users" />
+        <StatChip label="Assinantes" value={v(stats.subscribers)} sub="Planos Premium" icon={Crown} bg="#FEF2F2" iconColor="text-red-500" to="/admin/users?filter=premium" />
+        <StatChip label="Experiências" value={v(stats.exp)} sub="Ativas no catálogo" icon={Library} bg="#FAF8F3" iconColor="text-amber-600" to="/admin/experiences" />
+        <StatChip label="Anomalias" value={v(stats.issues)} sub="Ação requerida" icon={stats.issues > 0 ? AlertCircle : CheckCircle2} bg={stats.issues > 0 ? "#FFF1F1" : "#F4FBF7"} iconColor={stats.issues > 0 ? "text-rose-500" : "text-emerald-600"} to="/admin/quality" />
       </div>
 
       {/* ── BENTO BOTTOM ROW ──────────────────────────────────── */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
-
-        {/* Atividade — 2/3 */}
-        <div
-          className="lg:col-span-2 rounded-[24px] p-6"
-          style={{ background: '#FFFFFF', boxShadow: '0 1px 3px rgba(0,0,0,0.06)' }}
-        >
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-3 mt-4">
+        
+        {/* AI Insights — 2/3 */}
+        <div className="lg:col-span-2 rounded-[24px] p-6" style={{ background: '#FFFFFF', boxShadow: '0 1px 3px rgba(0,0,0,0.06)' }}>
           <div className="flex items-center justify-between mb-5">
             <div className="flex items-center gap-2">
-              <TrendingUp className="w-4 h-4 text-slate-400" />
-              <h3 className="font-bold text-sm text-[#0F1117]">Atividade Recente</h3>
+              <BrainCircuit className="w-4 h-4 text-slate-400" />
+              <h3 className="font-bold text-sm text-[#0F1117]">AI Insights & Sugestões</h3>
             </div>
-            <Link to="/admin/experiences" className="text-[11px] font-bold text-slate-400 hover:text-[#0F1117] transition-colors">
-              Ver tudo →
+            <Link to="/admin/quality" className="text-[11px] font-bold text-slate-400 hover:text-[#0F1117] transition-colors">
+              Analisar Catálogo →
             </Link>
           </div>
-
-          <div className="flex flex-col items-center justify-center py-10 text-center">
-            <div
-              className="w-14 h-14 rounded-[18px] flex items-center justify-center mb-4"
-              style={{ background: 'linear-gradient(135deg, #E2F18A 0%, #B8F5C8 100%)' }}
-            >
-              <Zap className="w-6 h-6 text-black/70" strokeWidth={2.5} />
+          
+          <div className="space-y-3">
+            <div className="flex items-start gap-3 p-3 rounded-2xl bg-slate-50 border border-slate-100">
+              <div className="w-8 h-8 rounded-full bg-rose-100 flex items-center justify-center shrink-0"><AlertCircle className="w-4 h-4 text-rose-500"/></div>
+              <div>
+                <p className="text-xs font-bold text-slate-800">{stats.issues} Experiências sem geolocalização</p>
+                <p className="text-[11px] text-slate-500 mt-0.5 leading-relaxed">O motor de matching penaliza severamente itens sem coordenadas exatas. Sugestão: Rodar o Auto-Heal (Google Places) no painel de Qualidade.</p>
+              </div>
             </div>
-            <p className="font-bold text-sm text-[#0F1117]">Catálogo sendo construído</p>
-            <p className="text-xs text-slate-400 mt-1 max-w-xs leading-relaxed">
-              Importe experiências via URL ou cadastre manualmente. A Engine de Matching começa a funcionar a partir de 10 registros.
-            </p>
-            <Link to="/admin/experiences/new" className="vf-btn-lime text-xs mt-5 px-5 py-2.5">
-              <Library className="w-3.5 h-3.5" /> Criar primeira experiência
-            </Link>
+            <div className="flex items-start gap-3 p-3 rounded-2xl bg-slate-50 border border-slate-100">
+              <div className="w-8 h-8 rounded-full bg-emerald-100 flex items-center justify-center shrink-0"><TrendingUp className="w-4 h-4 text-emerald-600"/></div>
+              <div>
+                <p className="text-xs font-bold text-slate-800">Alta demanda por "Rooftops" à noite</p>
+                <p className="text-[11px] text-slate-500 mt-0.5 leading-relaxed">92 usuários buscaram ou deram match com essa tag hoje. Considere promover e adicionar mais parceiros de Vida Noturna ao catálogo.</p>
+              </div>
+            </div>
+            <div className="flex items-start gap-3 p-3 rounded-2xl bg-slate-50 border border-slate-100">
+              <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center shrink-0"><Star className="w-4 h-4 text-blue-500"/></div>
+              <div>
+                <p className="text-xs font-bold text-slate-800">Top Produto: SUMMIT One Vanderbilt</p>
+                <p className="text-[11px] text-slate-500 mt-0.5 leading-relaxed">Foi adicionado a 45 roteiros nas últimas 24h. Verifique se o link de afiliado GetYourGuide está atualizado para maximizar a conversão.</p>
+              </div>
+            </div>
           </div>
         </div>
-
-        {/* Avisos — 1/3 */}
+        
+        {/* Parceiros & Rede — 1/3 */}
         <div className="flex flex-col gap-3">
-
-          <div
-            className="rounded-[24px] p-5 flex-1"
-            style={{ background: '#FEFCE8', boxShadow: '0 1px 3px rgba(0,0,0,0.06)' }}
-          >
-            <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-amber-600 mb-2">Aviso</p>
-            <p className="text-sm font-bold text-[#0F1117] leading-snug">
-              Layout CMS ativo
-            </p>
-            <p className="text-xs text-slate-500 mt-1.5 leading-relaxed">
-              Interface focada em produtividade máxima. Alterne entre views Strips, Cards e Compact nas listagens.
-            </p>
-          </div>
-
-          <div
-            className="rounded-[24px] p-5"
-            style={{ background: '#F4FBF7', boxShadow: '0 1px 3px rgba(0,0,0,0.06)' }}
           >
             <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-emerald-600 mb-2">Sistema</p>
             <p className="text-sm font-bold text-[#0F1117] leading-snug">
