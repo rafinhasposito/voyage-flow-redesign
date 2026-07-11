@@ -1,5 +1,7 @@
 import React, { useState } from 'react';
-import { Search, Edit2, Trash2, Mail, Calendar, Map, CheckCircle, XCircle } from 'lucide-react';
+import { Search, Edit2, Trash2, Mail, Calendar, Map, CheckCircle2, XCircle, Users } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 
 // Define types for our mock data
 interface Itinerary {
@@ -76,118 +78,98 @@ export default function UsersList() {
   );
 
   return (
-    <div className="p-8 bg-[#F0F2F5] min-h-screen font-['Urbanist',sans-serif] text-[#0F1117]">
-      <div className="max-w-6xl mx-auto space-y-8">
-        
-        {/* Header Section */}
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <div>
-            <h1 className="text-4xl font-bold tracking-tight">Users Management</h1>
-            <p className="text-gray-500 mt-2">Manage your platform users and their travel itineraries.</p>
-          </div>
-          <div className="flex gap-4">
-            <div className="relative">
-              <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-              <input 
-                type="text" 
-                placeholder="Search users..." 
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-11 pr-4 py-3 rounded-[24px] bg-white border-none shadow-sm focus:ring-2 focus:ring-[#E2F18A] outline-none w-full md:w-64 transition-all"
-              />
-            </div>
-            <button className="bg-[#E2F18A] text-[#0F1117] font-semibold px-6 py-3 rounded-[24px] hover:bg-[#d4e47a] transition-colors shadow-sm whitespace-nowrap">
-              Add User
-            </button>
-          </div>
+    <div className="flex flex-col h-full bg-vf-bg overflow-hidden">
+      
+      {/* ── Header ── */}
+      <div className="flex items-center justify-between px-6 py-4 bg-white border-b border-vf-border z-10 shrink-0">
+        <div>
+          <h1 className="text-lg font-black text-vf-black tracking-tight flex items-center gap-2">
+            <Users className="w-4 h-4 text-indigo-600" /> Gestão de Usuários
+          </h1>
+          <p className="text-[11px] text-vf-text-3 font-semibold">Gerencie os usuários da plataforma e seus roteiros.</p>
         </div>
+        <div className="flex items-center gap-3">
+          <div className="relative">
+            <Search className="w-4 h-4 text-vf-text-3 absolute left-3 top-1/2 -translate-y-1/2" />
+            <Input 
+              type="text" 
+              placeholder="Buscar por nome ou email..." 
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="pl-9 w-64 h-9 text-[13px]"
+            />
+          </div>
+          <Button variant="lime" size="sm">
+            Adicionar Usuário
+          </Button>
+        </div>
+      </div>
 
-        {/* Users Grid */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {filteredUsers.map(user => (
-            <div key={user.id} className="bg-white rounded-[28px] p-6 shadow-sm border border-gray-100 flex flex-col gap-6 hover:shadow-md transition-shadow">
-              
-              {/* User Header */}
-              <div className="flex justify-between items-start">
-                <div className="flex gap-4 items-center">
-                  <img src={user.avatar} alt={user.name} className="w-16 h-16 rounded-full object-cover border-2 border-[#F0F2F5]" />
-                  <div>
-                    <h2 className="text-xl font-bold flex items-center gap-2">
-                      {user.name}
-                      {user.status === 'active' ? (
-                        <CheckCircle className="w-4 h-4 text-green-500" />
-                      ) : (
-                        <XCircle className="w-4 h-4 text-red-500" />
-                      )}
-                    </h2>
-                    <div className="flex items-center gap-2 text-gray-500 text-sm mt-1">
-                      <Mail className="w-3.5 h-3.5" />
-                      <span>{user.email}</span>
+      {/* ── Table / Grid ── */}
+      <div className="flex-1 overflow-auto p-6">
+        <div className="max-w-[1200px] mx-auto bg-white rounded-xl border border-vf-border shadow-vf-sm overflow-hidden flex flex-col">
+          <table className="w-full text-left border-collapse">
+            <thead className="bg-vf-muted sticky top-0 z-10 shadow-sm">
+              <tr>
+                <th className="px-5 py-3 text-[10px] font-black uppercase tracking-widest text-vf-text-3 w-10">Avatar</th>
+                <th className="px-5 py-3 text-[10px] font-black uppercase tracking-widest text-vf-text-3">Usuário</th>
+                <th className="px-5 py-3 text-[10px] font-black uppercase tracking-widest text-vf-text-3">Status</th>
+                <th className="px-5 py-3 text-[10px] font-black uppercase tracking-widest text-vf-text-3">Data de Entrada</th>
+                <th className="px-5 py-3 text-[10px] font-black uppercase tracking-widest text-vf-text-3">Roteiros</th>
+                <th className="px-5 py-3 text-[10px] font-black uppercase tracking-widest text-vf-text-3 text-right">Ações</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-vf-border">
+              {filteredUsers.map((user) => (
+                <tr key={user.id} className="hover:bg-vf-muted/50 transition-colors">
+                  <td className="px-5 py-3">
+                    <img src={user.avatar} alt={user.name} className="w-8 h-8 rounded-full object-cover border border-vf-border" />
+                  </td>
+                  <td className="px-5 py-3">
+                    <div className="font-bold text-[13px] text-vf-black">{user.name}</div>
+                    <div className="text-[11px] text-vf-text-3">{user.email}</div>
+                  </td>
+                  <td className="px-5 py-3">
+                    {user.status === 'active' ? (
+                      <span className="inline-flex items-center gap-1.5 text-[11px] font-bold text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-md border border-emerald-100">
+                        <CheckCircle2 className="w-3.5 h-3.5" /> Ativo
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center gap-1.5 text-[11px] font-bold text-rose-700 bg-rose-50 px-2.5 py-1 rounded-md border border-rose-100">
+                        <XCircle className="w-3.5 h-3.5" /> Inativo
+                      </span>
+                    )}
+                  </td>
+                  <td className="px-5 py-3 text-[12px] font-semibold text-vf-text-2">
+                    {new Date(user.joinDate).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', year: 'numeric' })}
+                  </td>
+                  <td className="px-5 py-3">
+                    <span className="text-[12px] font-bold text-vf-black bg-vf-muted px-2 py-0.5 rounded-md">
+                      {user.itineraries.length} Roteiros
+                    </span>
+                  </td>
+                  <td className="px-5 py-3">
+                    <div className="flex items-center justify-end gap-1">
+                      <Button variant="ghost" size="icon" className="w-8 h-8 text-vf-text-3 hover:text-vf-black">
+                        <Edit2 className="w-4 h-4" />
+                      </Button>
+                      <Button variant="ghost" size="icon" className="w-8 h-8 text-vf-text-3 hover:text-rose-600 hover:bg-rose-50">
+                        <Trash2 className="w-4 h-4" />
+                      </Button>
                     </div>
-                  </div>
-                </div>
-                <div className="flex gap-2">
-                  <button className="p-2 hover:bg-gray-100 rounded-full transition-colors text-gray-600">
-                    <Edit2 className="w-4 h-4" />
-                  </button>
-                  <button className="p-2 hover:bg-red-50 rounded-full transition-colors text-red-500">
-                    <Trash2 className="w-4 h-4" />
-                  </button>
-                </div>
-              </div>
-
-              {/* User Stats */}
-              <div className="grid grid-cols-2 gap-4 bg-[#F0F2F5] rounded-[20px] p-4">
-                <div>
-                  <div className="text-sm text-gray-500 mb-1">Joined</div>
-                  <div className="font-semibold flex items-center gap-2">
-                    <Calendar className="w-4 h-4 text-gray-400" />
-                    {new Date(user.joinDate).toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}
-                  </div>
-                </div>
-                <div>
-                  <div className="text-sm text-gray-500 mb-1">Total Trips</div>
-                  <div className="font-semibold flex items-center gap-2">
-                    <Map className="w-4 h-4 text-gray-400" />
-                    {user.itineraries.length}
-                  </div>
-                </div>
-              </div>
-
-              {/* Itineraries List */}
-              {user.itineraries.length > 0 ? (
-                <div className="space-y-3">
-                  <h3 className="font-semibold text-sm text-gray-500 uppercase tracking-wider">Recent Itineraries</h3>
-                  <div className="flex flex-col gap-3">
-                    {user.itineraries.map(itinerary => (
-                      <div key={itinerary.id} className="flex items-center justify-between p-3 rounded-[20px] border border-gray-100 hover:border-[#E2F18A] transition-colors group">
-                        <div className="flex flex-col">
-                          <span className="font-bold">{itinerary.destination}</span>
-                          <span className="text-xs text-gray-500">
-                            {new Date(itinerary.startDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} - {new Date(itinerary.endDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-                          </span>
-                        </div>
-                        <span className={`text-xs px-3 py-1 rounded-full font-medium ${
-                          itinerary.status === 'active' ? 'bg-[#E2F18A]/20 text-[#0F1117]' :
-                          itinerary.status === 'completed' ? 'bg-gray-100 text-gray-600' :
-                          'bg-orange-100 text-orange-700'
-                        }`}>
-                          {itinerary.status.charAt(0).toUpperCase() + itinerary.status.slice(1)}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              ) : (
-                <div className="flex-1 flex items-center justify-center border-2 border-dashed border-gray-200 rounded-[20px] p-6 text-gray-400 text-sm">
-                  No itineraries yet
-                </div>
+                  </td>
+                </tr>
+              ))}
+              {filteredUsers.length === 0 && (
+                <tr>
+                  <td colSpan={6} className="p-8 text-center text-vf-text-3 text-sm">
+                    Nenhum usuário encontrado.
+                  </td>
+                </tr>
               )}
-              
-            </div>
-          ))}
+            </tbody>
+          </table>
         </div>
-        
       </div>
     </div>
   );

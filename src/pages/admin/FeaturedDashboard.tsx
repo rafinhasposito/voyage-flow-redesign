@@ -1,165 +1,131 @@
 import React, { useState } from 'react';
-import { Star, Plus, GripVertical, Trash2, Search } from 'lucide-react';
+import { 
+  Star, 
+  Search, 
+  GripVertical,
+  Plus,
+  Trash2,
+  Calendar,
+  AlertCircle
+} from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 
-// Mock data
-const mockFeatured = [
-  { id: '1', title: 'Balloons Over Bagan', location: 'Myanmar', type: 'Adventure', image: 'https://images.unsplash.com/photo-1544084944-15269ec7b5a0?q=80&w=2000&auto=format&fit=crop' },
-  { id: '2', title: 'Ice Cave Exploration', location: 'Iceland', type: 'Nature', image: 'https://images.unsplash.com/photo-1517418939632-15942f9e4225?q=80&w=2000&auto=format&fit=crop' },
-  { id: '3', title: 'Kyoto Tea Ceremony', location: 'Japan', type: 'Culture', image: 'https://images.unsplash.com/photo-1528164344705-47542687000d?q=80&w=2000&auto=format&fit=crop' },
+const MOCK_CATALOG = [
+  { id: 'c1', title: 'Top of the Rock Observation Deck', category: 'Attraction', baseCost: 40, rating: 4.8 },
+  { id: 'c2', title: 'Museum of Modern Art (MoMA)', category: 'Attraction', baseCost: 25, rating: 4.9 },
+  { id: 'c3', title: 'Statue of Liberty Cruise', category: 'Activity', baseCost: 35, rating: 4.6 },
+  { id: 'c4', title: '1 Hotel Brooklyn Bridge', category: 'Hotel', baseCost: 450, rating: 4.7 },
+  { id: 'c5', title: 'The Plaza Hotel', category: 'Hotel', baseCost: 850, rating: 4.9 },
 ];
 
-const mockAvailable = [
-  { id: '4', title: 'Safari in Serengeti', location: 'Tanzania', type: 'Wildlife', image: 'https://images.unsplash.com/photo-1516426122078-c23e76319801?q=80&w=2000&auto=format&fit=crop' },
-  { id: '5', title: 'Machu Picchu Trek', location: 'Peru', type: 'Adventure', image: 'https://images.unsplash.com/photo-1526392060635-9d6019884377?q=80&w=2000&auto=format&fit=crop' },
-  { id: '6', title: 'Northern Lights', location: 'Norway', type: 'Nature', image: 'https://images.unsplash.com/photo-1531366936337-7c912a4589a7?q=80&w=2000&auto=format&fit=crop' },
+const MOCK_FEATURED = [
+  { id: 'f1', title: 'Top of the Rock Observation Deck', category: 'Attraction', slot: 1, startDate: '2024-05-01', endDate: '2024-05-31' },
+  { id: 'f2', title: '1 Hotel Brooklyn Bridge', category: 'Hotel', slot: 2, startDate: '2024-05-15', endDate: '2024-06-15' },
 ];
 
-const FeaturedDashboard = () => {
-  const [featured, setFeatured] = useState(mockFeatured);
-  const [available, setAvailable] = useState(mockAvailable);
-  const [searchQuery, setSearchQuery] = useState('');
-
-  const removeFeatured = (id: string) => {
-    const item = featured.find(f => f.id === id);
-    if (item) {
-      setFeatured(featured.filter(f => f.id !== id));
-      setAvailable([...available, item]);
-    }
-  };
-
-  const addFeatured = (id: string) => {
-    if (featured.length >= 4) {
-      alert("Maximum of 4 featured experiences allowed.");
-      return;
-    }
-    const item = available.find(a => a.id === id);
-    if (item) {
-      setAvailable(available.filter(a => a.id !== id));
-      setFeatured([...featured, item]);
-    }
-  };
-
-  const filteredAvailable = available.filter(item => 
-    item.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    item.location.toLowerCase().includes(searchQuery.toLowerCase())
-  );
-
+export default function FeaturedDashboard() {
+  const [searchTerm, setSearchTerm] = useState('');
+  
   return (
-    <div className="min-h-screen bg-[#F0F2F5] text-[#0F1117] p-8" style={{ fontFamily: 'Urbanist, sans-serif' }}>
-      <div className="max-w-7xl mx-auto space-y-8">
-        
-        {/* Header Section */}
-        <div className="flex justify-between items-end">
-          <div>
-            <h1 className="text-4xl font-bold mb-2">Featured Experiences</h1>
-            <p className="text-gray-600">Manage the spotlight experiences shown on the homepage.</p>
-          </div>
-          <button className="bg-[#E2F18A] hover:bg-[#d4e47a] text-[#0F1117] px-6 py-3 rounded-[24px] font-semibold flex items-center gap-2 transition-colors">
-            <Star size={20} />
-            Save Changes
-          </button>
+    <div className="flex flex-col h-full bg-vf-bg overflow-hidden">
+      
+      {/* ── Header ── */}
+      <div className="flex items-center justify-between px-6 py-4 bg-white border-b border-vf-border z-10 shrink-0">
+        <div>
+          <h1 className="text-lg font-black text-vf-black tracking-tight flex items-center gap-2">
+            <Star className="w-4 h-4 text-amber-500" /> Destaques
+          </h1>
+          <p className="text-[11px] text-vf-text-3 font-semibold">Gerencie os itens fixados na tela principal do App.</p>
         </div>
+        <Button variant="lime" size="sm">
+          <Star className="w-4 h-4" /> Publicar Destaques
+        </Button>
+      </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+      <div className="flex-1 overflow-auto p-6">
+        <div className="max-w-[1200px] mx-auto grid grid-cols-1 lg:grid-cols-2 gap-6">
           
-          {/* Active Featured Slots - Bento Box Style */}
-          <div className="bg-white rounded-[28px] p-6 shadow-sm border border-gray-100 flex flex-col h-full">
-            <div className="mb-6 flex justify-between items-center">
-              <h2 className="text-2xl font-bold">Current Spotlight</h2>
-              <span className="bg-gray-100 text-sm font-medium px-3 py-1 rounded-full text-gray-600">
-                {featured.length} / 4 Slots Used
-              </span>
+          {/* Left: Featured Slots */}
+          <div className="bg-white rounded-xl border border-vf-border shadow-vf-sm flex flex-col h-full">
+            <div className="p-5 border-b border-vf-border/50">
+              <h2 className="text-[13px] font-black uppercase tracking-widest text-vf-black">Slots Ativos</h2>
+              <p className="text-[11px] text-vf-text-3">Estes itens aparecerão com destaque no App.</p>
             </div>
-
-            <div className="space-y-4 flex-1">
-              {featured.length === 0 ? (
-                <div className="h-full flex flex-col items-center justify-center text-gray-400 border-2 border-dashed border-gray-200 rounded-[24px] p-8">
-                  <Star size={48} className="mb-4 text-gray-300" />
-                  <p>No featured experiences selected.</p>
-                </div>
-              ) : (
-                featured.map((item, index) => (
-                  <div key={item.id} className="group relative flex items-center bg-gray-50 rounded-[24px] p-3 border border-gray-100 transition-all hover:shadow-md">
-                    <div className="cursor-grab text-gray-400 px-2">
-                      <GripVertical size={20} />
-                    </div>
-                    
-                    <div className="w-20 h-20 rounded-[16px] overflow-hidden flex-shrink-0 relative">
-                      <div className="absolute top-1 left-1 bg-black/60 text-white text-xs font-bold px-2 py-0.5 rounded-full z-10 backdrop-blur-sm">
-                        #{index + 1}
-                      </div>
-                      <img src={item.image} alt={item.title} className="w-full h-full object-cover" />
-                    </div>
-                    
-                    <div className="ml-4 flex-1">
-                      <h3 className="font-bold text-lg leading-tight">{item.title}</h3>
-                      <p className="text-gray-500 text-sm">{item.location} • {item.type}</p>
-                    </div>
-
-                    <button 
-                      onClick={() => removeFeatured(item.id)}
-                      className="w-10 h-10 rounded-full bg-white flex items-center justify-center text-red-500 hover:bg-red-50 transition-colors shadow-sm ml-2 opacity-0 group-hover:opacity-100"
-                    >
-                      <Trash2 size={18} />
-                    </button>
-                  </div>
-                ))
-              )}
-            </div>
-          </div>
-
-          {/* Available Experiences */}
-          <div className="bg-white rounded-[28px] p-6 shadow-sm border border-gray-100 flex flex-col h-full">
-            <h2 className="text-2xl font-bold mb-6">Available Inventory</h2>
             
-            {/* Search */}
-            <div className="relative mb-6">
-              <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-                <Search size={20} className="text-gray-400" />
-              </div>
-              <input 
-                type="text" 
-                placeholder="Search experiences..." 
-                className="w-full bg-gray-50 border border-gray-200 text-[#0F1117] rounded-[24px] pl-11 pr-4 py-3 focus:outline-none focus:ring-2 focus:ring-[#E2F18A] focus:bg-white transition-all"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-              />
-            </div>
-
-            <div className="space-y-4 overflow-y-auto pr-2 custom-scrollbar flex-1 max-h-[600px]">
-              {filteredAvailable.map(item => (
-                <div key={item.id} className="flex items-center bg-white rounded-[24px] p-3 border border-gray-100 hover:border-gray-300 transition-all hover:shadow-sm">
-                  <div className="w-16 h-16 rounded-[16px] overflow-hidden flex-shrink-0">
-                    <img src={item.image} alt={item.title} className="w-full h-full object-cover" />
+            <div className="flex-1 p-5 space-y-4">
+              {MOCK_FEATURED.map((item, index) => (
+                <div key={item.id} className="group relative flex items-center bg-vf-muted rounded-xl p-3 border border-vf-border transition-all hover:shadow-vf-sm">
+                  <div className="w-16 h-16 rounded-lg overflow-hidden flex-shrink-0 bg-white border border-vf-border flex items-center justify-center">
+                    <Star className="w-6 h-6 text-amber-400" />
                   </div>
                   
                   <div className="ml-4 flex-1">
-                    <h3 className="font-bold text-md leading-tight">{item.title}</h3>
-                    <p className="text-gray-500 text-sm">{item.location}</p>
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className="text-[10px] font-black bg-vf-black text-white px-2 py-0.5 rounded-sm">SLOT {index + 1}</span>
+                      <span className="text-[10px] font-bold text-vf-text-2 bg-white px-1.5 py-0.5 rounded-sm border border-vf-border">{item.category}</span>
+                    </div>
+                    <h3 className="font-bold text-[13px] text-vf-black leading-tight">{item.title}</h3>
+                    <div className="flex items-center gap-2 text-[10px] text-vf-text-3 font-semibold mt-1">
+                      <Calendar className="w-3 h-3" />
+                      {item.startDate} até {item.endDate}
+                    </div>
                   </div>
-
-                  <button 
-                    onClick={() => addFeatured(item.id)}
-                    disabled={featured.length >= 4}
-                    className="w-10 h-10 rounded-full bg-gray-50 flex items-center justify-center text-[#0F1117] hover:bg-[#E2F18A] transition-colors shadow-sm disabled:opacity-50 disabled:cursor-not-allowed ml-2"
-                  >
-                    <Plus size={20} />
-                  </button>
+                  
+                  <div className="flex items-center gap-2 px-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <Button variant="ghost" size="icon" className="w-8 h-8 text-vf-text-3 hover:text-rose-500 hover:bg-rose-50">
+                      <Trash2 className="w-4 h-4" />
+                    </Button>
+                    <div className="cursor-grab text-vf-text-3 hover:text-vf-black p-2">
+                      <GripVertical className="w-4 h-4" />
+                    </div>
+                  </div>
                 </div>
               ))}
               
-              {filteredAvailable.length === 0 && (
-                <div className="text-center py-8 text-gray-500">
-                  No experiences found matching "{searchQuery}"
-                </div>
-              )}
+              <div className="h-24 flex flex-col items-center justify-center text-vf-text-3 border-2 border-dashed border-vf-border rounded-xl">
+                <AlertCircle className="w-5 h-5 mb-2 text-vf-text-3/50" />
+                <span className="text-[11px] font-semibold">Arraste um item do catálogo para cá</span>
+              </div>
             </div>
           </div>
 
+          {/* Right: Catalog Search */}
+          <div className="bg-white rounded-xl border border-vf-border shadow-vf-sm flex flex-col h-[600px]">
+            <div className="p-5 border-b border-vf-border/50">
+              <h2 className="text-[13px] font-black uppercase tracking-widest text-vf-black mb-1">Catálogo</h2>
+              <div className="relative">
+                <Search className="w-4 h-4 text-vf-text-3 absolute left-3 top-1/2 -translate-y-1/2" />
+                <Input 
+                  type="text" 
+                  placeholder="Buscar para destacar..." 
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="pl-9 h-9 text-[13px] w-full"
+                />
+              </div>
+            </div>
+            
+            <div className="flex-1 overflow-auto p-3 space-y-2">
+              {MOCK_CATALOG.filter(i => i.title.toLowerCase().includes(searchTerm.toLowerCase())).map(item => (
+                <div key={item.id} className="flex items-center bg-white rounded-xl p-3 border border-vf-border hover:border-vf-black transition-all hover:shadow-sm cursor-pointer">
+                  <div className="w-12 h-12 rounded-lg bg-vf-muted flex-shrink-0 flex items-center justify-center">
+                    <Star className="w-4 h-4 text-vf-text-3" />
+                  </div>
+                  <div className="ml-3 flex-1">
+                    <h3 className="font-bold text-[13px] text-vf-black">{item.title}</h3>
+                    <span className="text-[10px] font-bold text-vf-text-2 bg-vf-muted px-1.5 py-0.5 rounded-sm">{item.category}</span>
+                  </div>
+                  <Button variant="ghost" size="icon" className="w-8 h-8 rounded-full text-vf-text-3 hover:text-vf-black hover:bg-vf-lime">
+                    <Plus className="w-4 h-4" />
+                  </Button>
+                </div>
+              ))}
+            </div>
+          </div>
+          
         </div>
       </div>
     </div>
   );
-};
-
-export default FeaturedDashboard;
+}
