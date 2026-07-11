@@ -8,19 +8,19 @@ import {
 } from "lucide-react";
 import { APIProvider, Map, AdvancedMarker } from "@vis.gl/react-google-maps";
 import { supabase } from "@/lib/supabase";
-import { ContentNodeRow } from "@/repositories/ExperienceRepository";
+import { Database } from "@/types/supabase.types";
+type ExperienceRow = Database["public"]["Tables"]["experiences"]["Row"];
+type ContentType = string;
 import { toast } from "sonner";
 import { cn, isVideoUrl } from "@/lib/utils";
-import { NEW_YORK_NEIGHBORHOODS, TAXONOMY } from "@/config/constants";
+import { NEW_YORK_NEIGHBORHOODS } from "@/config/constants";
 
 const NYC_DESTINATION_ID = "e4a2c918-a6d1-41b9-8bc3-3b160b73c4d7";
-
-type ContentType = ContentNodeRow["type"];
 
 interface FormState {
   title: string;
   type: ContentType;
-  status: ContentNodeRow["status"];
+  status: string;
   description: string;
   address: string;
   neighborhood: string;
@@ -318,38 +318,39 @@ export default function ExperienceEditor() {
   async function loadData(nodeId: string) {
     setIsLoading(true);
     try {
-      const { data: node, error } = await supabase.from('content_nodes').select('*').eq('id', nodeId).single();
+      const { data: node, error } = await supabase.from('experiences').select('*').eq('id', nodeId).single();
       if (error) throw error;
 
-      const t = (node.translations as any) || {};
+      let ai: any = {};
+      try { ai = JSON.parse(node.short_description || '{}'); } catch {}
 
       setForm(prev => ({
         ...prev,
         title: node.title,
-        type: node.type,
+        type: node.category as ContentType,
         status: node.status,
         description: node.description || '',
         address: node.address || '',
-        neighborhood: t.neighborhood || '',
+        neighborhood: node.neighborhood || '',
         location_lat: node.location_lat,
         location_lng: node.location_lng,
-        media_urls: t.media_urls || (t.cover_url ? [t.cover_url] : []),
-        affiliateLink: t.affiliateLink || t.booking_url || '',
-        rating: t.rating ?? null,
-        reviews_count: t.reviews_count ?? null,
-        tags: t.tags || [],
-        base_cost: t.base_cost ?? 0,
-        duration_minutes: t.duration_minutes ?? 60,
-        is_indoor: t.is_indoor ?? false,
-        reservation_required: t.reservation_required ?? false,
+        media_urls: node.media_urls || [],
+        affiliateLink: node.booking_url || '',
+        rating: ai.rating ?? null,
+        reviews_count: ai.reviews_count ?? null,
+        tags: ai.tags || [],
+        base_cost: node.base_cost ?? 0,
+        duration_minutes: node.duration_minutes ?? 60,
+        is_indoor: node.indoor_outdoor === 'indoor',
+        reservation_required: ai.reservation_required ?? false,
         
         // AI Engine
-        personaWeights: t.personaWeights || defaultForm.personaWeights,
-        companionshipCompatibility: t.companionshipCompatibility || defaultForm.companionshipCompatibility,
-        recommendedSeasons: t.recommendedSeasons || ['all'],
-        weatherCompatibility: t.weatherCompatibility || ['all'],
-        exclusivityLevel: t.exclusivityLevel || 'accessible',
-        physicalEnergyRequired: t.physicalEnergyRequired || 'medium',
+        personaWeights: ai.personaWeights || defaultForm.personaWeights,
+        companionshipCompatibility: ai.companionshipCompatibility || defaultForm.companionshipCompatibility,
+        recommendedSeasons: ai.recommendedSeasons || ['all'],
+        weatherCompatibility: ai.weatherCompatibility || ['all'],
+        exclusivityLevel: ai.exclusivityLevel || 'accessible',
+        physicalEnergyRequired: node.energy_level || 'medium',
       }));
     } catch (e: any) {
       toast.error('Erro ao carregar: ' + e.message);
@@ -359,38 +360,37 @@ export default function ExperienceEditor() {
   }
 
   const buildPayload = () => {
-    const translations: any = {
-      neighborhood: form.neighborhood,
-      media_urls: form.media_urls,
-      affiliateLink: form.affiliateLink,
+    const short_description = JSON.stringify({
       rating: form.rating,
       reviews_count: form.reviews_count,
       tags: form.tags,
-      base_cost: form.base_cost,
-      duration_minutes: form.duration_minutes,
-      is_indoor: form.is_indoor,
       reservation_required: form.reservation_required,
-      
       // Engine
       personaWeights: form.personaWeights,
       companionshipCompatibility: form.companionshipCompatibility,
       recommendedSeasons: form.recommendedSeasons,
       weatherCompatibility: form.weatherCompatibility,
       exclusivityLevel: form.exclusivityLevel,
-      physicalEnergyRequired: form.physicalEnergyRequired,
-    };
+    });
 
     return {
-      node: {
+      row: {
         title: form.title,
-        type: form.type,
+        category: form.type,
         status: form.status,
         description: form.description || null,
+        short_description,
         address: form.address || null,
+        neighborhood: form.neighborhood || null,
         location_lat: form.location_lat,
         location_lng: form.location_lng,
         destination_id: NYC_DESTINATION_ID,
-        translations,
+        media_urls: form.media_urls,
+        booking_url: form.affiliateLink || null,
+        base_cost: form.base_cost,
+        duration_minutes: form.duration_minutes,
+        energy_level: form.physicalEnergyRequired,
+        indoor_outdoor: form.is_indoor ? 'indoor' : 'outdoor',
       } as any,
     };
   };
@@ -400,14 +400,14 @@ export default function ExperienceEditor() {
     setIsSaving(true);
     const toastId = toast.loading(publish ? 'Publicando...' : 'Salvando rascunho...');
     try {
-      const { node } = buildPayload();
-      if (publish) node.status = 'published';
+      const { row } = buildPayload();
+      if (publish) row.status = 'published';
 
       if (isNew) {
-        const { error } = await supabase.from('content_nodes').insert([node]);
+        const { error } = await supabase.from('experiences').insert([row]);
         if (error) throw error;
       } else {
-        const { error } = await supabase.from('content_nodes').update(node).eq('id', id!);
+        const { error } = await supabase.from('experiences').update(row).eq('id', id!);
         if (error) throw error;
       }
 

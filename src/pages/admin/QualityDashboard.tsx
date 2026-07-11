@@ -1,10 +1,11 @@
-// @ts-nocheck
 import React, { useEffect, useState, useMemo } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { RefreshCcw, MapPin, Clock, Tag, AlertCircle, CheckCircle2, ArrowUpRight, Star, Link2, Copy, ChevronDown, ChevronUp, BrainCircuit } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/lib/supabase";
-import { ContentNodeRow } from "@/repositories/ExperienceRepository";
+import { Database } from "@/types/supabase.types";
+type ExperienceRow = Database["public"]["Tables"]["experiences"]["Row"];
+const getAI = (e: ExperienceRow) => { try { return JSON.parse(e.short_description || '{}'); } catch { return {}; } };
 import { cn } from "@/lib/utils";
 
 // ─── SVG Circular Score ───────────────────────────────────────────────────────
@@ -101,7 +102,7 @@ function findDuplicatePairs(experiences: ContentNodeRow[]): Array<[ContentNodeRo
 
 // ─── Main ─────────────────────────────────────────────────────────────────────
 export default function QualityDashboard() {
-  const [experiences, setExperiences] = useState<ContentNodeRow[]>([]);
+  const [experiences, setExperiences] = useState<ExperienceRow[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isEnriching, setIsEnriching] = useState(false);
   const [isReframing, setIsReframing] = useState(false);
@@ -128,9 +129,9 @@ export default function QualityDashboard() {
   async function fetchExperiences() {
     setIsLoading(true);
     try {
-      const { data, error } = await supabase.from('content_nodes').select('*').neq('type', 'hotel');
+      const { data, error } = await supabase.from('experiences').select('*').neq('category', 'Hotel');
       if (error) throw error;
-      setExperiences(data as ContentNodeRow[]);
+      setExperiences(data as ExperienceRow[]);
     } catch (e) { console.error(e); }
     finally { setIsLoading(false); }
   }
@@ -157,19 +158,16 @@ export default function QualityDashboard() {
 
   const total = experiences.length;
   
-  // Checking fields within translations
-  const getTr = (e: ContentNodeRow) => (e.translations as any) || {};
-
   const noCoords     = experiences.filter(e => !e.location_lat || !e.location_lng);
-  const noDuration   = experiences.filter(e => !getTr(e).duration_minutes);
-  const noCategory   = experiences.filter(e => !getTr(e).tags?.length); // we use tags for categorization now
-  const noNeighbor   = experiences.filter(e => !getTr(e).neighborhood);
+  const noDuration   = experiences.filter(e => !e.duration_minutes);
+  const noCategory   = experiences.filter(e => !e.category);
+  const noNeighbor   = experiences.filter(e => !e.neighborhood);
   const noDesc       = experiences.filter(e => !e.description || e.description.length < 20);
-  const noMedia      = experiences.filter(e => !getTr(e).media_urls || getTr(e).media_urls.length === 0);
-  const noRating     = experiences.filter(e => getTr(e).rating === undefined || getTr(e).reviews_count === undefined);
+  const noMedia      = experiences.filter(e => !e.media_urls || e.media_urls.length === 0);
+  const noRating     = experiences.filter(e => !getAI(e).rating);
   const noAddress    = experiences.filter(e => !e.address);
-  const noBookingUrl = experiences.filter(e => !getTr(e).affiliateLink);
-  const noAIEngine   = experiences.filter(e => !getTr(e).personaWeights || !getTr(e).recommendedSeasons);
+  const noBookingUrl = experiences.filter(e => !e.booking_url);
+  const noAIEngine   = experiences.filter(e => !getAI(e).personaWeights || !getAI(e).recommendedSeasons);
 
   const duplicatePairs = useMemo(() => findDuplicatePairs(experiences), [experiences]);
 
@@ -179,18 +177,18 @@ export default function QualityDashboard() {
 
   const critical = experiences
     .map(e => {
-      const tr = getTr(e);
+      const ai = getAI(e);
       const missing = [
         !e.location_lat && 'GPS',
-        !tr.duration_minutes && 'Duração',
-        !tr.neighborhood && 'Bairro',
-        !tr.tags?.length && 'Tags',
+        !e.duration_minutes && 'Duração',
+        !e.neighborhood && 'Bairro',
+        !ai.tags?.length && 'Tags',
         !e.description && 'Descrição',
-        (!tr.rating || !tr.reviews_count) && 'Avaliações',
+        !ai.rating && 'Avaliações',
         !e.address && 'Endereço',
-        (!tr.media_urls || tr.media_urls.length === 0) && 'Fotos',
-        !tr.affiliateLink && 'Link de Venda',
-        (!tr.personaWeights || !tr.recommendedSeasons) && 'IA Profiling (Engine)',
+        (!e.media_urls || e.media_urls.length === 0) && 'Fotos',
+        !e.booking_url && 'Link de Venda',
+        !ai.personaWeights && 'IA Profiling (Engine)',
       ].filter(Boolean) as string[];
       return { ...e, missing, score: missing.length };
     })

@@ -7,7 +7,9 @@ import {
   Sparkles, Upload, ChevronRight
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
-import { ContentNodeRow } from "@/repositories/ExperienceRepository";
+import { Database } from "@/types/supabase.types";
+type ExperienceRow = Database["public"]["Tables"]["experiences"]["Row"];
+const getAI = (e: ExperienceRow) => { try { return JSON.parse(e.short_description || '{}'); } catch { return {}; } };
 import { NEW_YORK_NEIGHBORHOODS, CATEGORIES_PTBR, getCategoryLabel } from "@/config/constants";
 import { cn, isVideoUrl } from "@/lib/utils";
 import { APIProvider, Map, AdvancedMarker } from "@vis.gl/react-google-maps";
@@ -46,12 +48,13 @@ function StarRating({ rating }: { rating: number | null }) {
   );
 }
 
-function QualityBadge({ exp, translations }: { exp: ContentNodeRow, translations: any }) {
+function QualityBadge({ exp }: { exp: ExperienceRow }) {
+  const translations = getAI(exp);
   const missing = [
     !exp.location_lat && 'GPS',
-    !translations.neighborhood && 'Bairro',
+    !exp.neighborhood && 'Bairro',
     !translations.tags?.length && 'Tags',
-    !translations.duration_minutes && 'Duração',
+    !exp.duration_minutes && 'Duração',
   ].filter(Boolean);
 
   if (missing.length === 0) {
@@ -66,7 +69,7 @@ function QualityBadge({ exp, translations }: { exp: ContentNodeRow, translations
 
 // ─── Row Actions Menu ─────────────────────────────────────────────────────────
 function RowMenu({ exp, onDelete, onDuplicate, onToggleStatus }: {
-  exp: ContentNodeRow;
+  exp: ExperienceRow;
   onDelete: () => void;
   onDuplicate: () => void;
   onToggleStatus: () => void;
@@ -104,7 +107,7 @@ function RowMenu({ exp, onDelete, onDuplicate, onToggleStatus }: {
 // ─── Main ─────────────────────────────────────────────────────────────────────
 export default function ExperiencesList() {
   const navigate = useNavigate();
-  const [experiences, setExperiences] = useState<ContentNodeRow[]>([]);
+  const [experiences, setExperiences] = useState<ExperienceRow[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [itemToDelete, setItemToDelete] = useState<string | null>(null);
@@ -130,9 +133,9 @@ export default function ExperiencesList() {
   async function fetchExperiences() {
     setIsLoading(true);
     try {
-      const { data, error } = await supabase.from('content_nodes').select('*').neq('type', 'hotel').order('title');
+      const { data, error } = await supabase.from('experiences').select('*').neq('category', 'Hotel').order('title');
       if (error) throw error;
-      setExperiences(data as ContentNodeRow[]);
+      setExperiences(data as ExperienceRow[]);
     } catch { toast.error('Erro ao carregar catálogo.'); }
     finally { setIsLoading(false); }
   }
@@ -145,7 +148,7 @@ export default function ExperiencesList() {
   const handleDelete = async () => {
     if (!itemToDelete) return;
     try {
-      const { error } = await supabase.from('content_nodes').delete().eq('id', itemToDelete);
+      const { error } = await supabase.from('experiences').delete().eq('id', itemToDelete);
       if (error) throw error;
       setExperiences(p => p.filter(e => e.id !== itemToDelete));
       toast.success('Experiência excluída com sucesso.');
@@ -153,23 +156,23 @@ export default function ExperiencesList() {
     finally { setItemToDelete(null); }
   };
 
-  const handleDuplicate = async (exp: ContentNodeRow) => {
+  const handleDuplicate = async (exp: ExperienceRow) => {
     try {
       const { id, created_at, updated_at, ...rest } = exp;
-      const { data, error } = await supabase.from('content_nodes')
+      const { data, error } = await supabase.from('experiences')
         .insert([{ ...rest, title: `${exp.title} (Cópia)`, status: 'draft' }])
         .select()
         .single();
       if (error) throw error;
-      setExperiences(p => [data as ContentNodeRow, ...p]);
+      setExperiences(p => [data as ExperienceRow, ...p]);
       toast.success('Experiência duplicada!');
     } catch (err: any) { toast.error('Erro ao duplicar: ' + err.message); }
   };
 
-  const handleToggleStatus = async (exp: ContentNodeRow) => {
+  const handleToggleStatus = async (exp: ExperienceRow) => {
     const newStatus = exp.status === 'published' ? 'draft' : 'published';
     try {
-      const { error } = await supabase.from('content_nodes').update({ status: newStatus }).eq('id', exp.id);
+      const { error } = await supabase.from('experiences').update({ status: newStatus }).eq('id', exp.id);
       if (error) throw error;
       setExperiences(p => p.map(e => e.id === exp.id ? { ...e, status: newStatus } : e));
       toast.success(newStatus === 'published' ? 'Publicado com sucesso!' : 'Movido para rascunhos.');
@@ -178,7 +181,7 @@ export default function ExperiencesList() {
 
   const handleBulkPublish = async () => {
     const ids = Array.from(selectedIds);
-    const { error } = await supabase.from('content_nodes').update({ status: 'published' }).in('id', ids);
+    const { error } = await supabase.from('experiences').update({ status: 'published' }).in('id', ids);
     if (!error) {
       setExperiences(p => p.map(e => selectedIds.has(e.id) ? { ...e, status: 'published' } : e));
       setSelectedIds(new Set());
@@ -188,7 +191,7 @@ export default function ExperiencesList() {
 
   const handleBulkDelete = async () => {
     const ids = Array.from(selectedIds);
-    const { error } = await supabase.from('content_nodes').delete().in('id', ids);
+    const { error } = await supabase.from('experiences').delete().in('id', ids);
     if (!error) {
       setExperiences(p => p.filter(e => !selectedIds.has(e.id)));
       setSelectedIds(new Set());
@@ -198,16 +201,16 @@ export default function ExperiencesList() {
 
   const filtered = useMemo(() => {
     return experiences.filter(e => {
-      const tr = (e.translations as any) || {};
+      const ai = getAI(e);
       
       if (search && !e.title.toLowerCase().includes(search.toLowerCase())) return false;
       if (statusFilter !== 'all' && e.status !== statusFilter) return false;
-      if (neighborhoodFilter !== 'all' && tr.neighborhood !== neighborhoodFilter) return false;
-      if (typeFilter !== 'all' && e.type !== typeFilter) return false;
-      if (mustSeeFilter && !tr.is_must_see) return false;
-      if (minRating !== null && (tr.rating || 0) < minRating) return false;
+      if (neighborhoodFilter !== 'all' && e.neighborhood !== neighborhoodFilter) return false;
+      if (typeFilter !== 'all' && e.category !== typeFilter) return false;
+      if (mustSeeFilter && !ai.is_must_see) return false;
+      if (minRating !== null && (ai.rating || 0) < minRating) return false;
 
-      const cost = tr.base_cost || 0;
+      const cost = e.base_cost || 0;
       if (cost > maxPrice) return false;
 
       return true;
@@ -234,7 +237,7 @@ export default function ExperiencesList() {
   const renderStrips = () => (
     <div className="space-y-3">
       {filtered.map(exp => {
-        const tr = (exp.translations as any) || {};
+        const ai = getAI(exp);
         return (
           <div
             key={exp.id}
@@ -253,11 +256,11 @@ export default function ExperiencesList() {
               />
             </div>
             <div className="w-14 h-14 rounded-[12px] bg-slate-100 overflow-hidden flex-shrink-0">
-              {tr.cover_url ? (
-                isVideoUrl(tr.cover_url) ? (
-                  <video src={tr.cover_url} className="w-full h-full object-cover" autoPlay loop muted playsInline />
+              {exp.media_urls?.[0] ? (
+                isVideoUrl(exp.media_urls[0]) ? (
+                  <video src={exp.media_urls[0]} className="w-full h-full object-cover" autoPlay loop muted playsInline />
                 ) : (
-                  <img src={tr.cover_url} alt={exp.title} className="w-full h-full object-cover" />
+                  <img src={exp.media_urls[0]} alt={exp.title} className="w-full h-full object-cover" />
                 )
               ) : (
                 <div className="w-full h-full flex flex-col items-center justify-center text-[10px] font-black text-slate-300">
@@ -267,27 +270,27 @@ export default function ExperiencesList() {
             </div>
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2 mb-1">
-                {tr.is_must_see && <span className="text-amber-400 text-xs">⭐</span>}
+                {ai.is_must_see && <span className="text-amber-400 text-xs">⭐</span>}
                 <p className="font-black text-[#0F1117] text-sm truncate">{exp.title}</p>
               </div>
               <div className="flex items-center gap-3 text-[11px] font-semibold text-slate-400">
-                {tr.neighborhood && (
+                {exp.neighborhood && (
                   <span className="flex items-center gap-1">
-                    <MapPin className="w-3 h-3 text-slate-300" />{tr.neighborhood}
+                    <MapPin className="w-3 h-3 text-slate-300" />{exp.neighborhood}
                   </span>
                 )}
-                {exp.type && (
+                {exp.category && (
                   <span className="flex items-center gap-1">
                     <span className="w-1.5 h-1.5 rounded-full bg-slate-300" />
-                    {exp.type}
+                    {exp.category}
                   </span>
                 )}
-                <StarRating rating={tr.rating} />
+                <StarRating rating={ai.rating} />
               </div>
             </div>
             <div className="hidden md:flex items-center gap-6">
-              <span className="font-black text-sm text-[#0F1117]">${tr.base_cost ?? 0}</span>
-              <QualityBadge exp={exp} translations={tr} />
+              <span className="font-black text-sm text-[#0F1117]">${exp.base_cost ?? 0}</span>
+              <QualityBadge exp={exp} />
               <span className={STATUS_STYLES[exp.status || 'draft']}>{exp.status}</span>
             </div>
             <div onClick={e => e.stopPropagation()} className="flex items-center gap-1">
@@ -319,11 +322,11 @@ export default function ExperiencesList() {
             )}
           >
             <div className="relative h-48 bg-slate-100">
-              {tr.cover_url ? (
-                isVideoUrl(tr.cover_url) ? (
-                  <video src={tr.cover_url} className="w-full h-full object-cover" autoPlay loop muted playsInline />
+              {exp.media_urls?.[0] ? (
+                isVideoUrl(exp.media_urls[0]) ? (
+                  <video src={exp.media_urls[0]} className="w-full h-full object-cover" autoPlay loop muted playsInline />
                 ) : (
-                  <img src={tr.cover_url} alt={exp.title} className="w-full h-full object-cover" />
+                  <img src={exp.media_urls[0]} alt={exp.title} className="w-full h-full object-cover" />
                 )
               ) : (
                 <div className="w-full h-full flex items-center justify-center">
@@ -337,10 +340,10 @@ export default function ExperiencesList() {
                   <div className="bg-white/90 backdrop-blur-sm px-2.5 py-1 rounded-full flex items-center shadow-sm">
                     <Star className="w-3.5 h-3.5 text-amber-400 fill-amber-400 mr-1" />
                     <span className="text-[11px] font-black text-slate-700">
-                      {tr.rating != null ? tr.rating.toFixed(1) : "5.0"}
+                      {ai.rating != null ? ai.rating.toFixed(1) : "5.0"}
                     </span>
                   </div>
-                  {tr.is_must_see && (
+                  {ai.is_must_see && (
                     <div className="bg-amber-400 text-black px-2.5 py-1 rounded-full text-[10px] font-black shadow-sm uppercase tracking-wider">
                       Must See
                     </div>
@@ -362,9 +365,9 @@ export default function ExperiencesList() {
                 <h3 className="font-black text-[15px] leading-tight text-[#0F1117] line-clamp-2">
                   {exp.title}
                 </h3>
-                {exp.type && (
+                {exp.category && (
                   <p className="text-[11px] font-bold uppercase tracking-widest text-slate-400 mt-1.5">
-                    {exp.type}
+                    {exp.category}
                   </p>
                 )}
               </div>
@@ -372,7 +375,7 @@ export default function ExperiencesList() {
               <div className="mt-auto flex flex-col gap-3">
                 <div className="flex items-center gap-1.5 text-slate-400 text-[11px] font-semibold bg-slate-50 px-2.5 py-1.5 rounded-lg w-fit">
                   <MapPin className="w-3.5 h-3.5 text-slate-300" />
-                  <span>{tr.neighborhood || 'Nova York'}</span>
+                  <span>{exp.neighborhood || 'Nova York'}</span>
                 </div>
 
                 <div className="pt-3 border-t border-slate-100 flex items-center justify-between">
@@ -519,7 +522,7 @@ export default function ExperiencesList() {
                 onClick={async () => {
                   const draftIds = experiences.filter(e => e.status === 'draft').map(e => e.id);
                   if (draftIds.length === 0) return;
-                  const { error } = await supabase.from('content_nodes').update({ status: 'published' }).in('id', draftIds);
+                  const { error } = await supabase.from('experiences').update({ status: 'published' }).in('id', draftIds);
                   if (!error) {
                     setExperiences(p => p.map(e => e.status === 'draft' ? { ...e, status: 'published' } : e));
                     toast.success(`${draftIds.length} rascunhos publicados!`);

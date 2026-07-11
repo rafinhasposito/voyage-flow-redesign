@@ -101,30 +101,28 @@ export default function Import() {
       const payloads = toSave.map(exp => ({
         destination_id: NYC_DESTINATION_ID,
         title: exp.title,
-        type: exp.type === 'hotel' ? 'hotel' : exp.type === 'restaurant' ? 'restaurant' : 'attraction',
+        category: exp.type === 'hotel' ? 'Hotel' : exp.type === 'restaurant' ? 'Restaurante' : exp.category || 'Atração',
         status: status,
         description: exp.description || exp.short_description || null,
+        short_description: JSON.stringify({
+          tags: exp.tags || [],
+          rating: exp.rating || null,
+          reservation_required: exp.reservation_required || false,
+          is_must_see: exp.is_must_see || false,
+        }),
         address: exp.address || null,
+        neighborhood: exp.neighborhood || null,
         location_lat: exp.location_lat,
         location_lng: exp.location_lng,
-        translations: {
-          neighborhood: exp.neighborhood,
-          cover_url: exp.media_urls?.[0] || '',
-          booking_url: exp.booking_url || '',
-          rating: exp.rating || null,
-          tags: exp.tags || [],
-          base_cost: exp.base_cost || 0,
-          duration_minutes: exp.duration_minutes || 60,
-          reservation_required: exp.reservation_required || false,
-          stars: 4, // Default
-          average_price_usd: exp.base_cost || 0,
-          check_in_time: exp.check_in_time || "15:00",
-          check_out_time: exp.check_out_time || "11:00",
-          amenities: []
-        }
+        media_urls: exp.media_urls || [],
+        booking_url: exp.booking_url || null,
+        base_cost: exp.base_cost || 0,
+        duration_minutes: exp.duration_minutes || 60,
+        energy_level: 'medium',
+        indoor_outdoor: 'outdoor',
       }));
 
-      const { error } = await supabase.from('content_nodes').insert(payloads as any);
+      const { error } = await supabase.from('experiences').insert(payloads as any);
       if (error) throw error;
 
       toast.success(`${payloads.length} itens salvos com sucesso!`, { id: toastId });

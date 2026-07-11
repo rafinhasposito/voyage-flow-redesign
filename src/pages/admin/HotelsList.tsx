@@ -6,8 +6,10 @@ import {
   ArrowUpRight, Upload, ChevronRight, X
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
-import { ContentNodeRow } from "@/repositories/ExperienceRepository";
-import { NEW_YORK_NEIGHBORHOODS, getCategoryLabel } from "@/config/constants";
+import { Database } from "@/types/supabase.types";
+type ExperienceRow = Database["public"]["Tables"]["experiences"]["Row"];
+const getAI = (e: ExperienceRow) => { try { return JSON.parse(e.short_description || '{}'); } catch { return {}; } };
+import { NEW_YORK_NEIGHBORHOODS } from "@/config/constants";
 import { cn, isVideoUrl } from "@/lib/utils";
 import { APIProvider, Map, AdvancedMarker } from "@vis.gl/react-google-maps";
 import { toast } from "sonner";
@@ -21,7 +23,7 @@ type ViewMode = 'cards' | 'strips';
 
 export default function HotelsList() {
   const navigate = useNavigate();
-  const [hotels, setHotels] = useState<ContentNodeRow[]>([]);
+  const [hotels, setHotels] = useState<ExperienceRow[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [itemToDelete, setItemToDelete] = useState<string | null>(null);
@@ -40,9 +42,9 @@ export default function HotelsList() {
   async function fetchHotels() {
     setIsLoading(true);
     try {
-      const { data, error } = await supabase.from('content_nodes').select('*').eq('type', 'hotel').order('title');
+      const { data, error } = await supabase.from('experiences').select('*').eq('category', 'Hotel').order('title');
       if (error) throw error;
-      setHotels(data || []);
+      setHotels(data as ExperienceRow[]);
     } catch { toast.error('Erro ao carregar hotéis.'); }
     finally { setIsLoading(false); }
   }
@@ -50,7 +52,7 @@ export default function HotelsList() {
   const handleDelete = async () => {
     if (!itemToDelete) return;
     try {
-      const { error } = await supabase.from('content_nodes').delete().eq('id', itemToDelete);
+      const { error } = await supabase.from('experiences').delete().eq('id', itemToDelete);
       if (error) throw error;
       setHotels(p => p.filter(e => e.id !== itemToDelete));
       toast.success('Hotel excluído.');
@@ -58,10 +60,10 @@ export default function HotelsList() {
     finally { setItemToDelete(null); }
   };
 
-  const handleToggleStatus = async (exp: ContentNodeRow) => {
+  const handleToggleStatus = async (exp: ExperienceRow) => {
     const newStatus = exp.status === 'published' ? 'draft' : 'published';
     try {
-      const { error } = await supabase.from('content_nodes').update({ status: newStatus }).eq('id', exp.id);
+      const { error } = await supabase.from('experiences').update({ status: newStatus }).eq('id', exp.id);
       if (error) throw error;
       setHotels(p => p.map(e => e.id === exp.id ? { ...e, status: newStatus } : e));
       toast.success(newStatus === 'published' ? 'Publicado!' : 'Despublicado.');
@@ -70,7 +72,7 @@ export default function HotelsList() {
 
   const handleBulkPublish = async () => {
     const ids = Array.from(selectedIds);
-    const { error } = await supabase.from('content_nodes').update({ status: 'published' }).in('id', ids);
+    const { error } = await supabase.from('experiences').update({ status: 'published' }).in('id', ids);
     if (!error) {
       setHotels(p => p.map(e => selectedIds.has(e.id) ? { ...e, status: 'published' } : e));
       setSelectedIds(new Set());
@@ -80,7 +82,7 @@ export default function HotelsList() {
 
   const handleBulkDelete = async () => {
     const ids = Array.from(selectedIds);
-    const { error } = await supabase.from('content_nodes').delete().in('id', ids);
+    const { error } = await supabase.from('experiences').delete().in('id', ids);
     if (!error) {
       setHotels(p => p.filter(e => !selectedIds.has(e.id)));
       setSelectedIds(new Set());
@@ -90,13 +92,13 @@ export default function HotelsList() {
 
   const filtered = useMemo(() => {
     return hotels.filter(e => {
-      const translations = (e.translations as any) || {};
-      const avgPrice = translations.average_price_usd ?? 0;
-      const stars = translations.stars ?? 0;
+      const ai = getAI(e);
+      const avgPrice = e.base_cost ?? 0;
+      const stars = ai.stars ?? 0;
 
       if (search && !e.title.toLowerCase().includes(search.toLowerCase())) return false;
       if (statusFilter !== 'all' && e.status !== statusFilter) return false;
-      if (neighborhoodFilter !== 'all' && translations.neighborhood !== neighborhoodFilter) return false;
+      if (neighborhoodFilter !== 'all' && e.neighborhood !== neighborhoodFilter) return false;
       if (minStars !== null && stars < minStars) return false;
       if (avgPrice > maxPrice) return false;
       return true;
@@ -269,7 +271,7 @@ export default function HotelsList() {
             ) : viewMode === 'cards' ? (
               <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-5">
                 {filtered.map(hotel => {
-                  const translations = (hotel.translations as any) || {};
+                  const ai = getAI(hotel);
                   const isSelected = selectedIds.has(hotel.id);
                   return (
                     <div key={hotel.id}
@@ -279,13 +281,13 @@ export default function HotelsList() {
                       onClick={() => navigate(`/admin/experiences/${hotel.id}?type=hotel`)}
                     >
                       <div className="relative h-48 bg-slate-100">
-                        {translations.cover_url ? (
-                          <img src={translations.cover_url} alt={hotel.title} className="w-full h-full object-cover" />
+                        {hotel.media_urls?.[0] ? (
+                          <img src={hotel.media_urls[0]} alt={hotel.title} className="w-full h-full object-cover" />
                         ) : (
                           <div className="w-full h-full flex items-center justify-center bg-indigo-50"><MapPin className="w-8 h-8 text-indigo-200" /></div>
                         )}
                         <div className="absolute top-3 left-3 bg-white/90 backdrop-blur-sm px-2.5 py-1 rounded-full flex items-center shadow-sm">
-                          <StarDisplay count={translations.stars || 4} />
+                          <StarDisplay count={hotel.stars || 4} />
                         </div>
                         <div className="absolute top-3 right-3" onClick={e => e.stopPropagation()}>
                           <input type="checkbox" checked={isSelected} onChange={(e) => {
@@ -304,12 +306,12 @@ export default function HotelsList() {
                         </div>
                         <div className="flex items-center gap-1 text-slate-400 text-[11px] font-semibold">
                           <MapPin className="w-3.5 h-3.5" />
-                          <span>{translations.neighborhood || 'Nova York'}</span>
+                          <span>{hotel.neighborhood || 'Nova York'}</span>
                         </div>
                         <div className="pt-3 mt-2 border-t border-slate-100 flex items-center justify-between">
                           <div>
                             <p className="text-[9px] font-bold uppercase tracking-widest text-slate-400">Diária Média</p>
-                            <p className="font-black text-base text-[#0F1117]">${translations.average_price_usd ?? 0}</p>
+                            <p className="font-black text-base text-[#0F1117]">${hotel.base_cost ?? 0}</p>
                           </div>
                           <div className="flex items-center gap-2" onClick={e => e.stopPropagation()}>
                             <button onClick={() => handleToggleStatus(hotel)} className="p-1.5 rounded-full text-slate-400 hover:text-black hover:bg-slate-100">
@@ -340,17 +342,17 @@ export default function HotelsList() {
                         }} className="accent-black w-4 h-4 rounded-md" />
                       </div>
                       <div className="w-14 h-14 rounded-xl overflow-hidden bg-slate-100 flex-shrink-0">
-                        {translations.cover_url ? <img src={translations.cover_url} className="w-full h-full object-cover" /> : <MapPin className="w-6 h-6 m-auto mt-4 text-slate-300" />}
+                        {hotel.media_urls?.[0] ? <img src={hotel.media_urls[0]} className="w-full h-full object-cover" /> : <MapPin className="w-6 h-6 m-auto mt-4 text-slate-300" />}
                       </div>
                       <div className="flex-1 min-w-0">
                         <p className="font-black text-[#0F1117] text-sm truncate">{hotel.title}</p>
                         <div className="flex items-center gap-3 mt-1 flex-wrap text-slate-400">
-                          <span className="flex items-center gap-1 text-[11px]"><MapPin className="w-3 h-3" /> {translations.neighborhood || 'Nova York'}</span>
-                          <StarDisplay count={translations.stars || 4} />
+                          <span className="flex items-center gap-1 text-[11px]"><MapPin className="w-3 h-3" /> {hotel.neighborhood || 'Nova York'}</span>
+                          <StarDisplay count={ai.stars || 4} />
                         </div>
                       </div>
                       <div className="hidden md:flex items-center gap-6 flex-shrink-0">
-                        <span className="font-black text-sm text-[#0F1117]">${translations.average_price_usd ?? 0}/noite</span>
+                        <span className="font-black text-sm text-[#0F1117]">${hotel.base_cost ?? 0}/noite</span>
                         <span className={cn("vf-pill", hotel.status === 'published' ? 'vf-pill-green' : 'vf-pill-slate')}>{hotel.status}</span>
                       </div>
                       <div onClick={e => e.stopPropagation()} className="flex items-center gap-2">
