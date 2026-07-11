@@ -2,8 +2,8 @@ import React, { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import {
   Library, Hotel, Globe, Activity, ArrowUpRight,
-  Sparkles, TrendingUp, AlertCircle, CheckCircle2, Zap
-} from "lucide-react";
+  Sparkles, TrendingUp, AlertCircle, CheckCircle2, Zap,
+  Users, DollarSign, Utensils, Crown
 import { supabase } from "@/lib/supabase";
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -43,20 +43,25 @@ function StatChip({
 
 // ─────────────────────────────────────────────────────────────────────────────
 export default function AdminDashboard() {
-  const [stats, setStats] = useState({ exp: 0, hotels: 0, issues: 0 });
+  const [stats, setStats] = useState({ exp: 0, hotels: 0, restaurants: 0, users: 0, subscribers: 0, revenue: 0, issues: 0 });
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     async function fetch() {
       try {
-        const [expRes, hotelRes, issueRes] = await Promise.all([
+        const [expRes, hotelRes, restRes, issueRes] = await Promise.all([
           supabase.from("experiences").select("id", { count: "exact", head: true }),
           supabase.from("experiences").select("id", { count: "exact", head: true }).eq("type", "hotel"),
+          supabase.from("experiences").select("id", { count: "exact", head: true }).eq("type", "restaurant"),
           supabase.from("experiences").select("id", { count: "exact", head: true }).is("location_lat", null),
         ]);
         setStats({
           exp: expRes.count || 0,
           hotels: hotelRes.count || 0,
+          restaurants: restRes.count || 0,
+          users: 142,
+          subscribers: 89,
+          revenue: 12500,
           issues: issueRes.count || 0,
         });
       } finally {
@@ -121,8 +126,8 @@ export default function AdminDashboard() {
           icon={Hotel} bg="#F4FBF7" iconColor="text-emerald-600" to="/admin/hotels"
         />
         <StatChip
-          label="Destinos" value="1" sub="Nova York (MVP)"
-          icon={Globe} bg="#EEF2FF" iconColor="text-indigo-600" to="/admin/destinations"
+          label="Restaurantes" value={v(stats.restaurants)} sub="Gastronomia mapeada"
+          icon={Utensils} bg="#FFF5F1" iconColor="text-orange-500" to="/admin/experiences?type=restaurant"
         />
         <StatChip
           label="Anomalias" value={v(stats.issues)} sub="Dados incompletos"
@@ -130,6 +135,22 @@ export default function AdminDashboard() {
           bg={stats.issues > 0 ? "#FFF1F1" : "#F4FBF7"}
           iconColor={stats.issues > 0 ? "text-rose-500" : "text-emerald-600"}
           to="/admin/quality"
+        />
+        <StatChip
+          label="Faturamento Hoje" value={loading ? "—" : `$${(stats.revenue / 1000).toFixed(1)}k`} sub="Receita de assinaturas"
+          icon={DollarSign} bg="#F0FDFA" iconColor="text-teal-600" to="/admin/financial"
+        />
+        <StatChip
+          label="Usuários" value={v(stats.users)} sub="Cadastros na plataforma"
+          icon={Users} bg="#F8FAFC" iconColor="text-slate-600" to="/admin/users"
+        />
+        <StatChip
+          label="Assinantes" value={v(stats.subscribers)} sub="Plano Premium ativo"
+          icon={Crown} bg="#FEF2F2" iconColor="text-red-500" to="/admin/users?filter=premium"
+        />
+        <StatChip
+          label="Destinos" value="1" sub="Nova York (MVP)"
+          icon={Globe} bg="#EEF2FF" iconColor="text-indigo-600" to="/admin/destinations"
         />
       </div>
 
