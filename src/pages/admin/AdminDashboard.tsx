@@ -4,6 +4,7 @@ import {
   Library, Hotel, Globe, Activity, ArrowUpRight,
   Sparkles, TrendingUp, AlertCircle, CheckCircle2, Zap,
   Users, DollarSign, Utensils, Crown
+} from "lucide-react";
 import { supabase } from "@/lib/supabase";
 
 // ─────────────────────────────────────────────────────────────────────────────
