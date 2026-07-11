@@ -1,0 +1,110 @@
+# Roadmap de Desenvolvimento
+
+Este documento acompanha as fases do projeto de forma macro, definindo o que já foi feito, o foco atual e o que planejamos para o futuro.
+
+## Fases do Projeto
+
+### Fase 1: Fundação & UI Core [Concluída]
+- [x] Criação do boilerplate React + Vite + Tailwind.
+- [x] Design System Base (Cores Premium, Fontes Serifadas).
+- [x] Construção das interfaces core: Landing, Onboarding, Board, Catalog, Wallet.
+- [x] Implementação da Engine V1 (Cálculo Síncrono de Scores baseados em Tags).
+
+### Fase 2: Admin & Inteligência [Concluída]
+- [x] Construção da página `/admin`.
+- [x] Estrutura para busca e inserção via UI interna.
+- [x] Refinamento visual com feedbacks do cliente.
+
+### Fase 3: Arquitetura SaaS e Supabase [Concluída]
+- [x] Setup do Supabase (Database, Auth, Storage).
+- [x] Definição do schema relacional (`experiences`, `destinations`).
+- [x] Implementação do botão/função "Coringa" (`is_must_see`).
+
+### Fase 4: Integração Híbrida & Repositórios [Concluída]
+- [x] Criação do Pattern de Repository (`ExperienceRepository`).
+- [x] Criação do Gerenciador de Cache (`CacheManager`) com suporte a SWR.
+- [x] Desacoplamento de UI vs Banco de Dados.
+- [x] Mocks (`DEFAULT_ATTRACTIONS`) configurados como Fallback de segurança.
+- [x] Refatoração da Engine (`generateSmartItinerary`) para consumir dados via injeção.
+
+### Fase 5: Integração com Supabase (Supabase Official)
+
+- [x] **Fase 5.1 - Refatoração do Admin CMS & Teste E2E (Concluída)**
+  - O painel `/admin` foi refatorado para utilizar o `ExperienceRepository`.
+  - Abstração dos serviços auxiliares em `StorageService` e `ExperienceService`.
+  - Bug do SWR (Retorno do cache vazio com Fallback) corrigido: SWR bloqueia renderização com await se o cache está invalidado.
+  - Teste manual E2E de criação e edição aprovado.
+
+- [x] **Fase 5.1 - Cadastro de Massa Real (Concluída)**
+  - O usuário fará o cadastro manual (via Admin UI) das 5 a 10 atrações reais que cobrem os diferentes cenários e perfis da Engine.
+  - Implementação do *Smart Scraper* (com IA) para ingestão automatizada em lote de atrações via URLs do GetYourGuide e adição dos links de afiliado.
+  - Estruturação inicial de "Hospedagens" (Basecamps), separando `type = 'hotel'` e `type  - Integrar os inputs da IA com uma Base de Conhecimento RAG de guias locais experientes (evitando roteiros muito óbvios de IA pura).
+
+- [x] **Fase 5.3 - Redesenho Visual e UX do Admin (CMS) (Concluído)**
+  - Novo design (Airtable/Linear feeling).
+  - Listagem com visualização em Grid/Cards.
+  - Editor 2 Colunas (Live Preview à direita).
+  - Gerenciamento de Rascunhos (`draft`) com Botões Salvar/Publicar explícitos e Card de Rascunhos no Dashboard.
+  - Publicação e Deleção em lote (Bulk Actions) na listagem.
+
+- [x] **Fase 5.4 - Funcionalidades Pró do Admin (Concluído)**
+  - Google Maps View na tela de Listagem (Hospedagens e Atrações).
+  - Categorização em Select Dinâmico conectada à banco/constante (com taxonomia hierárquica `tipo -> categoria`).
+  - Painel de Qualidade de Dados integrado com Google Places Search para Auto-Completar vazios (Endereço, GPS, Fotos, Rating).
+  - Edge Function `reframe-taxonomy` acionada por um botão "Revisar Taxonomia (IA)" para varrer e corrigir categorizações legadas para a nova taxonomia hierárquica.
+  - Nenhuma alteração no Supabase (UI-First approach).
+
+- [x] **Fase 5.3b - Redesenho Visual Premium do Admin (Concluída)**
+  - Todos os 8 arquivos do painel `/admin` redesenhados com estética "IDEIA ADMIN - CLONE".
+  - Paleta neon-lime (#E2F18A) + mint (#7CFE9D) + cards pastel por propósito.
+  - Layout Bento Box com `rounded-3xl` em todos os containers e sidebar flutuante.
+  - Abas em pílula preta no ExperienceEditor e DestinationEditor.
+  - Medidor circular tracejado estilo "Lead Score" no QualityDashboard.
+  - Fonte global Urbanist confirmada e em uso em toda a aplicação.
+
+- [x] **Fase 5.4 - Design System Clone (Concluída)**
+  - AdminLayout refundado com canvas cinza, sidebar sem bordas, pill lime ativo, collapse toggle.
+  - Catálogo com 3 views (Strips/Cards/Compact) + filtros avançados (preço, rating, qualidade, bairro, categoria, must-see).
+  - Mapas interativos via Google Maps adicionados ao Catálogo (Visualização) e Editor (Captura de Coordenadas Lat/Lng).
+  - Filtro de Orçamento (`base_cost`) 100% ativado e testado no Catálogo.
+  - Dashboard Bento Box com hero, 4 chips de stats do Supabase, atividade recente, módulos Em Breve (Usuários, Preços) e módulo de Destaques funcional.
+  - QualityDashboard com medidor SVG circular animado e lista de críticos, integrado a uma Engine de Auto-Heal (Cura de dados via Google Places).
+  - **Dashboard de Destaques:** Interface (`FeaturedDashboard.tsx`) com design Bento Box para gerenciar curadoria manual de experiências em destaque.
+  - **Importador Automático em Lote:** Criação da página funcional `/admin/import` e Edge Function `import-bulk` para ler artigos de blogs (ex: dicasnovayork.com.br) com IA e cadastrar múltiplos itens em lote.
+  - **Contexto Temático Automático:** IA atualizada para detectar o tema do artigo (ex: "Pôr do Sol") e injetar esse contexto no título e nas tags automaticamente.
+  - **Fix Fluxo de Rascunhos:** Banner amarelo de "N rascunhos aguardando revisão" adicionado ao topo do Catálogo. Botões "Ver Rascunhos" (filtro automático) e "Publicar Todos (N)" com um clique sem precisar selecionar item a item.
+  - **Botão Importar URL no Catálogo:** Link direto para `/admin/import` adicionado na toolbar do `ExperiencesList`, eliminando a necessidade de voltar ao Dashboard para acessar o importador.
+  - **Pricing Manager:** Componente de gestão de *Markups* e Afiliados implementado com a estética Bento Box, contendo mock data inicial.
+  - **Módulo de Usuários (UI):** Criação da página `UsersList` no Admin com estética Bento Box e mock de dados, preparando o terreno para a Fase 6.
+  - Build de produção: ✅ zero erros.
+
+- [x] **Fase 5.5 - Refatoração TypeScript e Rollback para a Tabela Original**
+  - Rollback arquitetural de `content_nodes` para `experiences` para restaurar o catálogo de dados preexistente do usuário e manter a compatibilidade direta com a UI.
+  - O Admin CMS, `ExperienceRepository` e as funcionalidades da Engine (Swipe/Swap) operam agora com a tipagem estrita de `experiences`.
+  - Dados de inteligência empacotados em `short_description` (via JSON) para não sujar a tabela original.
+  - Resolução de 100% dos erros de compilação (Strict TypeScript).
+  
+- [x] **Fase 5.5 - Erradicação dos Mocks e Swipe / Swap Engine**
+  - Integração limpa e direta do "Swipe / Troca de Atrações" (`handleSwapAttraction`) com a base real do Supabase sem perder o progresso das curadorias manuais.
+  - Garantir que o Consumer e o Admin operam sob a mesma tipagem e regras.
+
+### Fase 6: Consumer App Redesign & Mocks Eradication [Concluída]
+- [x] Novo design system Bento Box no `AppNav` e componentes globais.
+- [x] Criação da nova `Landing Page` interativa com destaques.
+- [x] Novo `Onboarding` (Tinder Flow) que injeta afinidades diretamente no `interactions` do `UserProfile` via gestos de *Swipe*.
+- [x] `Dashboard` do Viajante redesenhado, com cards arredondados e botão "Substituir Atração (Swap)".
+
+### Fase 6.5: O Novo Editor Inteligente (Concierge IA) [Concluída]
+- [x] Criação do `ExperienceEditor.tsx` do zero, focado em treinar a IA.
+- [x] **Aba de Inteligência (Engine Settings):** UI com sliders para `personaWeights`, `companionshipCompatibility`, `recommendedSeasons`, e `exclusivityLevel`.
+- [x] **Multi-Preview:** Abas para Tinder Match e Roteiro interativo diretamente no admin.
+- [x] **Botão Sincronizar IA:** Botão mágico que infere a matemática da Engine para facilitar o trabalho do operador.
+
+### Fase 7: Autenticação, Escala SaaS e Monetização (Futuro) [Planejada]
+- [ ] Criação de conta/login para o Consumidor (Auth Provider) ativado apenas como "Salvar Meu Roteiro".
+- [ ] **Affiliate Hub:** Painel Admin para gerenciamento de comissões, Tracking de cliques e controle de receita.
+- [ ] Integrações reais com APIs externas via Edge Functions (precificação GetYourGuide em tempo real).
+- [ ] Sistema de Review/Feedback de usuários.
+- [ ] Funcionalidades Multi-player (compartilhar roteiro de casal/amigos).
+
+
