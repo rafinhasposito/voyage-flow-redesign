@@ -23,7 +23,6 @@ export default function HotelsList() {
   const navigate = useNavigate();
   const [hotels, setHotels] = useState<ContentNodeRow[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [itemToDelete, setItemToDelete] = useState<string | null>(null);
 
   const [viewMode, setViewMode] = useState<ViewMode>('cards');
@@ -68,25 +67,7 @@ export default function HotelsList() {
     } catch { toast.error('Falha ao atualizar status.'); }
   };
 
-  const handleBulkPublish = async () => {
-    const ids = Array.from(selectedIds);
-    const { error } = await supabase.from('content_nodes').update({ status: 'published' }).in('id', ids);
-    if (!error) {
-      setHotels(p => p.map(e => selectedIds.has(e.id) ? { ...e, status: 'published' } : e));
-      setSelectedIds(new Set());
-      toast.success(`${ids.length} hotéis publicados.`);
-    }
-  };
 
-  const handleBulkDelete = async () => {
-    const ids = Array.from(selectedIds);
-    const { error } = await supabase.from('content_nodes').delete().in('id', ids);
-    if (!error) {
-      setHotels(p => p.filter(e => !selectedIds.has(e.id)));
-      setSelectedIds(new Set());
-      toast.success(`${ids.length} excluídos.`);
-    }
-  };
 
   const filtered = useMemo(() => {
     return hotels.filter(e => {
@@ -103,13 +84,7 @@ export default function HotelsList() {
     });
   }, [hotels, search, statusFilter, neighborhoodFilter, minStars, maxPrice]);
 
-  const toggleSelectAll = () => {
-    if (selectedIds.size === filtered.length && filtered.length > 0) {
-      setSelectedIds(new Set());
-    } else {
-      setSelectedIds(new Set(filtered.map(e => e.id)));
-    }
-  };
+
 
   const StarDisplay = ({ count }: { count: number }) => (
     <div className="flex items-center gap-0.5">
@@ -129,17 +104,6 @@ export default function HotelsList() {
           <p className="text-xs text-slate-400 mt-0.5">Gerencie o portfólio de hotéis e resorts de Nova York.</p>
         </div>
         <div className="flex items-center gap-2">
-          {selectedIds.size > 0 && (
-            <div className="bg-[#0F1117] text-white px-4 py-2 rounded-full flex items-center gap-3 text-xs font-bold shadow-md">
-              <span>{selectedIds.size} selecionados</span>
-              <div className="w-px h-4 bg-white/20" />
-              <button onClick={handleBulkPublish} className="text-[#E2F18A] hover:underline">Publicar</button>
-              <button onClick={handleBulkDelete} className="text-rose-400 hover:underline">Excluir</button>
-              <button onClick={() => setSelectedIds(new Set())} className="text-white/40 hover:text-white">
-                <X className="w-3.5 h-3.5" />
-              </button>
-            </div>
-          )}
           <Link to="/admin/experiences/new?type=hotel" className="vf-btn-primary text-xs px-4 py-2.5 shadow-sm">
             <Plus className="w-3.5 h-3.5" /> Adicionar Hotel
           </Link>
@@ -270,12 +234,9 @@ export default function HotelsList() {
               <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-5">
                 {filtered.map(hotel => {
                   const translations = (hotel.translations as any) || {};
-                  const isSelected = selectedIds.has(hotel.id);
                   return (
                     <div key={hotel.id}
-                      className={cn('bg-white rounded-[24px] overflow-hidden group cursor-pointer border hover:shadow-md transition-all',
-                        isSelected ? 'border-[#C4B5FD] ring-2 ring-[#C4B5FD]/30' : 'border-transparent shadow-sm'
-                      )}
+                      className="bg-white rounded-[24px] overflow-hidden group cursor-pointer border border-transparent hover:border-slate-200 shadow-sm hover:shadow-md transition-all"
                       onClick={() => navigate(`/admin/experiences/${hotel.id}?type=hotel`)}
                     >
                       <div className="relative h-48 bg-slate-100">
@@ -286,13 +247,6 @@ export default function HotelsList() {
                         )}
                         <div className="absolute top-3 left-3 bg-white/90 backdrop-blur-sm px-2.5 py-1 rounded-full flex items-center shadow-sm">
                           <StarDisplay count={translations.stars || 4} />
-                        </div>
-                        <div className="absolute top-3 right-3" onClick={e => e.stopPropagation()}>
-                          <input type="checkbox" checked={isSelected} onChange={(e) => {
-                            const n = new Set(selectedIds);
-                            if (n.has(hotel.id)) n.delete(hotel.id); else n.add(hotel.id);
-                            setSelectedIds(n);
-                          }} className="w-5 h-5 rounded-md border-white/50 accent-black drop-shadow-md cursor-pointer" />
                         </div>
                       </div>
                       <div className="p-4 space-y-2">
@@ -331,14 +285,7 @@ export default function HotelsList() {
                   const translations = (hotel.translations as any) || {};
                   return (
                     <div key={hotel.id} onClick={() => navigate(`/admin/experiences/${hotel.id}?type=hotel`)}
-                      className={cn("vf-strip flex items-center gap-4 px-5 py-4 cursor-pointer hover:bg-slate-50 transition-all border border-transparent", selectedIds.has(hotel.id) && "border-[#C4B5FD] bg-indigo-50/30")}>
-                      <div onClick={e => e.stopPropagation()} className="flex items-center">
-                        <input type="checkbox" checked={selectedIds.has(hotel.id)} onChange={() => {
-                          const n = new Set(selectedIds);
-                          if (n.has(hotel.id)) n.delete(hotel.id); else n.add(hotel.id);
-                          setSelectedIds(n);
-                        }} className="accent-black w-4 h-4 rounded-md" />
-                      </div>
+                      className="vf-strip flex items-center gap-4 px-5 py-4 cursor-pointer hover:bg-slate-50 hover:border-slate-200 transition-all border border-transparent">
                       <div className="w-14 h-14 rounded-xl overflow-hidden bg-slate-100 flex-shrink-0">
                         {translations.cover_url ? <img src={translations.cover_url} className="w-full h-full object-cover" /> : <MapPin className="w-6 h-6 m-auto mt-4 text-slate-300" />}
                       </div>
