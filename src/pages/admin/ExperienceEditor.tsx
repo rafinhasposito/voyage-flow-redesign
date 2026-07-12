@@ -4,9 +4,8 @@ import {
   ArrowLeft, Save, MapPin, Clock, DollarSign, Tag, Star,
   Link2, Image as ImageIcon, Globe, Building2, Utensils,
   Ticket, Info, Eye, Check, Plus, X, ChevronDown, BrainCircuit,
-  Wand2, Zap, Heart, LayoutGrid, Calendar, Video
+  Wand2, Zap, Heart, LayoutGrid, Calendar, Video, Bot
 } from "lucide-react";
-import { APIProvider, Map, AdvancedMarker } from "@vis.gl/react-google-maps";
 import { supabase } from "@/lib/supabase";
 import { ContentNodeRow } from "@/repositories/ExperienceRepository";
 import { toast } from "sonner";
@@ -458,15 +457,7 @@ export default function ExperienceEditor() {
     }, 2500);
   };
 
-  const handleMapClick = (e: any) => {
-    const lat = e.detail?.latLng?.lat;
-    const lng = e.detail?.latLng?.lng;
-    if (lat && lng) {
-      set('location_lat', lat);
-      set('location_lng', lng);
-      toast.success(`📍 Coordenadas: ${lat.toFixed(4)}, ${lng.toFixed(4)}`);
-    }
-  };
+
 
   if (isLoading) {
     return <div className="h-full flex items-center justify-center"><div className="vf-spinner" /></div>;
@@ -537,28 +528,33 @@ export default function ExperienceEditor() {
                 </Field>
               </Section>
               
-              <Section title="Localização" icon={MapPin}>
+              <Section title="Localização & Geocoding" icon={MapPin}>
                 <div className="grid grid-cols-2 gap-4">
                   <Field label="Bairro Exato">
                     <select value={form.neighborhood} onChange={e => set('neighborhood', e.target.value)} className="vf-input text-xs py-2.5">
                       {NEW_YORK_NEIGHBORHOODS.map(n => <option key={n} value={n}>{n}</option>)}
                     </select>
                   </Field>
-                  <Field label="Endereço">
-                    <input value={form.address} onChange={e => set('address', e.target.value)} className="vf-input text-xs" />
+                  <Field label="Endereço Completo">
+                    <input value={form.address} onChange={e => set('address', e.target.value)} className="vf-input text-xs" placeholder="Ex: 350 5th Ave, New York, NY 10118" />
                   </Field>
                 </div>
-                <div className="h-48 rounded-[20px] overflow-hidden border border-slate-200 shadow-sm relative">
-                  <div className="absolute top-2 left-2 z-10 bg-white/90 backdrop-blur text-[10px] font-bold px-2 py-1 rounded shadow-sm">Clique no mapa para pinar</div>
-                  <APIProvider apiKey={import.meta.env.VITE_GOOGLE_MAPS_API_KEY}>
-                    <Map defaultCenter={{ lat: form.location_lat ?? 40.7580, lng: form.location_lng ?? -73.9855 }} defaultZoom={13} mapId="EDITOR_MAP" disableDefaultUI={true} onClick={handleMapClick} style={{ cursor: 'crosshair' }}>
-                      {form.location_lat && form.location_lng && (
-                        <AdvancedMarker position={{ lat: form.location_lat, lng: form.location_lng }}>
-                          <div className="w-5 h-5 bg-[#E2F18A] border-2 border-black rounded-full shadow-lg" />
-                        </AdvancedMarker>
-                      )}
-                    </Map>
-                  </APIProvider>
+                
+                <div className="bg-slate-50 border border-slate-100 rounded-xl p-4 flex items-start gap-3 mt-2">
+                  <div className="w-8 h-8 rounded-full bg-emerald-100 flex items-center justify-center shrink-0">
+                    <Check className="w-4 h-4 text-emerald-600" />
+                  </div>
+                  <div>
+                    <p className="text-xs font-bold text-slate-800">Geocoding Automático Ativo</p>
+                    <p className="text-[11px] text-slate-500 mt-0.5 leading-relaxed">
+                      Não é necessário pinar no mapa. As coordenadas (Latitude/Longitude) serão resolvidas automaticamente via Nominatim/Google Places quando você salvar o endereço.
+                    </p>
+                    {(form.location_lat && form.location_lng) && (
+                      <div className="mt-2 text-[10px] font-mono text-slate-400">
+                        📍 Coordenadas atuais: {form.location_lat.toFixed(6)}, {form.location_lng.toFixed(6)}
+                      </div>
+                    )}
+                  </div>
                 </div>
               </Section>
             </div>
@@ -655,9 +651,34 @@ export default function ExperienceEditor() {
           )}
         </div>
 
-        {/* Right: Live Preview */}
-        <div className="xl:col-span-4">
+        {/* Right: Live Preview & AI Panel */}
+        <div className="xl:col-span-4 space-y-4">
           <MultiPreview form={form} />
+          
+          {/* AI Suggestions Panel Placeholder */}
+          <div className="bg-[#111827] rounded-[24px] p-5 shadow-lg relative overflow-hidden group">
+            <div className="absolute -right-10 -top-10 w-40 h-40 bg-indigo-500/10 rounded-full blur-2xl group-hover:bg-indigo-500/20 transition-colors pointer-events-none" />
+            <div className="flex items-center gap-2 mb-4 relative z-10">
+              <Bot className="w-4 h-4 text-indigo-400" />
+              <h3 className="font-black text-sm text-white">Assistente de IA</h3>
+            </div>
+            <div className="space-y-3 relative z-10">
+              <div className="bg-white/5 border border-white/10 rounded-xl p-3 flex gap-3 items-start">
+                <Star className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+                <div>
+                  <p className="text-[11px] font-bold text-slate-200">Sugestão de Tag</p>
+                  <p className="text-[10px] text-slate-400 mt-0.5">Baseado na descrição, recomendo adicionar a tag <strong>#arquitetura</strong>.</p>
+                </div>
+              </div>
+              <div className="bg-white/5 border border-white/10 rounded-xl p-3 flex gap-3 items-start">
+                <DollarSign className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
+                <div>
+                  <p className="text-[11px] font-bold text-slate-200">Oportunidade de Receita</p>
+                  <p className="text-[10px] text-slate-400 mt-0.5">Falta o Link de Afiliado. O EPC médio para atrações no Midtown é de $0.15.</p>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     </div>
