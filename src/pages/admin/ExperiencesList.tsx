@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useMemo } from "react";
-import { useNavigate, Link } from "react-router-dom";
+import { useNavigate, Link, useSearchParams } from "react-router-dom";
 import {
   Plus, Search, MoreHorizontal, Edit, Copy, Trash2,
   MapPin, AlertCircle, Star, X, Eye, EyeOff, SlidersHorizontal,
@@ -105,6 +105,8 @@ export default function ExperiencesList() {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [itemToDelete, setItemToDelete] = useState<string | null>(null);
 
+  const [searchParams, setSearchParams] = useSearchParams();
+
   // Filters
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
@@ -115,6 +117,35 @@ export default function ExperiencesList() {
   const [maxPrice, setMaxPrice] = useState<number>(1000);
   const [minRating, setMinRating] = useState<number | null>(null);
   const [mustSeeFilter, setMustSeeFilter] = useState(false);
+
+  // Normalização de tipo para evitar divergências de capitalização
+  const normalizeType = (val: string | null): string => {
+    if (!val) return 'all';
+    const lower = val.toLowerCase();
+    if (lower === 'hotel') return 'Hotel';
+    if (lower === 'restaurant') return 'restaurant';
+    if (lower === 'event') return 'event';
+    if (lower === 'attraction') return 'attraction';
+    return val;
+  };
+
+  // Atualiza o filtro de tipo sempre que o parâmetro 'type' na URL mudar
+  useEffect(() => {
+    const urlType = searchParams.get('type');
+    setTypeFilter(normalizeType(urlType));
+  }, [searchParams]);
+
+  // Atualiza a URL quando o usuário altera o select de tipo manualmente
+  const handleTypeFilterChange = (newVal: string) => {
+    setTypeFilter(newVal);
+    const nextParams = new URLSearchParams(searchParams);
+    if (newVal === 'all') {
+      nextParams.delete('type');
+    } else {
+      nextParams.set('type', newVal);
+    }
+    setSearchParams(nextParams);
+  };
 
   useEffect(() => { fetchExperiences(); }, []);
 
@@ -271,7 +302,7 @@ export default function ExperiencesList() {
             </div>
 
             <div className="space-y-1.5">
-              <select value={typeFilter} onChange={(e) => setTypeFilter(e.target.value)} className="flex h-10 w-full rounded-md border border-vf-border bg-white px-3.5 py-2.5 text-[13px] text-vf-text-1 focus:border-vf-black focus:outline-none focus:ring-1 focus:ring-vf-black">
+              <select value={typeFilter} onChange={(e) => handleTypeFilterChange(e.target.value)} className="flex h-10 w-full rounded-md border border-vf-border bg-white px-3.5 py-2.5 text-[13px] text-vf-text-1 focus:border-vf-black focus:outline-none focus:ring-1 focus:ring-vf-black">
                 <option value="all">Todas as Categorias</option>
                 <option value="attraction">Atrações</option>
                 <option value="restaurant">Restaurantes</option>
