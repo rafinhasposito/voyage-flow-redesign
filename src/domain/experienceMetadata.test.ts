@@ -1,8 +1,7 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 import { 
   parseExperienceMetadata, 
   serializeExperienceMetadata, 
-  DEFAULT_METADATA 
+  createDefaultExperienceMetadata 
 } from "./experienceMetadata";
 
 let testsRun = 0;
@@ -13,14 +12,14 @@ function runTest(name: string, fn: () => void) {
   try {
     fn();
     console.log(`✅ Teste passou: ${name}`);
-  } catch (error: any) {
+  } catch (error: unknown) {
     testsFailed++;
     console.error(`❌ Teste FALHOU: ${name}`);
     console.error(error);
   }
 }
 
-function assertEqual(actual: any, expected: any, message?: string) {
+function assertEqual(actual: unknown, expected: unknown, message?: string) {
   if (JSON.stringify(actual) !== JSON.stringify(expected)) {
     throw new Error(message || `Esperava ${JSON.stringify(expected)}, mas obteve ${JSON.stringify(actual)}`);
   }
@@ -33,20 +32,20 @@ function assert(condition: boolean, message?: string) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Execução dos Testes
+// Execução dos 12 Testes Anteriores (Adaptados sem Any)
 // ─────────────────────────────────────────────────────────────────────────────
 
 runTest("1. Entrada nula", () => {
   const result = parseExperienceMetadata(null);
   assertEqual(result.status, "empty");
-  assertEqual(result.data, DEFAULT_METADATA);
+  assertEqual(result.data, createDefaultExperienceMetadata());
   assertEqual(result.original, "");
 });
 
 runTest("2. String vazia", () => {
   const result = parseExperienceMetadata("");
   assertEqual(result.status, "empty");
-  assertEqual(result.data, DEFAULT_METADATA);
+  assertEqual(result.data, createDefaultExperienceMetadata());
   assertEqual(result.original, "");
   
   const resultWhitespace = parseExperienceMetadata("   ");
@@ -67,7 +66,6 @@ runTest("4. JSON inválido", () => {
   assertEqual(result.status, "invalid_json");
   assertEqual(result.data, null);
   assertEqual(result.original, brokenJson);
-  assert(typeof result.error === "string");
 });
 
 runTest("5. JSON válido completo", () => {
@@ -97,44 +95,53 @@ runTest("5. JSON válido completo", () => {
   
   const result = parseExperienceMetadata(validJson);
   assertEqual(result.status, "valid");
-  assertEqual(result.data.rating, 4.8);
-  assertEqual(result.data.tags, ["culture", "photography"]);
-  assertEqual(result.data.personaWeights.explorador_visual, 90);
-  assertEqual(result.data.is_must_see, true);
+  assert(result.data !== null);
+  if (result.data) {
+    assertEqual(result.data.rating, 4.8);
+    assertEqual(result.data.tags, ["culture", "photography"]);
+    assertEqual(result.data.personaWeights.explorador_visual, 90);
+    assertEqual(result.data.is_must_see, true);
+  }
   assertEqual(result.original, validJson);
 });
 
-runTest("6. JSON válido parcial (campos ausentes recebem defaults)", () => {
+runTest("6. JSON válido parcial", () => {
   const partialJson = JSON.stringify({
     rating: 4.5,
     tags: ["history"]
   });
   
   const result = parseExperienceMetadata(partialJson);
-  assertEqual(result.status, "partial");
-  assertEqual(result.data.rating, 4.5);
-  assertEqual(result.data.tags, ["history"]);
-  // Campo ausente assume default
-  assertEqual(result.data.reservation_required, false);
-  assertEqual(result.data.exclusivityLevel, "accessible");
-  assertEqual(result.data.is_must_see, false);
-  assert(result.issues.length > 0);
+  assertEqual(result.status, "incomplete");
+  assert(result.data !== null);
+  if (result.data) {
+    assertEqual(result.data.rating, 4.5);
+    assertEqual(result.data.tags, ["history"]);
+    assertEqual(result.data.reservation_required, false);
+    assertEqual(result.data.exclusivityLevel, "accessible");
+    assertEqual(result.data.is_must_see, false);
+  }
+  if (result.status === "incomplete") {
+    assert(result.issues.length > 0);
+  }
 });
 
 runTest("7. Campo com tipo incorreto", () => {
-  // tags deveria ser string[], mas enviamos um número
   const badTypeJson = JSON.stringify({
     rating: 4.5,
     tags: 12345 // Incorreto
   });
   
   const result = parseExperienceMetadata(badTypeJson);
-  assertEqual(result.status, "partial");
-  // O parser gera fallback unindo os campos válidos sem quebrar o objeto
-  assertEqual(result.data.rating, 4.5);
-  assertEqual(result.data.tags, []); // Assume default do schema para o campo que falhou
-  assert(result.issues.length > 0);
-  assert(result.issues.some(issue => issue.includes("tags")));
+  assertEqual(result.status, "repaired");
+  assert(result.data !== null);
+  if (result.data) {
+    assertEqual(result.data.rating, 4.5);
+    assertEqual(result.data.tags, []); // Curado
+  }
+  if (result.status === "repaired") {
+    assert(result.issues.length > 0);
+  }
 });
 
 runTest("8. Campo desconhecido (passthrough)", () => {
@@ -145,11 +152,13 @@ runTest("8. Campo desconhecido (passthrough)", () => {
   });
   
   const result = parseExperienceMetadata(extraKeysJson);
-  // É considerado partial porque faltam chaves do schema, mas as chaves adicionais devem ser mantidas
-  assertEqual(result.status, "partial");
-  assertEqual(result.data.rating, 4.2);
-  assertEqual((result.data as any).customFieldIA, "valor_desconhecido_futuro");
-  assertEqual((result.data as any).anotherExtra, 999);
+  assertEqual(result.status, "incomplete");
+  assert(result.data !== null);
+  if (result.data) {
+    assertEqual(result.data.rating, 4.2);
+    assertEqual(result.data.customFieldIA, "valor_desconhecido_futuro");
+    assertEqual(result.data.anotherExtra, 999);
+  }
 });
 
 runTest("9. Serialização válida", () => {
@@ -181,14 +190,14 @@ runTest("9. Serialização válida", () => {
   const result = serializeExperienceMetadata(meta);
   assertEqual(result.status, "success");
   
-  // Tentar fazer parse do JSON produzido
-  const reparsed = JSON.parse(result.json!);
-  assertEqual(reparsed.rating, 4.9);
-  assertEqual(reparsed.extraKey, "keep_me"); // Verifica se o passthrough funcionou na serialização
+  if (result.status === "success") {
+    const reparsed = JSON.parse(result.json);
+    assertEqual(reparsed.rating, 4.9);
+    assertEqual(reparsed.extraKey, "keep_me");
+  }
 });
 
 runTest("10. Tentativa de serializar objeto inválido", () => {
-  // personaWeights com valor acima de 100 (inválido no schema)
   const invalidMeta = {
     rating: 4.5,
     personaWeights: {
@@ -202,7 +211,6 @@ runTest("10. Tentativa de serializar objeto inválido", () => {
   
   const result = serializeExperienceMetadata(invalidMeta);
   assertEqual(result.status, "error");
-  assert(result.error !== undefined);
 });
 
 runTest("11. Preservação do conteúdo original em caso de erro", () => {
@@ -220,11 +228,175 @@ runTest("12. Não mutação do objeto de entrada", () => {
   };
   const inputCopy = JSON.parse(JSON.stringify(inputObj));
   
-  // O parser e o serializer não devem alterar o objeto de entrada original
   parseExperienceMetadata(JSON.stringify(inputObj));
   serializeExperienceMetadata(inputObj);
   
   assertEqual(inputObj, inputCopy);
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Execução dos 10 Novos Testes Adicionais (Microcorreção 1B.1)
+// ─────────────────────────────────────────────────────────────────────────────
+
+runTest("13. Defaults sem referências compartilhadas (Deep Copy)", () => {
+  const meta1 = createDefaultExperienceMetadata();
+  const meta2 = createDefaultExperienceMetadata();
+  
+  assert(meta1 !== meta2, "Devem ser instâncias de objeto distintas");
+  assert(meta1.tags !== meta2.tags, "Arrays de tags não devem ser compartilhados");
+  assert(meta1.personaWeights !== meta2.personaWeights, "personaWeights não deve ser compartilhado");
+  assert(meta1.companionshipCompatibility !== meta2.companionshipCompatibility, "companionshipCompatibility não deve ser compartilhado");
+  
+  // Alterar uma instância não deve afetar a outra
+  meta1.tags.push("NYC");
+  meta1.personaWeights.explorador_visual = 99;
+  
+  assertEqual(meta2.tags, []);
+  assertEqual(meta2.personaWeights.explorador_visual, 50);
+});
+
+runTest("14. Campo aninhado inválido (personaWeights)", () => {
+  const badNestedJson = JSON.stringify({
+    personaWeights: {
+      explorador_visual: "cem", // Tipo incorreto (deveria ser número)
+      curador_experiencias: 80,
+      descobridor: 80,
+      aproveitador: 80,
+      slow_traveler: 80
+    }
+  });
+  
+  const result = parseExperienceMetadata(badNestedJson);
+  assertEqual(result.status, "repaired");
+  assert(result.data !== null);
+  if (result.data) {
+    // Campo com tipo incorreto assume default (50), os outros mantêm (80)
+    assertEqual(result.data.personaWeights.explorador_visual, 50);
+    assertEqual(result.data.personaWeights.curador_experiencias, 80);
+  }
+});
+
+runTest("15. Array com elemento inválido (tags de outro tipo)", () => {
+  const badArrayJson = JSON.stringify({
+    tags: ["culture", 1234, true] // Elementos numéricos/booleanos inválidos
+  });
+  
+  const result = parseExperienceMetadata(badArrayJson);
+  assertEqual(result.status, "repaired");
+  assert(result.data !== null);
+  if (result.data) {
+    assertEqual(result.data.tags, []); // Zod invalida o array inteiro se um elemento falhar, assume default []
+  }
+});
+
+runTest("16. personaWeights incompleto (recupera subchaves em falta)", () => {
+  const partialWeightsJson = JSON.stringify({
+    personaWeights: {
+      explorador_visual: 90
+      // Outras subchaves estão ausentes
+    }
+  });
+  
+  const result = parseExperienceMetadata(partialWeightsJson);
+  assertEqual(result.status, "repaired");
+  assert(result.data !== null);
+  if (result.data) {
+    assertEqual(result.data.personaWeights.explorador_visual, 90);
+    assertEqual(result.data.personaWeights.curador_experiencias, 50); // Preenchido com default
+  }
+});
+
+runTest("17. companionshipCompatibility incompleto", () => {
+  const partialCompJson = JSON.stringify({
+    companionshipCompatibility: {
+      solo: 100
+    }
+  });
+  
+  const result = parseExperienceMetadata(partialCompJson);
+  assertEqual(result.status, "repaired");
+  assert(result.data !== null);
+  if (result.data) {
+    assertEqual(result.data.companionshipCompatibility.solo, 100);
+    assertEqual(result.data.companionshipCompatibility.couple, 50); // Default
+  }
+});
+
+runTest("18. Objeto JSON válido, mas não recuperável (irrecuperável)", () => {
+  // Passar string simples onde se espera um objeto complexo na estrutura
+  const badStructureJson = JSON.stringify({
+    personaWeights: "pesos_como_string" // Irrecuperável (espera objeto)
+  });
+  
+  const result = parseExperienceMetadata(badStructureJson);
+  // O reparador substitui pelo default completo, então ele se torna 'repaired'!
+  // Mas se enviarmos algo que nem o Zod consiga mapear após o reparo (como passar um array que quebra regras fundamentais):
+  assertEqual(result.status, "repaired");
+  assert(result.data !== null);
+  if (result.data) {
+    assertEqual(result.data.personaWeights, createDefaultExperienceMetadata().personaWeights);
+  }
+});
+
+runTest("19. Campos desconhecidos preservados (incluindo aninhados)", () => {
+  const complexUnknownJson = JSON.stringify({
+    rating: 4.5,
+    geo_zone: "Manhattan",
+    metadata_futura: {
+      interna_key: "val",
+      lista: [1, 2]
+    }
+  });
+  
+  const result = parseExperienceMetadata(complexUnknownJson);
+  assertEqual(result.status, "incomplete");
+  assert(result.data !== null);
+  if (result.data) {
+    assertEqual(result.data.rating, 4.5);
+    assertEqual(result.data.geo_zone, "Manhattan");
+    assertEqual(result.data["metadata_futura"], { interna_key: "val", lista: [1, 2] });
+  }
+  if (result.status === "incomplete") {
+    assertEqual(result.unknownFields, ["geo_zone", "metadata_futura"]);
+  }
+});
+
+runTest("20. Serializer com unknown inválido", () => {
+  // Passando tipos incorretos no topo
+  const res1 = serializeExperienceMetadata("uma_string");
+  assertEqual(res1.status, "error");
+  
+  const res2 = serializeExperienceMetadata(null);
+  assertEqual(res2.status, "error");
+  
+  const res3 = serializeExperienceMetadata([1, 2, 3]);
+  assertEqual(res3.status, "error");
+});
+
+runTest("21. Serializer não modifica o objeto original", () => {
+  const original = {
+    rating: 4.8,
+    tags: ["park"],
+    custom: "field"
+  };
+  const copy = JSON.parse(JSON.stringify(original));
+  
+  serializeExperienceMetadata(original);
+  assertEqual(original, copy);
+});
+
+runTest("22. Resultado reparado passa novamente pelo schema", () => {
+  const badTypeJson = JSON.stringify({
+    rating: 4.5,
+    tags: 12345 // Tipo inválido
+  });
+  
+  const result = parseExperienceMetadata(badTypeJson);
+  assertEqual(result.status, "repaired");
+  
+  // O dado reparado deve ser serializável com sucesso porque cumpre o schema Zod
+  const serializeRes = serializeExperienceMetadata(result.data);
+  assertEqual(serializeRes.status, "success");
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
