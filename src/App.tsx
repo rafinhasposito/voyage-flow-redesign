@@ -2,7 +2,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate, Outlet } from "react-router-dom";
 import Index from "./pages/Index";
 import Onboarding from "./pages/Onboarding";
 import Dashboard from "./pages/Dashboard";
@@ -10,7 +10,9 @@ import Catalog from "./pages/Catalog";
 import Wallet from "./pages/Wallet";
 import NotFound from "./pages/NotFound";
 
-// Admin
+import { AdminAuthProvider } from "./contexts/AdminAuthProvider";
+import ProtectedAdminRoute from "./components/admin/ProtectedAdminRoute";
+import AdminLogin from "./pages/admin/AdminLogin";
 import AdminLayout from "./components/admin/AdminLayout";
 import AdminDashboard from "./pages/admin/AdminDashboard";
 import ExperiencesList from "./pages/admin/ExperiencesList";
@@ -22,7 +24,6 @@ import Import from "./pages/admin/Import";
 import UsersList from "./pages/admin/UsersList";
 import PricingManager from "./pages/admin/PricingManager";
 import FeaturedDashboard from "./pages/admin/FeaturedDashboard";
-
 
 import React, { useEffect } from "react";
 import { ExperienceRepository } from "@/repositories";
@@ -64,33 +65,44 @@ const App = () => {
           <Route path="/app/catalog" element={<Catalog />} />
           <Route path="/app/wallet" element={<Wallet />} />
           
-          {/* Admin Routes */}
-          <Route path="/admin" element={<AdminLayout />}>
-            <Route index element={<Navigate to="/admin/dashboard" replace />} />
-            <Route path="dashboard" element={<AdminDashboard />} />
+          {/* Admin Routes with Auth Context Wrapper */}
+          <Route path="/admin" element={
+            <AdminAuthProvider>
+              <Outlet />
+            </AdminAuthProvider>
+          }>
+            {/* Public Admin Routes */}
+            <Route path="login" element={<AdminLogin />} />
             
-            <Route path="destinations" element={<DestinationsList />} />
-            <Route path="destinations/new" element={<DestinationEditor />} />
-            <Route path="destinations/:id" element={<DestinationEditor />} />
+            {/* Protected Admin Routes */}
+            <Route element={<ProtectedAdminRoute />}>
+              <Route element={<AdminLayout />}>
+                <Route index element={<Navigate to="/admin/dashboard" replace />} />
+                <Route path="dashboard" element={<AdminDashboard />} />
 
-            <Route path="experiences" element={<ExperiencesList />} />
-            <Route path="experiences/new" element={<ExperienceEditor />} />
-            <Route path="experiences/:id" element={<ExperienceEditor />} />
-            <Route path="quality" element={<QualityDashboard />} />
-            <Route path="import" element={<Import />} />
-            
-            <Route path="users" element={<UsersList />} />
-            <Route path="pricing" element={<PricingManager />} />
-            <Route path="featured" element={<FeaturedDashboard />} />
+                <Route path="destinations" element={<DestinationsList />} />
+                <Route path="destinations/new" element={<DestinationEditor />} />
+                <Route path="destinations/:id" element={<DestinationEditor />} />
 
-            {/* Modules in development */}
-            <Route path="restaurants" element={<ComingSoon title="Restaurantes" desc="Módulo dedicado para gerenciar restaurantes com campos específicos: culinária, faixa de preço, reserva e links de afiliado." icon="🍽" />} />
-            <Route path="events" element={<ComingSoon title="Eventos" desc="Gerenciamento de eventos sazonais, shows, exposições e experiências temporárias com datas e disponibilidade." icon="🎉" />} />
-            <Route path="tags" element={<ComingSoon title="Taxonomia de Tags" desc="Biblioteca de tags usadas pelo engine de IA para fazer matching entre experiências e perfis de viajantes." icon="🏷" />} />
-            <Route path="personas" element={<ComingSoon title="Personas" desc="Perfis psicográficos dos viajantes (Explorador Visual, Curador, Slow Traveler...) que direcionam o matching da IA." icon="🧐" />} />
-            <Route path="analytics" element={<ComingSoon title="Analytics" desc="Insights de uso, cliques em links de afiliados, conversões e performance por experiência e destino." icon="📊" />} />
+                <Route path="experiences" element={<ExperiencesList />} />
+                <Route path="experiences/new" element={<ExperienceEditor />} />
+                <Route path="experiences/:id" element={<ExperienceEditor />} />
+                <Route path="quality" element={<QualityDashboard />} />
+                <Route path="import" element={<Import />} />
+
+                <Route path="users" element={<UsersList />} />
+                <Route path="pricing" element={<PricingManager />} />
+                <Route path="featured" element={<FeaturedDashboard />} />
+
+                {/* Modules in development */}
+                <Route path="restaurants" element={<ComingSoon title="Restaurantes" desc="Módulo dedicado para gerenciar restaurantes com campos específicos: culinária, faixa de preço, reserva e links de afiliado." icon="🍽" />} />
+                <Route path="events" element={<ComingSoon title="Eventos" desc="Gerenciamento de eventos sazonais, shows, exposições e experiências temporárias com datas e disponibilidade." icon="🎉" />} />
+                <Route path="tags" element={<ComingSoon title="Taxonomia de Tags" desc="Biblioteca de tags usadas pelo engine de IA para fazer matching entre experiências e perfis de viajantes." icon="🏷" />} />
+                <Route path="personas" element={<ComingSoon title="Personas" desc="Perfis psicográficos dos viajantes (Explorador Visual, Curador, Slow Traveler...) que direcionam o matching da IA." icon="🧐" />} />
+                <Route path="analytics" element={<ComingSoon title="Analytics" desc="Insights de uso, cliques em links de afiliados, conversões e performance por experiência e destino." icon="📊" />} />
+              </Route>
+            </Route>
           </Route>
-
 
           <Route path="*" element={<NotFound />} />
         </Routes>

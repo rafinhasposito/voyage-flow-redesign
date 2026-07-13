@@ -4,9 +4,10 @@ import {
   LayoutDashboard, Library, Hotel, Map, Activity, UploadCloud,
   Users, Tag, Star, Globe, ChevronRight, Settings, LogOut,
   Compass, PanelLeftClose, PanelLeftOpen, Utensils, Calendar,
-  BarChart2, Brain, Link2, DollarSign
+  BarChart2, Brain, Link2, DollarSign, XCircle
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useAdminAuth } from '@/hooks/useAdminAuth';
 
 // ─── Nav item types ───────────────────────────────────────────────────────────
 interface NavSection {
@@ -68,6 +69,18 @@ const navigation: NavSection[] = [
 export default function AdminLayout() {
   const location = useLocation();
   const [collapsed, setCollapsed] = useState(false);
+  const { signOut, authError, clearError } = useAdminAuth();
+  const [isSigningOut, setIsSigningOut] = useState(false);
+
+  const handleSignOut = async () => {
+    if (isSigningOut) return;
+    setIsSigningOut(true);
+    const success = await signOut();
+    if (!success) {
+      setIsSigningOut(false);
+    }
+    // Se sucesso, a sessão fica null e o ProtectedAdminRoute redireciona.
+  };
 
   const isActive = (href: string) => {
     const [path, search] = href.split('?');
@@ -160,6 +173,15 @@ export default function AdminLayout() {
 
         {/* Footer */}
         <div className={cn('px-3 pb-5 space-y-0.5', collapsed && 'flex flex-col items-center')}>
+          {authError && !collapsed && (
+            <div className="flex items-center justify-between bg-red-50 text-red-600 text-[10px] font-bold p-2 mb-2 rounded-lg">
+              <span className="flex-1">{authError}</span>
+              <button onClick={clearError} className="p-1 hover:bg-red-100 rounded-md">
+                <XCircle className="w-3 h-3" />
+              </button>
+            </div>
+          )}
+
           <button
             onClick={() => setCollapsed(!collapsed)}
             className="flex items-center gap-3 px-3.5 py-2.5 rounded-full text-slate-400 hover:text-slate-700 hover:bg-white/60 transition-all text-sm font-semibold w-full"
@@ -170,17 +192,19 @@ export default function AdminLayout() {
               : <><PanelLeftClose className="w-4 h-4 flex-shrink-0" /><span>Recolher</span></>
             }
           </button>
-          <Link
-            to="/"
+          <button
+            onClick={handleSignOut}
+            disabled={isSigningOut}
             className={cn(
-              'flex items-center gap-3 px-3.5 py-2.5 rounded-full text-slate-400 hover:text-slate-700 hover:bg-white/60 transition-all text-sm font-semibold',
-              collapsed && 'justify-center'
+              'flex items-center gap-3 px-3.5 py-2.5 rounded-full text-slate-400 hover:text-slate-700 hover:bg-white/60 transition-all text-sm font-semibold w-full',
+              collapsed && 'justify-center',
+              isSigningOut && 'opacity-50 cursor-not-allowed'
             )}
             title={collapsed ? 'Sair do Admin' : undefined}
           >
             <LogOut className="w-4 h-4 flex-shrink-0" />
-            {!collapsed && <span>Sair</span>}
-          </Link>
+            {!collapsed && <span>{isSigningOut ? 'Saindo...' : 'Sair'}</span>}
+          </button>
         </div>
       </aside>
 
