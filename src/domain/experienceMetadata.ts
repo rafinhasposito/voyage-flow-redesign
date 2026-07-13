@@ -1,5 +1,28 @@
 import { z } from "zod";
 
+// =============================================================================
+// FONTES DE VERDADE — LEIA ANTES DE ALTERAR
+// =============================================================================
+// intelligence_metadata (JSONB) é reservado EXCLUSIVAMENTE para estruturas
+// flexíveis que NÃO possuem coluna própria no banco:
+//   - personaWeights
+//   - companionshipCompatibility
+//   - recommendedSeasons
+//   - weatherCompatibility
+//
+// Os seguintes campos possuem COLUNAS ESTRUTURADAS próprias em public.experiences
+// e NÃO devem ser duplicados aqui:
+//   - tags              → row.tags
+//   - rating            → row.rating
+//   - reviews_count     → row.reviews_count
+//   - reservation_required → row.reservation_required
+//   - is_must_see       → row.is_must_see
+//   - exclusivity_level → row.exclusivity_level
+//
+// short_description é texto editorial puro e NUNCA deve ser interpretado
+// como JSON pelo Repository, pelo Editor ou por qualquer outra camada.
+// =============================================================================
+
 // --- Sub-schemas ---
 
 export const PersonaWeightsSchema = z.object({
@@ -17,16 +40,9 @@ export const CompanionshipCompatibilitySchema = z.object({
   friends: z.number().min(0).max(100),
 });
 
-// --- Main Schema ---
-// Passthrough é utilizado para preservar campos adicionais sem apagá-los silenciosamente ao resalvar
+// --- Schema Flexível (somente campos sem coluna estruturada própria) ---
+// Passthrough preserva campos desconhecidos sem apagá-los silenciosamente ao resalvar.
 export const ExperienceMetadataSchema = z.object({
-  rating: z.number().nullable().optional().default(null),
-  reviews_count: z.number().nullable().optional().default(null),
-  tags: z.array(z.string()).default([]),
-  reservation_required: z.boolean().default(false),
-  exclusivityLevel: z.string().default("accessible"),
-  recommendedSeasons: z.array(z.string()).default(["all"]),
-  weatherCompatibility: z.array(z.string()).default(["all"]),
   personaWeights: PersonaWeightsSchema.default({
     explorador_visual: 50,
     curador_experiencias: 50,
@@ -40,21 +56,17 @@ export const ExperienceMetadataSchema = z.object({
     family: 50,
     friends: 50,
   }),
-  is_must_see: z.boolean().default(false),
+  recommendedSeasons: z.array(z.string()).default(["all"]),
+  weatherCompatibility: z.array(z.string()).default(["all"]),
 });
 
 export type ExperienceMetadata = z.infer<typeof ExperienceMetadataSchema>;
 
 // --- Defaults centralizados e Imutáveis ---
+// Cada chamada gera novas instâncias de arrays e objetos para evitar
+// contaminação de estado entre chamadas.
 export function createDefaultExperienceMetadata(): ExperienceMetadata {
   return {
-    rating: null,
-    reviews_count: null,
-    tags: [],
-    reservation_required: false,
-    exclusivityLevel: "accessible",
-    recommendedSeasons: ["all"],
-    weatherCompatibility: ["all"],
     personaWeights: {
       explorador_visual: 50,
       curador_experiencias: 50,
@@ -68,7 +80,8 @@ export function createDefaultExperienceMetadata(): ExperienceMetadata {
       family: 50,
       friends: 50,
     },
-    is_must_see: false,
+    recommendedSeasons: ["all"],
+    weatherCompatibility: ["all"],
   };
 }
 
@@ -79,42 +92,40 @@ export type ExperienceMetadataParseResult =
       status: 'valid';
       data: ExperienceMetadata & Record<string, unknown>;
       unknownFields: string[];
-      original: string;
     }
   | {
       status: 'incomplete';
       data: ExperienceMetadata & Record<string, unknown>;
       unknownFields: string[];
-      original: string;
       issues: string[];
     }
   | {
       status: 'repaired';
       data: ExperienceMetadata & Record<string, unknown>;
       unknownFields: string[];
-      original: string;
       issues: string[];
     }
   | {
       status: 'schema_error';
       data: null;
-      original: string;
       issues: string[];
     }
   | {
       status: 'empty';
       data: ExperienceMetadata;
-      original: null | '';
     }
   | {
       status: 'plain_text';
       data: null;
-      original: string;
     }
   | {
       status: 'invalid_json';
       data: null;
-      original: string;
+      error: string;
+    }
+  | {
+      status: 'invalid_type';
+      data: null;
       error: string;
     };
 
@@ -125,67 +136,20 @@ function getUnknownFields(obj: Record<string, unknown>): string[] {
   return Object.keys(obj).filter(key => !schemaKeys.has(key));
 }
 
-// --- Parser ---
+// --- Núcleo de Validação (compartilhado pelos dois parsers) ---
 
-export function parseExperienceMetadata(raw: string | null | undefined): ExperienceMetadataParseResult {
-  // CRITICAL WARNING / FONTES DE VERDADE: 
-  // 1. short_description nos 108 registros ativos do Supabase contém apenas texto editorial legível.
-  // 2. Esta camada NÃO autoriza sobrescrever esse texto com JSON e nenhuma conversão automática deve ser feita na base.
-  // 3. Integrações futuras precisam preservar e não destruir o texto se não houver metadados ricos em JSON.
-  // 4. No futuro, os metadados de inteligência deverão ser migrados para uma coluna dedicada própria (ex: intelligence_metadata).
+function validateObject(obj: Record<string, unknown>): ExperienceMetadataParseResult {
+  const unknownFields = getUnknownFields(obj);
 
-  if (raw === null || raw === undefined || raw.trim() === '') {
-    return {
-      status: 'empty',
-      data: createDefaultExperienceMetadata(),
-      original: raw ?? '',
-    };
-  }
-
-  let parsedVal: unknown;
-  try {
-    parsedVal = JSON.parse(raw);
-  } catch (err: unknown) {
-    const trimmed = raw.trim();
-    // Se não começar com '{', consideramos texto plano legado do catálogo
-    if (!trimmed.startsWith('{')) {
-      return {
-        status: 'plain_text',
-        data: null,
-        original: raw,
-      };
-    }
-    const message = err instanceof Error ? err.message : 'JSON.parse falhou';
-    return {
-      status: 'invalid_json',
-      data: null,
-      original: raw,
-      error: message,
-    };
-  }
-
-  if (typeof parsedVal !== 'object' || parsedVal === null || Array.isArray(parsedVal)) {
-    return {
-      status: 'invalid_json',
-      data: null,
-      original: raw,
-      error: 'JSON parseado não é um objeto',
-    };
-  }
-
-  const parsedObj = parsedVal as Record<string, unknown>;
-  const unknownFields = getUnknownFields(parsedObj);
-
-  // 1. Validação utilizando passthrough para reter chaves desconhecidas
-  const firstParse = ExperienceMetadataSchema.passthrough().safeParse(parsedObj);
+  // 1. Tentativa de validação direta com passthrough
+  const firstParse = ExperienceMetadataSchema.passthrough().safeParse(obj);
 
   if (firstParse.success) {
     const issues: string[] = [];
     const schemaKeys = Object.keys(ExperienceMetadataSchema.shape);
-    
-    // Identificar chaves do schema que vieram ausentes no payload original e receberam defaults
+
     schemaKeys.forEach(key => {
-      if (!(key in parsedObj)) {
+      if (!(key in obj)) {
         issues.push(`Campo ausente '${key}' preenchido com default.`);
       }
     });
@@ -195,7 +159,6 @@ export function parseExperienceMetadata(raw: string | null | undefined): Experie
         status: 'incomplete',
         data: firstParse.data as ExperienceMetadata & Record<string, unknown>,
         unknownFields,
-        original: raw,
         issues,
       };
     }
@@ -204,28 +167,30 @@ export function parseExperienceMetadata(raw: string | null | undefined): Experie
       status: 'valid',
       data: firstParse.data as ExperienceMetadata & Record<string, unknown>,
       unknownFields,
-      original: raw,
     };
   }
 
-  // 2. Recuperação de erros de validação de tipo de forma estruturada e segura
-  const issues = firstParse.error.errors.map(err => `${err.path.join('.')}: ${err.message}`);
-  
-  // Criamos fallback mesclando com defaults de forma a desvincular referências
-  const defaultMeta = createDefaultExperienceMetadata();
-  const repairedObj: Record<string, unknown> = { ...defaultMeta, ...parsedObj };
+  // 2. Recuperação estrutural de erros de tipo
+  const issues = firstParse.error.errors.map(
+    err => `${err.path.join('.')}: ${err.message}`
+  );
 
-  // Substitui cirurgicamente no repairedObj os campos que falharam no Zod por seus defaults correspondentes
+  const defaultMeta = createDefaultExperienceMetadata();
+  const repairedObj: Record<string, unknown> = { ...defaultMeta, ...obj };
+
   firstParse.error.errors.forEach(err => {
     const path = err.path;
     if (path.length === 0) return;
 
     const rootKey = path[0];
-    // Se o erro for na raiz do tipo, ou dentro de um array como tags, recommendedSeasons, weatherCompatibility
-    if (path.length === 1 || rootKey === 'tags' || rootKey === 'recommendedSeasons' || rootKey === 'weatherCompatibility') {
+
+    if (
+      path.length === 1 ||
+      rootKey === 'recommendedSeasons' ||
+      rootKey === 'weatherCompatibility'
+    ) {
       const defaultVal = (defaultMeta as Record<string, unknown>)[rootKey];
-      
-      // Clone profundo raso para arrays e subobjetos defaults
+
       if (Array.isArray(defaultVal)) {
         repairedObj[rootKey] = [...defaultVal];
       } else if (typeof defaultVal === 'object' && defaultVal !== null) {
@@ -236,20 +201,29 @@ export function parseExperienceMetadata(raw: string | null | undefined): Experie
     } else if (path.length === 2) {
       const parentKey = path[0];
       const childKey = path[1];
-      if (parentKey === 'personaWeights' || parentKey === 'companionshipCompatibility') {
-        const parentDefault = (defaultMeta as Record<string, unknown>)[parentKey] as Record<string, unknown>;
+
+      if (
+        parentKey === 'personaWeights' ||
+        parentKey === 'companionshipCompatibility'
+      ) {
+        const parentDefault = (defaultMeta as Record<string, unknown>)[
+          parentKey
+        ] as Record<string, unknown>;
         const parentCurrent = repairedObj[parentKey];
-        const parentObj = (typeof parentCurrent === 'object' && parentCurrent !== null && !Array.isArray(parentCurrent))
-          ? { ...(parentCurrent as Record<string, unknown>) }
-          : { ...parentDefault };
-        
+        const parentObj =
+          typeof parentCurrent === 'object' &&
+          parentCurrent !== null &&
+          !Array.isArray(parentCurrent)
+            ? { ...(parentCurrent as Record<string, unknown>) }
+            : { ...parentDefault };
+
         parentObj[childKey] = parentDefault[childKey];
         repairedObj[parentKey] = parentObj;
       }
     }
   });
 
-  // 3. Validar novamente a versão recuperada estruturalmente sem casts
+  // 3. Validar novamente a versão recuperada
   const secondParse = ExperienceMetadataSchema.passthrough().safeParse(repairedObj);
 
   if (secondParse.success) {
@@ -257,22 +231,120 @@ export function parseExperienceMetadata(raw: string | null | undefined): Experie
       status: 'repaired',
       data: secondParse.data as ExperienceMetadata & Record<string, unknown>,
       unknownFields,
-      original: raw,
       issues,
     };
   }
 
-  // 4. Falha irrecuperável de estrutura
-  const finalIssues = secondParse.error.errors.map(err => `Recuperação: ${err.path.join('.')}: ${err.message}`);
+  // 4. Falha irrecuperável
+  const finalIssues = secondParse.error.errors.map(
+    err => `Recuperação: ${err.path.join('.')}: ${err.message}`
+  );
+
   return {
     status: 'schema_error',
     data: null,
-    original: raw,
     issues: [...issues, ...finalIssues],
   };
 }
 
-// --- Serializer ---
+// =============================================================================
+// parseExperienceMetadataValue
+// =============================================================================
+// Use para valores vindos de intelligence_metadata (JSONB) do Supabase.
+// O valor já foi desserializado pelo cliente — NUNCA execute JSON.parse aqui.
+//
+// Aceita: null | undefined | object | array | string | number | boolean
+//   null / undefined        → empty
+//   objeto                  → valid | incomplete | repaired | schema_error
+//   array/string/num/bool   → invalid_type
+//
+// O objeto de entrada nunca é modificado.
+// =============================================================================
+export function parseExperienceMetadataValue(
+  raw: unknown
+): ExperienceMetadataParseResult {
+  if (raw === null || raw === undefined) {
+    return {
+      status: 'empty',
+      data: createDefaultExperienceMetadata(),
+    };
+  }
+
+  if (
+    typeof raw === 'string' ||
+    typeof raw === 'number' ||
+    typeof raw === 'boolean' ||
+    Array.isArray(raw)
+  ) {
+    return {
+      status: 'invalid_type',
+      data: null,
+      error: `Tipo inválido para intelligence_metadata JSONB: ${Array.isArray(raw) ? 'array' : typeof raw}`,
+    };
+  }
+
+  if (typeof raw !== 'object') {
+    return {
+      status: 'invalid_type',
+      data: null,
+      error: `Tipo desconhecido: ${typeof raw}`,
+    };
+  }
+
+  // Cópia rasa para garantir imutabilidade do objeto original
+  const obj = { ...(raw as Record<string, unknown>) };
+
+  return validateObject(obj);
+}
+
+// =============================================================================
+// parseExperienceMetadata (string → parse)
+// =============================================================================
+// @deprecated para uso com intelligence_metadata. Use parseExperienceMetadataValue().
+//
+// Mantido para compatibilidade com testes legados e diagnóstico.
+// IMPORTANTE: short_description é texto editorial puro. Nunca chame este parser
+// com o valor de short_description no Repository ou Editor.
+// =============================================================================
+export function parseExperienceMetadata(
+  raw: string | null | undefined
+): ExperienceMetadataParseResult {
+  if (raw === null || raw === undefined || raw.trim() === '') {
+    return {
+      status: 'empty',
+      data: createDefaultExperienceMetadata(),
+    };
+  }
+
+  let parsedVal: unknown;
+  try {
+    parsedVal = JSON.parse(raw);
+  } catch (err: unknown) {
+    const trimmed = raw.trim();
+    if (!trimmed.startsWith('{')) {
+      return {
+        status: 'plain_text',
+        data: null,
+      };
+    }
+    const message = err instanceof Error ? err.message : 'JSON.parse falhou';
+    return {
+      status: 'invalid_json',
+      data: null,
+      error: message,
+    };
+  }
+
+  // Delega ao parser de valor após JSON.parse para evitar duplicação de lógica
+  return parseExperienceMetadataValue(parsedVal);
+}
+
+// =============================================================================
+// Serializer
+// =============================================================================
+// Serializa apenas os campos flexíveis de intelligence_metadata.
+// Não use para serializar campos estruturados (tags, rating, etc.).
+// =============================================================================
 
 export type ExperienceMetadataSerializeResult =
   | {
@@ -284,8 +356,14 @@ export type ExperienceMetadataSerializeResult =
       error: string;
     };
 
-export function serializeExperienceMetadata(metadata: unknown): ExperienceMetadataSerializeResult {
-  if (typeof metadata !== 'object' || metadata === null || Array.isArray(metadata)) {
+export function serializeExperienceMetadata(
+  metadata: unknown
+): ExperienceMetadataSerializeResult {
+  if (
+    typeof metadata !== 'object' ||
+    metadata === null ||
+    Array.isArray(metadata)
+  ) {
     return {
       status: 'error',
       error: 'Metadata deve ser um objeto',
@@ -294,7 +372,9 @@ export function serializeExperienceMetadata(metadata: unknown): ExperienceMetada
 
   const result = ExperienceMetadataSchema.passthrough().safeParse(metadata);
   if (!result.success) {
-    const errorMsg = result.error.errors.map(err => `${err.path.join('.')}: ${err.message}`).join(', ');
+    const errorMsg = result.error.errors
+      .map(err => `${err.path.join('.')}: ${err.message}`)
+      .join(', ');
     return {
       status: 'error',
       error: errorMsg,
@@ -308,7 +388,8 @@ export function serializeExperienceMetadata(metadata: unknown): ExperienceMetada
       json,
     };
   } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : 'JSON.stringify falhou';
+    const message =
+      err instanceof Error ? err.message : 'JSON.stringify falhou';
     return {
       status: 'error',
       error: message,

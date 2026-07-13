@@ -1,7 +1,8 @@
-import { 
-  parseExperienceMetadata, 
-  serializeExperienceMetadata, 
-  createDefaultExperienceMetadata 
+import {
+  parseExperienceMetadata,
+  parseExperienceMetadataValue,
+  serializeExperienceMetadata,
+  createDefaultExperienceMetadata,
 } from "./experienceMetadata";
 
 let testsRun = 0;
@@ -21,7 +22,10 @@ function runTest(name: string, fn: () => void) {
 
 function assertEqual(actual: unknown, expected: unknown, message?: string) {
   if (JSON.stringify(actual) !== JSON.stringify(expected)) {
-    throw new Error(message || `Esperava ${JSON.stringify(expected)}, mas obteve ${JSON.stringify(actual)}`);
+    throw new Error(
+      message ||
+        `Esperava ${JSON.stringify(expected)}, mas obteve ${JSON.stringify(actual)}`
+    );
   }
 }
 
@@ -31,377 +35,399 @@ function assert(condition: boolean, message?: string) {
   }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Execução dos 12 Testes Anteriores (Adaptados sem Any)
-// ─────────────────────────────────────────────────────────────────────────────
+// =============================================================================
+// GRUPO A — parseExperienceMetadata (string → parse, legado)
+// =============================================================================
 
-runTest("1. Entrada nula", () => {
+runTest("A1. Entrada nula → empty", () => {
   const result = parseExperienceMetadata(null);
   assertEqual(result.status, "empty");
   assertEqual(result.data, createDefaultExperienceMetadata());
-  assertEqual(result.original, "");
 });
 
-runTest("2. String vazia", () => {
+runTest("A2. String vazia → empty", () => {
   const result = parseExperienceMetadata("");
   assertEqual(result.status, "empty");
-  assertEqual(result.data, createDefaultExperienceMetadata());
-  assertEqual(result.original, "");
-  
+
   const resultWhitespace = parseExperienceMetadata("   ");
   assertEqual(resultWhitespace.status, "empty");
 });
 
-runTest("3. Texto comum", () => {
-  const text = "Este é um texto descritivo comum do catálogo antigo.";
+runTest("A3. Texto comum (short_description editorial) → plain_text", () => {
+  const text = "Museu incrível no coração de Manhattan, cheio de história.";
   const result = parseExperienceMetadata(text);
   assertEqual(result.status, "plain_text");
   assertEqual(result.data, null);
-  assertEqual(result.original, text);
 });
 
-runTest("4. JSON inválido", () => {
-  const brokenJson = "{ rating: 4.5, tags: [broken ";
+runTest("A4. JSON inválido com sintaxe quebrada → invalid_json", () => {
+  const brokenJson = "{ personaWeights: broken ";
   const result = parseExperienceMetadata(brokenJson);
   assertEqual(result.status, "invalid_json");
   assertEqual(result.data, null);
-  assertEqual(result.original, brokenJson);
 });
 
-runTest("5. JSON válido completo", () => {
-  const validJson = JSON.stringify({
-    rating: 4.8,
-    reviews_count: 150,
-    tags: ["culture", "photography"],
-    reservation_required: true,
-    exclusivityLevel: "premium",
-    recommendedSeasons: ["spring"],
-    weatherCompatibility: ["all"],
+runTest("A5. parseExperienceMetadata delega ao parseExperienceMetadataValue após parse", () => {
+  // Um JSON com apenas personaWeights parcial deve gerar 'repaired' em ambos os parsers
+  const raw = JSON.stringify({ personaWeights: { explorador_visual: 90 } });
+  const fromString = parseExperienceMetadata(raw);
+  const fromValue = parseExperienceMetadataValue(JSON.parse(raw));
+  assertEqual(fromString.status, fromValue.status);
+  assertEqual(fromString.data, fromValue.data);
+});
+
+// =============================================================================
+// GRUPO B — parseExperienceMetadataValue (JSONB do Supabase)
+// =============================================================================
+
+runTest("B1. null → empty com defaults corretos", () => {
+  const result = parseExperienceMetadataValue(null);
+  assertEqual(result.status, "empty");
+  const def = createDefaultExperienceMetadata();
+  assertEqual(result.data, def);
+  // Confirmar ausência de campos estruturados no default
+  assert(!("tags" in (result.data ?? {})), "tags não deve existir no default");
+  assert(!("rating" in (result.data ?? {})), "rating não deve existir no default");
+  assert(!("reservation_required" in (result.data ?? {})), "reservation_required não deve existir no default");
+  assert(!("is_must_see" in (result.data ?? {})), "is_must_see não deve existir no default");
+  assert(!("exclusivity_level" in (result.data ?? {})), "exclusivity_level não deve existir no default");
+  assert(!("reviews_count" in (result.data ?? {})), "reviews_count não deve existir no default");
+});
+
+runTest("B2. undefined → empty", () => {
+  const result = parseExperienceMetadataValue(undefined);
+  assertEqual(result.status, "empty");
+});
+
+runTest("B3. Objeto JSONB completo válido → valid", () => {
+  const obj = {
     personaWeights: {
       explorador_visual: 90,
       curador_experiencias: 70,
       descobridor: 80,
       aproveitador: 60,
-      slow_traveler: 50
+      slow_traveler: 50,
     },
     companionshipCompatibility: {
       solo: 80,
       couple: 90,
       family: 70,
-      friends: 80
+      friends: 80,
     },
-    is_must_see: true
-  });
-  
-  const result = parseExperienceMetadata(validJson);
+    recommendedSeasons: ["spring", "summer"],
+    weatherCompatibility: ["rain", "all"],
+  };
+  const result = parseExperienceMetadataValue(obj);
   assertEqual(result.status, "valid");
   assert(result.data !== null);
   if (result.data) {
-    assertEqual(result.data.rating, 4.8);
-    assertEqual(result.data.tags, ["culture", "photography"]);
     assertEqual(result.data.personaWeights.explorador_visual, 90);
-    assertEqual(result.data.is_must_see, true);
+    assertEqual(result.data.companionshipCompatibility.couple, 90);
+    assertEqual(result.data.recommendedSeasons, ["spring", "summer"]);
   }
-  assertEqual(result.original, validJson);
 });
 
-runTest("6. JSON válido parcial", () => {
-  const partialJson = JSON.stringify({
-    rating: 4.5,
-    tags: ["history"]
-  });
-  
-  const result = parseExperienceMetadata(partialJson);
+runTest("B4. Objeto JSONB parcial → incomplete com defaults preenchidos", () => {
+  const obj = {
+    personaWeights: {
+      explorador_visual: 75,
+      curador_experiencias: 75,
+      descobridor: 75,
+      aproveitador: 75,
+      slow_traveler: 75,
+    },
+  };
+  const result = parseExperienceMetadataValue(obj);
   assertEqual(result.status, "incomplete");
   assert(result.data !== null);
   if (result.data) {
-    assertEqual(result.data.rating, 4.5);
-    assertEqual(result.data.tags, ["history"]);
-    assertEqual(result.data.reservation_required, false);
-    assertEqual(result.data.exclusivityLevel, "accessible");
-    assertEqual(result.data.is_must_see, false);
+    assertEqual(result.data.personaWeights.explorador_visual, 75);
+    // Campos ausentes recebem defaults
+    assertEqual(result.data.recommendedSeasons, ["all"]);
+    assertEqual(result.data.weatherCompatibility, ["all"]);
   }
   if (result.status === "incomplete") {
     assert(result.issues.length > 0);
   }
 });
 
-runTest("7. Campo com tipo incorreto", () => {
-  const badTypeJson = JSON.stringify({
-    rating: 4.5,
-    tags: 12345 // Incorreto
-  });
-  
-  const result = parseExperienceMetadata(badTypeJson);
-  assertEqual(result.status, "repaired");
-  assert(result.data !== null);
-  if (result.data) {
-    assertEqual(result.data.rating, 4.5);
-    assertEqual(result.data.tags, []); // Curado
-  }
-  if (result.status === "repaired") {
-    assert(result.issues.length > 0);
-  }
-});
-
-runTest("8. Campo desconhecido (passthrough)", () => {
-  const extraKeysJson = JSON.stringify({
-    rating: 4.2,
-    customFieldIA: "valor_desconhecido_futuro",
-    anotherExtra: 999
-  });
-  
-  const result = parseExperienceMetadata(extraKeysJson);
-  assertEqual(result.status, "incomplete");
-  assert(result.data !== null);
-  if (result.data) {
-    assertEqual(result.data.rating, 4.2);
-    assertEqual(result.data.customFieldIA, "valor_desconhecido_futuro");
-    assertEqual(result.data.anotherExtra, 999);
-  }
-});
-
-runTest("9. Serialização válida", () => {
-  const meta = {
-    rating: 4.9,
-    reviews_count: 200,
-    tags: ["nature"],
-    reservation_required: false,
-    exclusivityLevel: "accessible",
-    recommendedSeasons: ["all"],
-    weatherCompatibility: ["all"],
+runTest("B5. Objeto JSONB com campo aninhado inválido → repaired", () => {
+  const obj = {
     personaWeights: {
-      explorador_visual: 60,
-      curador_experiencias: 60,
-      descobridor: 60,
-      aproveitador: 60,
-      slow_traveler: 60
+      explorador_visual: "cem", // tipo errado
+      curador_experiencias: 80,
+      descobridor: 80,
+      aproveitador: 80,
+      slow_traveler: 80,
     },
     companionshipCompatibility: {
       solo: 50,
       couple: 50,
       family: 50,
-      friends: 50
+      friends: 50,
     },
-    is_must_see: false,
-    extraKey: "keep_me"
+    recommendedSeasons: ["all"],
+    weatherCompatibility: ["all"],
   };
-  
-  const result = serializeExperienceMetadata(meta);
-  assertEqual(result.status, "success");
-  
-  if (result.status === "success") {
-    const reparsed = JSON.parse(result.json);
-    assertEqual(reparsed.rating, 4.9);
-    assertEqual(reparsed.extraKey, "keep_me");
+  const result = parseExperienceMetadataValue(obj);
+  assertEqual(result.status, "repaired");
+  assert(result.data !== null);
+  if (result.data) {
+    assertEqual(result.data.personaWeights.explorador_visual, 50); // default
+    assertEqual(result.data.personaWeights.curador_experiencias, 80); // mantido
   }
 });
 
-runTest("10. Tentativa de serializar objeto inválido", () => {
-  const invalidMeta = {
-    rating: 4.5,
-    personaWeights: {
-      explorador_visual: 150, // Inválido (max 100)
-      curador_experiencias: 50,
-      descobridor: 50,
-      aproveitador: 50,
-      slow_traveler: 50
-    }
-  };
-  
-  const result = serializeExperienceMetadata(invalidMeta);
-  assertEqual(result.status, "error");
+runTest("B6. Array → invalid_type", () => {
+  const result = parseExperienceMetadataValue([1, 2, 3]);
+  assertEqual(result.status, "invalid_type");
+  assertEqual(result.data, null);
+  if (result.status === "invalid_type") {
+    assert(result.error.includes("array"));
+  }
 });
 
-runTest("11. Preservação do conteúdo original em caso de erro", () => {
-  const brokenJson = "{ invalid }";
-  const result = parseExperienceMetadata(brokenJson);
-  assertEqual(result.status, "invalid_json");
-  assertEqual(result.original, brokenJson);
+runTest("B7. String → invalid_type", () => {
+  const result = parseExperienceMetadataValue("texto simples");
+  assertEqual(result.status, "invalid_type");
+  assertEqual(result.data, null);
+  if (result.status === "invalid_type") {
+    assert(result.error.includes("string"));
+  }
+});
+
+runTest("B8. Número → invalid_type", () => {
+  const result = parseExperienceMetadataValue(42);
+  assertEqual(result.status, "invalid_type");
   assertEqual(result.data, null);
 });
 
-runTest("12. Não mutação do objeto de entrada", () => {
-  const inputObj = {
-    rating: 4.6,
-    tags: ["art"]
-  };
-  const inputCopy = JSON.parse(JSON.stringify(inputObj));
-  
-  parseExperienceMetadata(JSON.stringify(inputObj));
-  serializeExperienceMetadata(inputObj);
-  
-  assertEqual(inputObj, inputCopy);
+runTest("B9. Boolean → invalid_type", () => {
+  const result = parseExperienceMetadataValue(true);
+  assertEqual(result.status, "invalid_type");
+  assertEqual(result.data, null);
 });
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Execução dos 10 Novos Testes Adicionais (Microcorreção 1B.1)
-// ─────────────────────────────────────────────────────────────────────────────
-
-runTest("13. Defaults sem referências compartilhadas (Deep Copy)", () => {
-  const meta1 = createDefaultExperienceMetadata();
-  const meta2 = createDefaultExperienceMetadata();
-  
-  assert(meta1 !== meta2, "Devem ser instâncias de objeto distintas");
-  assert(meta1.tags !== meta2.tags, "Arrays de tags não devem ser compartilhados");
-  assert(meta1.personaWeights !== meta2.personaWeights, "personaWeights não deve ser compartilhado");
-  assert(meta1.companionshipCompatibility !== meta2.companionshipCompatibility, "companionshipCompatibility não deve ser compartilhado");
-  
-  // Alterar uma instância não deve afetar a outra
-  meta1.tags.push("NYC");
-  meta1.personaWeights.explorador_visual = 99;
-  
-  assertEqual(meta2.tags, []);
-  assertEqual(meta2.personaWeights.explorador_visual, 50);
-});
-
-runTest("14. Campo aninhado inválido (personaWeights)", () => {
-  const badNestedJson = JSON.stringify({
+runTest("B10. Campos desconhecidos preservados via passthrough", () => {
+  const obj = {
     personaWeights: {
-      explorador_visual: "cem", // Tipo incorreto (deveria ser número)
+      explorador_visual: 60,
+      curador_experiencias: 60,
+      descobridor: 60,
+      aproveitador: 60,
+      slow_traveler: 60,
+    },
+    companionshipCompatibility: {
+      solo: 50,
+      couple: 50,
+      family: 50,
+      friends: 50,
+    },
+    recommendedSeasons: ["all"],
+    weatherCompatibility: ["all"],
+    campo_ia_futuro: "valor_extra",
+    nested_desconhecido: { chave: 42 },
+  };
+  const result = parseExperienceMetadataValue(obj);
+  assertEqual(result.status, "valid");
+  if (result.data) {
+    assertEqual(result.data["campo_ia_futuro"], "valor_extra");
+    assertEqual(result.data["nested_desconhecido"], { chave: 42 });
+  }
+  if (result.status === "valid") {
+    assert(result.unknownFields.includes("campo_ia_futuro"));
+    assert(result.unknownFields.includes("nested_desconhecido"));
+  }
+});
+
+runTest("B11. Objeto de entrada não é modificado", () => {
+  const original = {
+    personaWeights: {
+      explorador_visual: 80,
       curador_experiencias: 80,
       descobridor: 80,
       aproveitador: 80,
-      slow_traveler: 80
-    }
-  });
-  
-  const result = parseExperienceMetadata(badNestedJson);
-  assertEqual(result.status, "repaired");
-  assert(result.data !== null);
-  if (result.data) {
-    // Campo com tipo incorreto assume default (50), os outros mantêm (80)
-    assertEqual(result.data.personaWeights.explorador_visual, 50);
-    assertEqual(result.data.personaWeights.curador_experiencias, 80);
-  }
+      slow_traveler: 80,
+    },
+  };
+  const snapshot = JSON.parse(JSON.stringify(original));
+  parseExperienceMetadataValue(original);
+  assertEqual(original, snapshot, "O objeto original não deve ser modificado");
 });
 
-runTest("15. Array com elemento inválido (tags de outro tipo)", () => {
-  const badArrayJson = JSON.stringify({
-    tags: ["culture", 1234, true] // Elementos numéricos/booleanos inválidos
-  });
-  
-  const result = parseExperienceMetadata(badArrayJson);
-  assertEqual(result.status, "repaired");
-  assert(result.data !== null);
-  if (result.data) {
-    assertEqual(result.data.tags, []); // Zod invalida o array inteiro se um elemento falhar, assume default []
-  }
+// =============================================================================
+// GRUPO C — Defaults e Imutabilidade
+// =============================================================================
+
+runTest("C1. Dois defaults sem referências compartilhadas", () => {
+  const meta1 = createDefaultExperienceMetadata();
+  const meta2 = createDefaultExperienceMetadata();
+
+  assert(meta1 !== meta2, "Instâncias de objeto distintas");
+  assert(meta1.personaWeights !== meta2.personaWeights, "personaWeights não compartilhado");
+  assert(meta1.companionshipCompatibility !== meta2.companionshipCompatibility, "companionshipCompatibility não compartilhado");
+  assert(meta1.recommendedSeasons !== meta2.recommendedSeasons, "recommendedSeasons não compartilhado");
+  assert(meta1.weatherCompatibility !== meta2.weatherCompatibility, "weatherCompatibility não compartilhado");
+
+  meta1.personaWeights.explorador_visual = 99;
+  meta1.recommendedSeasons.push("winter");
+
+  assertEqual(meta2.personaWeights.explorador_visual, 50);
+  assertEqual(meta2.recommendedSeasons, ["all"]);
 });
 
-runTest("16. personaWeights incompleto (recupera subchaves em falta)", () => {
-  const partialWeightsJson = JSON.stringify({
-    personaWeights: {
-      explorador_visual: 90
-      // Outras subchaves estão ausentes
-    }
+runTest("C2. Defaults não contêm campos estruturados do banco", () => {
+  const def = createDefaultExperienceMetadata();
+  const keys = Object.keys(def);
+  const forbidden = ["tags", "rating", "reviews_count", "reservation_required", "is_must_see", "exclusivity_level"];
+  forbidden.forEach(f => {
+    assert(!keys.includes(f), `Campo estruturado '${f}' não deve estar no default flexível`);
   });
-  
-  const result = parseExperienceMetadata(partialWeightsJson);
+});
+
+// =============================================================================
+// GRUPO D — Recuperação Estrutural
+// =============================================================================
+
+runTest("D1. personaWeights incompleto → repaired com defaults nos campos ausentes", () => {
+  const obj = {
+    personaWeights: { explorador_visual: 90 }, // faltam 4 subchaves
+    companionshipCompatibility: { solo: 60, couple: 60, family: 60, friends: 60 },
+    recommendedSeasons: ["all"],
+    weatherCompatibility: ["all"],
+  };
+  const result = parseExperienceMetadataValue(obj);
   assertEqual(result.status, "repaired");
-  assert(result.data !== null);
   if (result.data) {
     assertEqual(result.data.personaWeights.explorador_visual, 90);
-    assertEqual(result.data.personaWeights.curador_experiencias, 50); // Preenchido com default
+    assertEqual(result.data.personaWeights.curador_experiencias, 50); // default
   }
 });
 
-runTest("17. companionshipCompatibility incompleto", () => {
-  const partialCompJson = JSON.stringify({
-    companionshipCompatibility: {
-      solo: 100
-    }
-  });
-  
-  const result = parseExperienceMetadata(partialCompJson);
+runTest("D2. companionshipCompatibility incompleto → repaired", () => {
+  const obj = {
+    personaWeights: { explorador_visual: 50, curador_experiencias: 50, descobridor: 50, aproveitador: 50, slow_traveler: 50 },
+    companionshipCompatibility: { solo: 100 }, // faltam 3 subchaves
+    recommendedSeasons: ["all"],
+    weatherCompatibility: ["all"],
+  };
+  const result = parseExperienceMetadataValue(obj);
   assertEqual(result.status, "repaired");
-  assert(result.data !== null);
   if (result.data) {
     assertEqual(result.data.companionshipCompatibility.solo, 100);
-    assertEqual(result.data.companionshipCompatibility.couple, 50); // Default
+    assertEqual(result.data.companionshipCompatibility.couple, 50); // default
   }
 });
 
-runTest("18. Objeto JSON válido, mas não recuperável (irrecuperável)", () => {
-  // Passar string simples onde se espera um objeto complexo na estrutura
-  const badStructureJson = JSON.stringify({
-    personaWeights: "pesos_como_string" // Irrecuperável (espera objeto)
-  });
-  
-  const result = parseExperienceMetadata(badStructureJson);
-  // O reparador substitui pelo default completo, então ele se torna 'repaired'!
-  // Mas se enviarmos algo que nem o Zod consiga mapear após o reparo (como passar um array que quebra regras fundamentais):
+runTest("D3. personaWeights como string → repaired com default completo", () => {
+  const obj = {
+    personaWeights: "pesos_como_string", // irrecuperável individualmente
+    companionshipCompatibility: { solo: 50, couple: 50, family: 50, friends: 50 },
+    recommendedSeasons: ["all"],
+    weatherCompatibility: ["all"],
+  };
+  const result = parseExperienceMetadataValue(obj);
   assertEqual(result.status, "repaired");
-  assert(result.data !== null);
   if (result.data) {
     assertEqual(result.data.personaWeights, createDefaultExperienceMetadata().personaWeights);
   }
 });
 
-runTest("19. Campos desconhecidos preservados (incluindo aninhados)", () => {
-  const complexUnknownJson = JSON.stringify({
-    rating: 4.5,
-    geo_zone: "Manhattan",
-    metadata_futura: {
-      interna_key: "val",
-      lista: [1, 2]
-    }
-  });
-  
-  const result = parseExperienceMetadata(complexUnknownJson);
-  assertEqual(result.status, "incomplete");
-  assert(result.data !== null);
-  if (result.data) {
-    assertEqual(result.data.rating, 4.5);
-    assertEqual(result.data.geo_zone, "Manhattan");
-    assertEqual(result.data["metadata_futura"], { interna_key: "val", lista: [1, 2] });
-  }
-  if (result.status === "incomplete") {
-    assertEqual(result.unknownFields, ["geo_zone", "metadata_futura"]);
+// =============================================================================
+// GRUPO E — Serializer
+// =============================================================================
+
+runTest("E1. Serialização válida preserva campos flexíveis e unknown", () => {
+  const meta = {
+    personaWeights: { explorador_visual: 60, curador_experiencias: 60, descobridor: 60, aproveitador: 60, slow_traveler: 60 },
+    companionshipCompatibility: { solo: 50, couple: 50, family: 50, friends: 50 },
+    recommendedSeasons: ["all"],
+    weatherCompatibility: ["all"],
+    extraKey: "keep_me",
+  };
+  const result = serializeExperienceMetadata(meta);
+  assertEqual(result.status, "success");
+  if (result.status === "success") {
+    const reparsed = JSON.parse(result.json);
+    assertEqual(reparsed.personaWeights.explorador_visual, 60);
+    assertEqual(reparsed.extraKey, "keep_me");
   }
 });
 
-runTest("20. Serializer com unknown inválido", () => {
-  // Passando tipos incorretos no topo
-  const res1 = serializeExperienceMetadata("uma_string");
-  assertEqual(res1.status, "error");
-  
-  const res2 = serializeExperienceMetadata(null);
-  assertEqual(res2.status, "error");
-  
-  const res3 = serializeExperienceMetadata([1, 2, 3]);
-  assertEqual(res3.status, "error");
+runTest("E2. Tentativa de serializar objeto com valor inválido → error", () => {
+  const invalidMeta = {
+    personaWeights: {
+      explorador_visual: 150, // acima do max(100)
+      curador_experiencias: 50,
+      descobridor: 50,
+      aproveitador: 50,
+      slow_traveler: 50,
+    },
+  };
+  const result = serializeExperienceMetadata(invalidMeta);
+  assertEqual(result.status, "error");
 });
 
-runTest("21. Serializer não modifica o objeto original", () => {
+runTest("E3. Serializer não modifica o objeto original", () => {
   const original = {
-    rating: 4.8,
-    tags: ["park"],
-    custom: "field"
+    personaWeights: { explorador_visual: 80, curador_experiencias: 80, descobridor: 80, aproveitador: 80, slow_traveler: 80 },
+    companionshipCompatibility: { solo: 50, couple: 50, family: 50, friends: 50 },
+    recommendedSeasons: ["all"],
+    weatherCompatibility: ["all"],
+    custom: "field",
   };
   const copy = JSON.parse(JSON.stringify(original));
-  
   serializeExperienceMetadata(original);
   assertEqual(original, copy);
 });
 
-runTest("22. Resultado reparado passa novamente pelo schema", () => {
-  const badTypeJson = JSON.stringify({
-    rating: 4.5,
-    tags: 12345 // Tipo inválido
-  });
-  
-  const result = parseExperienceMetadata(badTypeJson);
-  assertEqual(result.status, "repaired");
-  
-  // O dado reparado deve ser serializável com sucesso porque cumpre o schema Zod
-  const serializeRes = serializeExperienceMetadata(result.data);
-  assertEqual(serializeRes.status, "success");
+runTest("E4. Serializer com tipos inválidos no topo → error", () => {
+  assertEqual(serializeExperienceMetadata("string").status, "error");
+  assertEqual(serializeExperienceMetadata(null).status, "error");
+  assertEqual(serializeExperienceMetadata([1, 2]).status, "error");
+  assertEqual(serializeExperienceMetadata(42).status, "error");
 });
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Relatório Final dos Testes
-// ─────────────────────────────────────────────────────────────────────────────
+runTest("E5. Resultado reparado é serializável com sucesso", () => {
+  const obj = {
+    personaWeights: { explorador_visual: "cem", curador_experiencias: 80, descobridor: 80, aproveitador: 80, slow_traveler: 80 },
+    companionshipCompatibility: { solo: 50, couple: 50, family: 50, friends: 50 },
+    recommendedSeasons: ["all"],
+    weatherCompatibility: ["all"],
+  };
+  const parseResult = parseExperienceMetadataValue(obj);
+  assertEqual(parseResult.status, "repaired");
+  const serializeResult = serializeExperienceMetadata(parseResult.data);
+  assertEqual(serializeResult.status, "success");
+});
+
+// =============================================================================
+// GRUPO F — Identidade dos campos do schema flexível
+// =============================================================================
+
+runTest("F1. personaWeights usa os identificadores corretos da Engine", () => {
+  const def = createDefaultExperienceMetadata();
+  const keys = Object.keys(def.personaWeights);
+  const expected = ["explorador_visual", "curador_experiencias", "descobridor", "aproveitador", "slow_traveler"];
+  expected.forEach(k => {
+    assert(keys.includes(k), `Chave '${k}' deve existir em personaWeights`);
+  });
+  assertEqual(keys.length, expected.length);
+});
+
+runTest("F2. companionshipCompatibility usa os identificadores corretos da Engine", () => {
+  const def = createDefaultExperienceMetadata();
+  const keys = Object.keys(def.companionshipCompatibility);
+  const expected = ["solo", "couple", "family", "friends"];
+  expected.forEach(k => {
+    assert(keys.includes(k), `Chave '${k}' deve existir em companionshipCompatibility`);
+  });
+  assertEqual(keys.length, expected.length);
+});
+
+// =============================================================================
+// Relatório Final
+// =============================================================================
 
 console.log("\n========================================");
 console.log(`Relatório de Testes: ${testsRun - testsFailed}/${testsRun} passaram.`);
