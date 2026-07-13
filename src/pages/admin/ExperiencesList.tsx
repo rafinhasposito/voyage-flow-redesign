@@ -9,6 +9,15 @@ import { supabase } from "@/lib/supabase";
 import { Database } from "@/types/supabase.types";
 type ExperienceRow = Database["public"]["Tables"]["experiences"]["Row"];
 const getAI = (e: ExperienceRow) => { try { return JSON.parse(e.short_description || '{}'); } catch { return {}; } };
+const normalizeType = (val: string | null): string => {
+  if (!val) return 'all';
+  const lower = val.trim().toLowerCase();
+  if (lower === 'hotel') return 'Hotel';
+  if (lower === 'restaurant') return 'restaurant';
+  if (lower === 'event') return 'event';
+  if (lower === 'attraction') return 'attraction';
+  return 'all';
+};
 import { NEW_YORK_NEIGHBORHOODS } from "@/config/constants";
 import { cn, isVideoUrl } from "@/lib/utils";
 import { APIProvider, Map, AdvancedMarker } from "@vis.gl/react-google-maps";
@@ -117,17 +126,6 @@ export default function ExperiencesList() {
   const [maxPrice, setMaxPrice] = useState<number>(1000);
   const [minRating, setMinRating] = useState<number | null>(null);
   const [mustSeeFilter, setMustSeeFilter] = useState(false);
-
-  // Normalização de tipo para evitar divergências de capitalização
-  const normalizeType = (val: string | null): string => {
-    if (!val) return 'all';
-    const lower = val.toLowerCase();
-    if (lower === 'hotel') return 'Hotel';
-    if (lower === 'restaurant') return 'restaurant';
-    if (lower === 'event') return 'event';
-    if (lower === 'attraction') return 'attraction';
-    return val;
-  };
 
   // Atualiza o filtro de tipo sempre que o parâmetro 'type' na URL mudar
   useEffect(() => {
@@ -392,7 +390,7 @@ export default function ExperiencesList() {
                 </div>
                 <p className="font-bold text-vf-black text-[15px]">Nenhuma experiência encontrada</p>
                 <p className="text-vf-text-3 text-[13px] mt-1 max-w-sm">Ajuste os filtros na lateral para encontrar o que você está procurando.</p>
-                <Button variant="outline" className="mt-4" onClick={() => { setSearch(''); setStatusFilter('all'); setTypeFilter('all'); setMaxPrice(1000); setMustSeeFilter(false); setNeighborhoodFilter('all'); setMinRating(null); }}>
+                <Button variant="outline" className="mt-4" onClick={() => { setSearch(''); setStatusFilter('all'); handleTypeFilterChange('all'); setMaxPrice(1000); setMustSeeFilter(false); setNeighborhoodFilter('all'); setMinRating(null); }}>
                   Limpar todos os filtros
                 </Button>
               </div>
