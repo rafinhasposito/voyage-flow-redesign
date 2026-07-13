@@ -3,6 +3,7 @@ import { Database } from "@/types/supabase.types";
 import { CacheManager } from "../services/CacheManager";
 import { TravelExperience } from "@/utils/travelState";
 import { FALLBACK_ATTRACTIONS } from "@/data/fallbackData";
+import { parseExperienceMetadataValue } from "@/domain/experienceMetadata";
 
 export type ExperienceRow = Database["public"]["Tables"]["experiences"]["Row"];
 
@@ -38,25 +39,35 @@ export class ExperienceRepository {
           .select("*")
           .eq("status", "published");
         
-        if (error || !data || data.length === 0) {
-          console.warn("[Repository] Supabase returned empty/error. Using Local Fallback data. Error:", error);
-          return FALLBACK_ATTRACTIONS;
+        if (error) {
+          console.error("[Repository] Supabase returned error:", error);
+          if (import.meta.env.VITE_DEMO_MODE === "true") {
+            console.warn("[Repository] Using Local Fallback data due to Demo Mode.");
+            return FALLBACK_ATTRACTIONS;
+          }
+          throw error;
+        }
+
+        if (!data || data.length === 0) {
+          console.warn("[Repository] Supabase returned empty catalog.");
+          if (import.meta.env.VITE_DEMO_MODE === "true") {
+            console.warn("[Repository] Using Local Fallback data due to Demo Mode.");
+            return FALLBACK_ATTRACTIONS;
+          }
+          return [];
         }
         
         // Map Supabase rows to the UI's TravelExperience type
-        return (data as any[]).map(row => this.mapRowToModel(row));
+        return data.map(row => this.mapRowToModel(row));
       },
       (cachedData) => {
         // Cache exists, nothing to do on the callback for now
-        // We could emit an event if we wanted to trigger a re-render
       },
       (freshData) => {
         // Data updated successfully
         if (import.meta.env.DEV) {
           console.log("[Repository] Catalog synced with Supabase!");
         }
-        // In a more complex app, we'd dispatch a global state update here.
-        // For now, next time a component calls getAll(), it gets the fresh data.
       },
       { version: CACHE_VERSION, ttlMs: TTL_MS }
     );
@@ -91,13 +102,28 @@ export class ExperienceRepository {
       .select("*")
       .eq("status", "published");
       
-    if (error || !data || data.length === 0) {
-      console.warn("[Repository] Force refresh failed or returned empty. Using local fallback.");
-      CacheManager.set(CACHE_KEY, FALLBACK_ATTRACTIONS, { version: CACHE_VERSION, ttlMs: TTL_MS });
-      return FALLBACK_ATTRACTIONS;
+    if (error) {
+      console.error("[Repository] Force refresh failed:", error);
+      if (import.meta.env.VITE_DEMO_MODE === "true") {
+        console.warn("[Repository] Using Local Fallback data due to Demo Mode.");
+        CacheManager.set(CACHE_KEY, FALLBACK_ATTRACTIONS, { version: CACHE_VERSION, ttlMs: TTL_MS });
+        return FALLBACK_ATTRACTIONS;
+      }
+      throw error;
+    }
+
+    if (!data || data.length === 0) {
+      console.warn("[Repository] Force refresh returned empty catalog.");
+      if (import.meta.env.VITE_DEMO_MODE === "true") {
+        console.warn("[Repository] Using Local Fallback data due to Demo Mode.");
+        CacheManager.set(CACHE_KEY, FALLBACK_ATTRACTIONS, { version: CACHE_VERSION, ttlMs: TTL_MS });
+        return FALLBACK_ATTRACTIONS;
+      }
+      CacheManager.set(CACHE_KEY, [], { version: CACHE_VERSION, ttlMs: TTL_MS });
+      return [];
     }
     
-    const mapped = (data as any[]).map(row => this.mapRowToModel(row));
+    const mapped = data.map(row => this.mapRowToModel(row));
     CacheManager.set(CACHE_KEY, mapped, { version: CACHE_VERSION, ttlMs: TTL_MS });
     return mapped;
   }
@@ -107,8 +133,6 @@ export class ExperienceRepository {
    */
   public static async getByDestination(destinationId: string): Promise<TravelExperience[]> {
     const all = await this.getAll();
-    // Assuming mock/cache might not have destination_id mapped yet in the old type,
-    // but in a real scenario we'd filter by it. For now, since MVP has 1 destination, return all.
     return all; 
   }
 
@@ -116,37 +140,78 @@ export class ExperienceRepository {
    * Maps a DB Row to the UI Model
    */
   private static mapRowToModel(row: ExperienceRow): TravelExperience {
-    let ai = {};
-    try { ai = JSON.parse(row.short_description || "{}"); } catch(ex) {}
+    const aiResult = parseExperienceMetadataValue(row.intelligence_metadata);
+    const ai = (aiResult.data || {}) as Record<string, unknown>;
+
+    const normalizeScale = (value: number | undefined | null): number => {
+      if (value === undefined || value === null) return 0.5; // Default safe value
+      if (value >= 0 && value <= 1) return value;
+      // Compatibilidade temporária: se > 1 e <= 100, divide por 100
+      if (value > 1 && value <= 100) return value / 100;
+      return 0.5; // Fora da faixa, cai para default
+    };
+
+    const normalizeWeights = (weights: Record<string, unknown> | undefined) => {
+      if (!weights) return undefined;
+      return {
+        explorador_visual: normalizeScale(weights.explorador_visual as number | undefined),
+        curador_experiencias: normalizeScale(weights.curador_experiencias as number | undefined),
+        descobridor: normalizeScale(weights.descobridor as number | undefined),
+        aproveitador: normalizeScale(weights.aproveitador as number | undefined),
+        slow_traveler: normalizeScale(weights.slow_traveler as number | undefined),
+      };
+    };
+
+    const normalizeComp = (comp: Record<string, unknown> | undefined) => {
+      if (!comp) return undefined;
+      return {
+        solo: normalizeScale(comp.solo as number | undefined),
+        couple: normalizeScale(comp.couple as number | undefined),
+        family: normalizeScale(comp.family as number | undefined),
+        friends: normalizeScale(comp.friends as number | undefined),
+      };
+    };
+
+    const imageUrl = (row.media_urls && row.media_urls.length > 0) ? row.media_urls[0] : "";
 
     return {
       id: row.id,
       name: row.title,
-      category: row.category || "Atração", 
+      category: (row.category as "culture" | "food" | "views" | "nature" | "shopping" | "classic" | "nightlife" | "hidden_gem") || "Atração", 
       categoryLabel: row.category || "Atração",
       description: row.description || "",
       emotionalDescription: row.description || "",
-      image: row.media_urls?.[0] || "", 
+      image: imageUrl, 
       images: row.media_urls || [],
       costLevel: this.mapCostLevel(row.base_cost ?? 0),
       costUSD: row.base_cost ?? 0,
       neighborhood: row.neighborhood || "Centro",
-      coordinates: row.location_lat && row.location_lng ? { lat: row.location_lat, lng: row.location_lng } : undefined,
+      coordinates: (row.location_lat != null && row.location_lng != null) 
+                   ? { lat: row.location_lat, lng: row.location_lng } 
+                   : undefined,
       matchScore: 0,
       durationHours: (row.duration_minutes ?? 120) / 60,
       bestTime: "Morning",
-      is_must_see: false,
-      reservationRequired: false,
-      dressCode: "casual",
-      exclusivityLevel: (ai as any).exclusivityLevel || "accessible",
-      physicalEnergyRequired: row.energy_level || "medium",
+      is_must_see: row.is_must_see ?? false,
+      reservationRequired: row.reservation_required ?? false,
+      dressCode: (row.dress_code as "casual" | "smart_casual" | "elegant" | "formal") || "casual",
+      exclusivityLevel: (row.exclusivity_level as "accessible" | "premium" | "exclusive" | "invite_only") || "accessible",
+      physicalEnergyRequired: (row.energy_level as "low" | "medium" | "high") || "medium",
       isIndoor: row.indoor_outdoor === "indoor",
-      tags: (ai as any).tags || [],
+      tags: row.tags || [],
       media_urls: row.media_urls || [],
       affiliateLink: this.buildAffiliateLink(row.booking_url),
-      rating: undefined,
-      type: row.category
-    } as any;
+      rating: row.rating ?? undefined,
+      reviews_count: row.reviews_count ?? undefined,
+      type: row.type || row.category,
+      climate: row.climate ?? undefined,
+      ideal_companion: row.ideal_companion ?? undefined,
+      
+      personaWeights: (row.intelligence_metadata != null && ai.personaWeights) ? normalizeWeights(ai.personaWeights) : undefined,
+      companionshipCompatibility: (row.intelligence_metadata != null && ai.companionshipCompatibility) ? normalizeComp(ai.companionshipCompatibility) : undefined,
+      recommendedSeasons: (row.intelligence_metadata != null) ? ai.recommendedSeasons as ("winter" | "spring" | "summer" | "autumn" | "all")[] : undefined,
+      weatherCompatibility: (row.intelligence_metadata != null) ? ai.weatherCompatibility as ("rain" | "snow" | "heat" | "all")[] : undefined,
+    } as TravelExperience;
   }
 
   /**
@@ -156,7 +221,6 @@ export class ExperienceRepository {
     if (!url) return undefined;
     
     try {
-      // If it's a GetYourGuide URL, inject the partner ID
       if (url.includes("getyourguide.com")) {
         const urlObj = new URL(url);
         const partnerId = import.meta.env.VITE_GYG_PARTNER_ID;
@@ -167,7 +231,6 @@ export class ExperienceRepository {
       }
       return url;
     } catch (e) {
-      // If URL parsing fails, return original string safely
       return url;
     }
   }
@@ -181,16 +244,10 @@ export class ExperienceRepository {
 
   // --- Admin Methods ---
 
-  /**
-   * Invalidates the cache so the next Consumer request fetches fresh data.
-   */
   public static invalidateCache(): void {
     CacheManager.invalidate(CACHE_KEY, CACHE_VERSION);
   }
 
-  /**
-   * Fetches all experiences directly from Supabase for the Admin list (bypasses cache).
-   */
   public static async search(query: string): Promise<TravelExperience[]> {
     const { data, error } = await supabase
       .from("experiences")
@@ -199,12 +256,9 @@ export class ExperienceRepository {
       .ilike("title", `%${query}%`);
       
     if (error) throw error;
-    return (data as any[]).map(row => this.mapRowToModel(row));
+    return data.map(row => this.mapRowToModel(row));
   }
 
-  /**
-   * Fetches a single experience directly from Supabase for editing.
-   */
   public static async getById(id: string): Promise<TravelExperience | null> {
     const { data, error } = await supabase
       .from("experiences")
@@ -216,30 +270,21 @@ export class ExperienceRepository {
       if (error.code === 'PGRST116') return null; // Not found
       throw error;
     }
-    return this.mapRowToModel(data as any);
+    return this.mapRowToModel(data);
   }
 
-  /**
-   * Creates a new experience and invalidates cache.
-   */
   public static async create(payload: Database["public"]["Tables"]["experiences"]["Insert"]): Promise<void> {
-    const { error } = await supabase.from('experiences').insert([payload as any]);
+    const { error } = await supabase.from('experiences').insert([payload]);
     if (error) throw error;
     this.invalidateCache();
   }
 
-  /**
-   * Updates an existing experience and invalidates cache.
-   */
   public static async update(id: string, payload: Partial<Database["public"]["Tables"]["experiences"]["Insert"]>): Promise<void> {
-    const { error } = await supabase.from('experiences').update(payload as any).eq('id', id);
+    const { error } = await supabase.from('experiences').update(payload).eq('id', id);
     if (error) throw error;
     this.invalidateCache();
   }
 
-  /**
-   * Deletes an experience and invalidates cache.
-   */
   public static async delete(id: string): Promise<void> {
     const { error } = await supabase.from('experiences').delete().eq('id', id);
     if (error) throw error;
