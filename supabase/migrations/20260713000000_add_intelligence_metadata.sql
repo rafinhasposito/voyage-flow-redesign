@@ -1,18 +1,26 @@
 -- Migration: Add intelligence_metadata to experiences table
--- Descrição: Criação da coluna dedicada para armazenar metadados de inteligência (JSON)
--- sem afetar o campo legado short_description.
+-- Mantém short_description como texto editorial legado.
 
 ALTER TABLE public.experiences
-ADD COLUMN IF NOT EXISTS intelligence_metadata JSONB NULL;
+  ADD COLUMN IF NOT EXISTS intelligence_metadata JSONB;
 
--- Constraint de segurança simples para garantir que, se não for nulo,
--- o conteúdo gravado seja obrigatoriamente um objeto JSON (evita arrays soltos ou strings em formato JSON).
-ALTER TABLE public.experiences
-ADD CONSTRAINT chk_experiences_intelligence_metadata_is_object 
-CHECK (
-  intelligence_metadata IS NULL 
-  OR jsonb_typeof(intelligence_metadata) = 'object'
-);
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1
+    FROM pg_constraint
+    WHERE conname = 'chk_experiences_intelligence_metadata_is_object'
+      AND conrelid = 'public.experiences'::regclass
+  ) THEN
+    ALTER TABLE public.experiences
+      ADD CONSTRAINT chk_experiences_intelligence_metadata_is_object
+      CHECK (
+        intelligence_metadata IS NULL
+        OR jsonb_typeof(intelligence_metadata) = 'object'
+      );
+  END IF;
+END
+$$;
 
--- Comentário da coluna para documentação no banco
-COMMENT ON COLUMN public.experiences.intelligence_metadata IS 'Armazena metadados de inteligência da IA (pesos de personas, compatibilidade, tags adicionais, etc). Validado via Zod no cliente.';
+COMMENT ON COLUMN public.experiences.intelligence_metadata IS
+  'Armazena metadados estruturados de inteligência. short_description permanece reservado ao texto editorial legado.';
