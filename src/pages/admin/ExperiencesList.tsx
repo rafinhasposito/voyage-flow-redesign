@@ -9,15 +9,7 @@ import { supabase } from "@/lib/supabase";
 import { Database } from "@/types/supabase.types";
 type ExperienceRow = Database["public"]["Tables"]["experiences"]["Row"];
 const getAI = (e: ExperienceRow) => { try { return JSON.parse(e.short_description || '{}'); } catch { return {}; } };
-const normalizeType = (val: string | null): string => {
-  if (!val) return 'all';
-  const lower = val.trim().toLowerCase();
-  if (lower === 'hotel') return 'Hotel';
-  if (lower === 'restaurant') return 'restaurant';
-  if (lower === 'event') return 'event';
-  if (lower === 'attraction') return 'attraction';
-  return 'all';
-};
+import { normalizeTechnicalType, matchesExperienceSection } from "@/lib/experienceUtils";
 import { NEW_YORK_NEIGHBORHOODS } from "@/config/constants";
 import { cn, isVideoUrl } from "@/lib/utils";
 import { APIProvider, Map, AdvancedMarker } from "@vis.gl/react-google-maps";
@@ -130,7 +122,7 @@ export default function ExperiencesList() {
   // Atualiza o filtro de tipo sempre que o parâmetro 'type' na URL mudar
   useEffect(() => {
     const urlType = searchParams.get('type');
-    setTypeFilter(normalizeType(urlType));
+    setTypeFilter(normalizeTechnicalType(urlType));
   }, [searchParams]);
 
   // Atualiza a URL quando o usuário altera o select de tipo manualmente
@@ -140,7 +132,12 @@ export default function ExperiencesList() {
     if (newVal === 'all') {
       nextParams.delete('type');
     } else {
-      nextParams.set('type', newVal);
+      let urlVal = newVal;
+      if (newVal === 'lodging') urlVal = 'Hotel';
+      if (newVal === 'dining') urlVal = 'restaurant';
+      if (newVal === 'attractions') urlVal = 'attraction';
+      if (newVal === 'events') urlVal = 'event';
+      nextParams.set('type', urlVal);
     }
     setSearchParams(nextParams);
   };
@@ -179,7 +176,7 @@ export default function ExperiencesList() {
       if (error) throw error;
       setExperiences(p => [data as ExperienceRow, ...p]);
       toast.success('Experiência duplicada!');
-    } catch (err: any) { toast.error('Erro ao duplicar: ' + err.message); }
+    } catch (err: unknown) { toast.error('Erro ao duplicar: ' + (err as Error).message); }
   };
 
   const handleToggleStatus = async (exp: ExperienceRow) => {
@@ -219,7 +216,7 @@ export default function ExperiencesList() {
       if (search && !e.title.toLowerCase().includes(search.toLowerCase())) return false;
       if (statusFilter !== 'all' && e.status !== statusFilter) return false;
       if (neighborhoodFilter !== 'all' && e.neighborhood !== neighborhoodFilter) return false;
-      if (typeFilter !== 'all' && e.category !== typeFilter) return false;
+      if (typeFilter !== 'all' && !matchesExperienceSection(e, typeFilter)) return false;
       if (mustSeeFilter && !ai.is_must_see) return false;
       if (minRating !== null && (ai.rating || 0) < minRating) return false;
 
@@ -302,10 +299,10 @@ export default function ExperiencesList() {
             <div className="space-y-1.5">
               <select value={typeFilter} onChange={(e) => handleTypeFilterChange(e.target.value)} className="flex h-10 w-full rounded-md border border-vf-border bg-white px-3.5 py-2.5 text-[13px] text-vf-text-1 focus:border-vf-black focus:outline-none focus:ring-1 focus:ring-vf-black">
                 <option value="all">Todas as Categorias</option>
-                <option value="attraction">Atrações</option>
-                <option value="restaurant">Restaurantes</option>
-                <option value="Hotel">Hotéis</option>
-                <option value="event">Eventos</option>
+                <option value="attractions">Atrações</option>
+                <option value="dining">Restaurantes</option>
+                <option value="lodging">Hotéis</option>
+                <option value="events">Eventos</option>
               </select>
 
               <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="flex h-10 w-full rounded-md border border-vf-border bg-white px-3.5 py-2.5 text-[13px] text-vf-text-1 focus:border-vf-black focus:outline-none focus:ring-1 focus:ring-vf-black">

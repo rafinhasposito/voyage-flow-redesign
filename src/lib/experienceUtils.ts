@@ -15,7 +15,7 @@ export function resolveExperienceRouteMode(id: string | undefined | null): { mod
   if (id === undefined || id === null || id === "new") {
     return { mode: "create", id: null };
   }
-  
+
   if (isValidExperienceId(id)) {
     return { mode: "edit", id };
   }
@@ -119,4 +119,48 @@ export function mapNodeToFormState(node: Record<string, unknown>, prev: Record<s
     intelligence_metadata: node.intelligence_metadata as Record<string, unknown> | null,
     partner_id: node.partner_id || ''
   };
+}
+
+export function normalizeTechnicalType(val: string | null | undefined): string {
+  if (!val) return 'all';
+  const lower = val.trim().toLowerCase();
+  if (lower === 'hotel' || lower === 'lodging' || lower === 'hospedagens' || lower === 'hospedagem') return 'lodging';
+  if (lower === 'restaurant' || lower === 'dining' || lower === 'restaurantes' || lower === 'restaurante') return 'dining';
+  if (lower === 'attraction' || lower === 'attractions' || lower === 'atrações' || lower === 'atração') return 'attractions';
+  if (lower === 'event' || lower === 'events' || lower === 'eventos' || lower === 'evento') return 'events';
+  return lower;
+}
+
+export function matchesExperienceSection(exp: Record<string, unknown>, section: string): boolean {
+  if (section === 'all') return true;
+
+  const typeLower = (((exp.type as string)) || '').trim().toLowerCase();
+  const catLower = (((exp.category as string)) || '').trim().toLowerCase();
+
+  if (section === 'lodging') {
+    if (['hotel', 'hostel', 'apartment', 'accommodation'].includes(typeLower)) return true;
+    if (!typeLower && ['hospedagem', 'hostel', 'hotel'].includes(catLower)) return true;
+    return false;
+  }
+
+  if (section === 'dining') {
+    if (['restaurant', 'cafe', 'bar'].includes(typeLower)) return true;
+    if (!typeLower && ['restaurante', 'alimentação', 'bar', 'cafe'].includes(catLower)) return true;
+    return false;
+  }
+
+  if (section === 'attractions') {
+    if (['attraction', 'museum', 'park', 'tour', 'theater', 'viewpoint'].includes(typeLower)) return true;
+    if (typeLower === 'event') return true;
+    if (!typeLower && ['atração', 'museu', 'parque', 'tour'].includes(catLower)) return true;
+    return false;
+  }
+
+  if (section === 'events') {
+    if (['event', 'festival', 'concert'].includes(typeLower)) return true;
+    if (!typeLower && ['evento', 'show'].includes(catLower)) return true;
+    return false;
+  }
+
+  return false;
 }
