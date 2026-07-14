@@ -274,12 +274,19 @@ export class ExperienceRepository {
   }
 
   public static async create(payload: Database["public"]["Tables"]["experiences"]["Insert"]): Promise<void> {
+    if ('id' in payload) {
+      delete payload.id;
+    }
     const { error } = await supabase.from('experiences').insert([payload]);
     if (error) throw error;
     this.invalidateCache();
   }
 
   public static async update(id: string, payload: Partial<Database["public"]["Tables"]["experiences"]["Insert"]>): Promise<void> {
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (!id || !uuidRegex.test(id)) {
+      throw new Error('Não foi possível identificar a experiência para edição.');
+    }
     const { error } = await supabase.from('experiences').update(payload).eq('id', id);
     if (error) throw error;
     this.invalidateCache();
