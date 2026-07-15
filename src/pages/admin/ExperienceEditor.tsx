@@ -12,6 +12,7 @@ import { cn, isVideoUrl } from "@/lib/utils";
 import { NEW_YORK_NEIGHBORHOODS } from "@/config/constants";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { googleServicesEnabled } from "@/config/externalServices";
 import { ExperienceRepository } from "@/repositories/ExperienceRepository";
 import { DestinationRepository, DestinationRow } from "@/repositories/DestinationRepository";
 import { validateExperienceForm, buildExperiencePayload, resolveExperienceRouteMode, mapNodeToFormState } from "@/lib/experienceUtils";
@@ -393,16 +394,24 @@ export default function ExperienceEditor() {
                     <Input value={form.address} onChange={e => set('address', e.target.value)} />
                   </Field>
                 </div>
-                <div className="h-48 rounded-xl overflow-hidden border border-vf-border bg-vf-muted relative">
-                  <APIProvider apiKey={import.meta.env.VITE_GOOGLE_MAPS_API_KEY}>
-                    <Map defaultCenter={{ lat: form.location_lat ?? 40.7580, lng: form.location_lng ?? -73.9855 }} defaultZoom={13} mapId="EDITOR_MAP_VF" disableDefaultUI={true} onClick={(e: { detail?: { latLng?: { lat: number; lng: number } } }) => { set('location_lat', e.detail?.latLng?.lat); set('location_lng', e.detail?.latLng?.lng); }} style={{ cursor: 'crosshair' }}>
-                      {form.location_lat != null && form.location_lng != null && (
-                         <AdvancedMarker position={{ lat: form.location_lat, lng: form.location_lng }}>
-                           <div className="w-4 h-4 bg-vf-lime border-2 border-black rounded-full shadow-sm" />
-                         </AdvancedMarker>
-                      )}
-                    </Map>
-                  </APIProvider>
+                <div className="h-48 rounded-xl overflow-hidden border border-vf-border bg-vf-muted relative flex items-center justify-center">
+                  {googleServicesEnabled ? (
+                    <APIProvider apiKey={import.meta.env.VITE_GOOGLE_MAPS_API_KEY}>
+                      <Map defaultCenter={{ lat: form.location_lat ?? 40.7580, lng: form.location_lng ?? -73.9855 }} defaultZoom={13} mapId="EDITOR_MAP_VF" disableDefaultUI={true} onClick={(e: { detail?: { latLng?: { lat: number; lng: number } } }) => { set('location_lat', e.detail?.latLng?.lat); set('location_lng', e.detail?.latLng?.lng); }} style={{ cursor: 'crosshair' }}>
+                        {form.location_lat != null && form.location_lng != null && (
+                           <AdvancedMarker position={{ lat: form.location_lat, lng: form.location_lng }}>
+                             <div className="w-4 h-4 bg-vf-lime border-2 border-black rounded-full shadow-sm" />
+                           </AdvancedMarker>
+                        )}
+                      </Map>
+                    </APIProvider>
+                  ) : (
+                    <div className="text-center p-4">
+                       <MapPin className="w-8 h-8 mx-auto text-vf-text-3 mb-2" />
+                       <p className="text-xs font-bold text-vf-text-2">Mapa Google Desativado</p>
+                       <p className="text-[10px] text-vf-text-3 mt-1">Lat: {form.location_lat || 'N/A'} Lng: {form.location_lng || 'N/A'}</p>
+                    </div>
+                  )}
                 </div>
               </Section>
 
