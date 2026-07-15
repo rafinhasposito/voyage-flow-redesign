@@ -137,6 +137,74 @@ export default function ExperiencesList() {
   useEffect(() => {
     fetchExperiences();
   }, []);
+  
+  // Custom highlight flash animation
+  useEffect(() => {
+    const style = document.createElement('style');
+    style.innerHTML = `
+      @keyframes highlight-flash {
+        0% { background-color: rgba(215, 242, 75, 0.5); transform: scale(1.02); }
+        50% { background-color: rgba(215, 242, 75, 0.3); transform: scale(1.01); }
+        100% { background-color: transparent; transform: scale(1); }
+      }
+      .highlight-flash {
+        animation: highlight-flash 2.5s ease-out;
+        border-color: #D7F24B !important;
+        box-shadow: 0 0 0 2px rgba(215, 242, 75, 0.2) !important;
+      }
+    `;
+    document.head.appendChild(style);
+    return () => { document.head.removeChild(style); };
+  }, []);
+
+  const handleSelectExperience = (id: string) => {
+    setSelectedExpId(id);
+    const mapEl = document.getElementById('catalog-map-container');
+    if (mapEl) {
+      const rect = mapEl.getBoundingClientRect();
+      if (rect.top < 0 || rect.bottom > window.innerHeight) {
+        mapEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+    }
+  };
+
+  const handleShowInList = (id: string) => {
+    const locateAndHighlight = (sourceList: ExperienceRow[]) => {
+      const expIndex = sourceList.findIndex(e => e.id === id);
+      if (expIndex !== -1) {
+        const page = Math.floor(expIndex / itemsPerPage) + 1;
+        setCurrentPage(page);
+        setSelectedExpId(id);
+        setTimeout(() => {
+          const el = document.getElementById(`exp-${id}`);
+          if (el) {
+            el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            el.classList.add('highlight-flash');
+            setTimeout(() => el.classList.remove('highlight-flash'), 2500);
+          }
+        }, 150);
+      }
+    };
+
+    const expIndex = filtered.findIndex(e => e.id === id);
+    if (expIndex !== -1) {
+      locateAndHighlight(filtered);
+    } else {
+      toast('Esta experiência não está presente nos filtros atuais.', {
+        action: {
+          label: 'Limpar filtros e localizar',
+          onClick: () => {
+            setSearchQuery("");
+            setStatusFilter("all");
+            setCategoryFilter("all");
+            setTypeFilter("all");
+            setTimeout(() => locateAndHighlight(experiences), 150);
+          }
+        },
+        duration: 5000
+      });
+    }
+  };
 
   const fetchExperiences = async () => {
     setLoading(true);
@@ -395,7 +463,7 @@ export default function ExperiencesList() {
                         </thead>
                         <tbody className="divide-y divide-[#171717]/5">
                           {currentData.map(exp => (
-                            <tr key={exp.id} onClick={() => setSelectedExpId(exp.id)} className={cn("transition-colors group cursor-pointer", selectedExpId === exp.id ? "bg-[#D7F24B]/10" : "hover:bg-[#F7F7F2]/80")}>
+                            <tr id={`exp-${exp.id}`} key={exp.id} onClick={() => handleSelectExperience(exp.id)} className={cn("transition-colors group cursor-pointer", selectedExpId === exp.id ? "bg-[#D7F24B]/10" : "hover:bg-[#F7F7F2]/80")}>
                               <td className="px-6 py-4">
                                 <div className="flex items-center gap-4">
                                   <div className="w-14 h-14 rounded-2xl bg-[#F7F7F2] shrink-0 overflow-hidden border border-[#171717]/5">
@@ -442,7 +510,7 @@ export default function ExperiencesList() {
                 {viewMode === 'list' && (
                   <div className="flex flex-col gap-4">
                     {currentData.map(exp => (
-                      <div key={exp.id} onClick={() => setSelectedExpId(exp.id)} className={cn("bg-white rounded-[24px] border shadow-[0_4px_20px_rgb(0,0,0,0.02)] p-4 flex gap-6 transition-all group cursor-pointer", selectedExpId === exp.id ? "border-[#D7F24B] ring-2 ring-[#D7F24B]/20" : "border-[#171717]/5 hover:border-[#171717]/20")}>
+                      <div id={`exp-${exp.id}`} key={exp.id} onClick={() => handleSelectExperience(exp.id)} className={cn("bg-white rounded-[24px] border shadow-[0_4px_20px_rgb(0,0,0,0.02)] p-4 flex gap-6 transition-all group cursor-pointer", selectedExpId === exp.id ? "border-[#D7F24B] ring-2 ring-[#D7F24B]/20" : "border-[#171717]/5 hover:border-[#171717]/20")}>
                          <div className="w-48 h-32 rounded-2xl bg-[#F7F7F2] shrink-0 overflow-hidden relative border border-[#171717]/5">
                             {renderMedia(exp.media_urls, exp.title)}
                             <div className="absolute top-2 left-2">
@@ -481,7 +549,7 @@ export default function ExperiencesList() {
                 {viewMode === 'cards' && (
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
                      {currentData.map(exp => (
-                      <div key={exp.id} onClick={() => setSelectedExpId(exp.id)} className={cn("flex flex-col rounded-[28px] border overflow-hidden transition-all cursor-pointer bg-white group h-full", selectedExpId === exp.id ? "border-[#D7F24B] ring-2 ring-[#D7F24B]/20 shadow-[0_20px_40px_rgb(0,0,0,0.08)]" : "border-[#171717]/5 hover:shadow-[0_20px_40px_rgb(0,0,0,0.08)] hover:border-[#171717]/10")}>
+                      <div id={`exp-${exp.id}`} key={exp.id} onClick={() => handleSelectExperience(exp.id)} className={cn("flex flex-col rounded-[28px] border overflow-hidden transition-all cursor-pointer bg-white group h-full", selectedExpId === exp.id ? "border-[#D7F24B] ring-2 ring-[#D7F24B]/20 shadow-[0_20px_40px_rgb(0,0,0,0.08)]" : "border-[#171717]/5 hover:shadow-[0_20px_40px_rgb(0,0,0,0.08)] hover:border-[#171717]/10")}>
                          <div className="h-48 bg-[#F7F7F2] relative m-2 rounded-[20px] overflow-hidden">
                             {renderMedia(exp.media_urls, exp.title)}
                             <div className="absolute top-3 right-3 flex flex-col gap-2">
@@ -549,7 +617,7 @@ export default function ExperiencesList() {
 
           {/* ─── PAINEL DO MAPA FREE (MapLibre + OpenFreeMap) ─── */}
           {mapVisible && (
-            <div className="w-[450px] shrink-0 h-[calc(100vh-200px)] sticky top-28 bg-white rounded-[28px] border border-[#171717]/5 shadow-[0_4px_20px_rgb(0,0,0,0.03)] overflow-hidden flex flex-col">
+            <div id="catalog-map-container" className="w-[450px] shrink-0 h-[calc(100vh-200px)] sticky top-28 bg-white rounded-[28px] border border-[#171717]/5 shadow-[0_4px_20px_rgb(0,0,0,0.03)] overflow-hidden flex flex-col">
               <div className="p-4 border-b border-[#171717]/5 flex items-center justify-between bg-white z-10">
                  <div className="flex items-center gap-2 font-black text-[#171717]">
                    <MapPin className="w-4 h-4 text-[#D7F24B]" /> Vista Geográfica 
@@ -562,8 +630,9 @@ export default function ExperiencesList() {
                  <CatalogMap 
                    experiences={filtered} 
                    selectedId={selectedExpId} 
-                   onMarkerClick={(id) => setSelectedExpId(id)}
+                   onMarkerClick={(id) => handleSelectExperience(id)}
                    onEditClick={(id) => navigate(`/admin/experiences/${id}`)}
+                   onListClick={handleShowInList}
                  />
                  
                  <div className="absolute bottom-4 left-4 right-14 pointer-events-none">

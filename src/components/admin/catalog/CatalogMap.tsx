@@ -12,9 +12,10 @@ interface CatalogMapProps {
   selectedId: string | null;
   onMarkerClick: (id: string) => void;
   onEditClick: (id: string) => void;
+  onListClick?: (id: string) => void;
 }
 
-export default function CatalogMap({ experiences, selectedId, onMarkerClick, onEditClick }: CatalogMapProps) {
+export default function CatalogMap({ experiences, selectedId, onMarkerClick, onEditClick, onListClick }: CatalogMapProps) {
   const mapContainer = useRef<HTMLDivElement>(null);
   const map = useRef<maplibregl.Map | null>(null);
   const activePopup = useRef<maplibregl.Popup | null>(null);
@@ -182,16 +183,56 @@ export default function CatalogMap({ experiences, selectedId, onMarkerClick, onE
       const exp = validExperiences.find(e => e.id === selectedId);
       if (exp && exp.location_lng != null && exp.location_lat != null) {
         const popupNode = document.createElement('div');
+        
+        // safe media url
+        const mediaUrls = exp.media_urls as string[] | null;
+        const mainImage = mediaUrls && mediaUrls.length > 0 ? mediaUrls[0] : null;
+        let imageHtml = '';
+        if (mainImage) {
+          const safeUrl = mainImage.startsWith('http') ? mainImage : `${import.meta.env.VITE_SUPABASE_URL}/storage/v1/object/public/${mainImage}`;
+          imageHtml = `<div class="w-full h-24 mb-3 rounded-lg overflow-hidden bg-gray-100">
+            <img src="${safeUrl}" alt="${exp.title}" class="w-full h-full object-cover" />
+          </div>`;
+        } else {
+          imageHtml = `<div class="w-full h-24 mb-3 rounded-lg flex items-center justify-center bg-[#F7F7F2]">
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-gray-300"><rect width="18" height="18" x="3" y="3" rx="2" ry="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/></svg>
+          </div>`;
+        }
+
+        const costStr = exp.base_cost && exp.base_cost > 0 ? `US$ ${exp.base_cost}` : 'Gratuito';
+        const ratingStr = exp.rating ? `⭐ ${exp.rating} (${exp.reviews_count || 0})` : '';
+
         popupNode.innerHTML = `
-          <div class="p-2 min-w-[200px] font-sans">
-            <h4 class="font-bold text-[#171717] text-[13px] mb-1 line-clamp-2">${exp.title}</h4>
-            <p class="text-[11px] text-[#171717]/60 mb-3 font-medium">${translateTerm(exp.category)} • ${exp.neighborhood || 'Local desconhecido'}</p>
-            <button class="edit-btn w-full bg-[#171717] hover:bg-[#171717]/90 transition-colors text-white py-2 rounded-xl text-[12px] font-bold" data-id="${exp.id}">Editar Registro</button>
+          <div class="p-2 min-w-[220px] max-w-[240px] font-sans">
+            ${imageHtml}
+            <h4 class="font-bold text-[#171717] text-[13px] mb-1 line-clamp-2 leading-tight">${exp.title}</h4>
+            <div class="flex items-center gap-1.5 mb-2 flex-wrap">
+              <span class="text-[10px] font-bold uppercase tracking-wide text-indigo-700 bg-indigo-50 px-1.5 py-0.5 rounded">${translateTerm(exp.category)}</span>
+              <span class="text-[11px] text-[#171717]/60 font-medium truncate max-w-[120px]">${exp.neighborhood || ''}</span>
+            </div>
+            
+            <div class="flex items-center justify-between mb-3 text-[11px] font-medium text-[#171717]/70">
+              <span>${costStr}</span>
+              <span>${ratingStr}</span>
+            </div>
+            
+            <div class="flex items-center justify-between mb-3">
+              <span class="text-[10px] font-bold uppercase ${exp.status === 'published' ? 'text-emerald-600' : 'text-amber-600'}">${exp.status === 'published' ? 'Publicado' : 'Rascunho'}</span>
+            </div>
+
+            <div class="flex gap-2">
+              <button class="list-btn flex-1 bg-white border border-[#171717]/10 hover:border-[#171717]/30 transition-colors text-[#171717] py-2 rounded-xl text-[11px] font-bold" data-id="${exp.id}">Ver na lista</button>
+              <button class="edit-btn flex-1 bg-[#171717] hover:bg-[#171717]/90 transition-colors text-white py-2 rounded-xl text-[11px] font-bold" data-id="${exp.id}">Editar</button>
+            </div>
           </div>
         `;
 
         popupNode.querySelector('.edit-btn')?.addEventListener('click', () => {
            onEditClick(exp.id);
+        });
+        
+        popupNode.querySelector('.list-btn')?.addEventListener('click', () => {
+           onListClick?.(exp.id);
         });
 
         activePopup.current = new maplibregl.Popup({ offset: 15, closeButton: false, className: 'catalog-popup overflow-hidden rounded-[16px]' })
