@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useMemo } from "react";
 import { useNavigate, Link, useSearchParams } from "react-router-dom";
 import {
-  Plus, Search, MoreHorizontal, Edit, Copy, Trash2,
+  Plus, Search, MoreHorizontal, Library, Edit, Copy, Trash2,
   AlertCircle, Star, X, Eye, EyeOff, LayoutGrid, LayoutList,
   Sparkles, UploadCloud, ChevronRight, Image as ImageIcon, MapPin, List
 } from "lucide-react";
