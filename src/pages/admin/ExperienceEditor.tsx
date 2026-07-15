@@ -1,21 +1,23 @@
-import React, { useEffect, useState, useCallback } from "react";
+import React, { useEffect, useState, useCallback, useRef } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import {
   ArrowLeft, MapPin, DollarSign, Star,
   Link2, Image as ImageIcon, Check, Plus, X, BrainCircuit,
   Wand2, Zap, Heart, Video, AlertCircle, Save, Clock
 } from "lucide-react";
-import { APIProvider, Map, AdvancedMarker } from "@vis.gl/react-google-maps";
+import maplibregl from "maplibre-gl";
+import "maplibre-gl/dist/maplibre-gl.css";
 import { supabase } from "@/lib/supabase";
 import { toast } from "sonner";
 import { cn, isVideoUrl } from "@/lib/utils";
 import { NEW_YORK_NEIGHBORHOODS } from "@/config/constants";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { googleServicesEnabled } from "@/config/externalServices";
+
 import { ExperienceRepository } from "@/repositories/ExperienceRepository";
 import { DestinationRepository, DestinationRow } from "@/repositories/DestinationRepository";
 import { validateExperienceForm, buildExperiencePayload, resolveExperienceRouteMode, mapNodeToFormState } from "@/lib/experienceUtils";
+import { calculateAffinityV1 } from "@/lib/intelligence/experienceAffinityRules";
 
 export interface FormState {
   title: string;
@@ -105,6 +107,62 @@ function TagInput({ tags, onChange }: { tags: string[]; onChange: (t: string[]) 
   );
 }
 
+
+function OptionalRangeSlider({ label, value, onChange }: { label: string; value: number | null; onChange: (v: number) => void }) {
+  const [isEditing, setIsEditing] = useState(false);
+  const [tempValue, setTempValue] = useState<number | ''>('');
+
+  if (value === null && !isEditing) {
+    return (
+      <div className="space-y-1.5 p-2 bg-indigo-50/30 rounded-lg border border-dashed border-indigo-100">
+        <div className="flex justify-between items-center text-[11px] font-bold">
+          <span className="text-vf-text-2">{label}</span>
+          <span className="text-gray-400">Não calculado</span>
+        </div>
+        <button onClick={() => setIsEditing(true)} className="text-[10px] text-indigo-600 font-bold hover:underline">
+          + Definir valor
+        </button>
+      </div>
+    );
+  }
+
+  if (value === null && isEditing) {
+    return (
+      <div className="space-y-1.5 p-2 bg-indigo-50 rounded-lg border border-indigo-200">
+        <div className="flex justify-between items-center text-[11px] font-bold">
+          <span className="text-vf-text-2">{label}</span>
+        </div>
+        <div className="flex items-center gap-2 mt-1">
+          <input 
+            type="number" min={0} max={100} 
+            value={tempValue} 
+            onChange={e => setTempValue(e.target.value === '' ? '' : parseInt(e.target.value))}
+            className="w-16 h-7 text-xs border rounded px-1 outline-none focus:ring-1 focus:ring-indigo-500" 
+            placeholder="0-100" 
+          />
+          <button onClick={() => {
+            if (tempValue !== '' && tempValue >= 0 && tempValue <= 100) {
+               onChange(tempValue as number);
+               setIsEditing(false);
+            }
+          }} className="text-[10px] bg-indigo-600 text-white px-2 py-1 rounded">OK</button>
+          <button onClick={() => setIsEditing(false)} className="text-[10px] text-gray-500">Cancelar</button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-1.5">
+      <div className="flex items-center justify-between text-[11px] font-bold text-vf-text-2">
+        <span>{label}</span>
+        <span className="text-indigo-700">{value}%</span>
+      </div>
+      <input type="range" min={0} max={100} value={value} onChange={e => onChange(parseInt(e.target.value))} className="w-full accent-indigo-600 h-1 bg-vf-muted rounded-lg appearance-none cursor-pointer" />
+    </div>
+  );
+}
+
 function RangeSlider({ label, value, onChange }: { label: string; value: number; onChange: (v: number) => void }) {
   return (
     <div className="space-y-1.5">
@@ -140,6 +198,96 @@ function Section({ title, icon: Icon, children }: { title: string; icon: React.E
 }
 
 // ─── Main ─────────────────────────────────────────────────────────────────────
+
+
+function EditorMap({ lat, lng }: { lat: number | null, lng: number | null }) {
+  const mapContainer = useRef<HTMLDivElement>(null);
+  const map = useRef<maplibregl.Map | null>(null);
+  const marker = useRef<maplibregl.Marker | null>(null);
+
+  useEffect(() => {
+    if (!mapContainer.current || lat === null || lng === null) return;
+
+    if (!map.current) {
+      map.current = new maplibregl.Map({
+        container: mapContainer.current,
+        style: 'https://tiles.openfreemap.org/styles/liberty',
+        center: [lng, lat],
+        zoom: 15,
+        attributionControl: true
+      });
+      map.current.addControl(new maplibregl.NavigationControl(), 'bottom-right');
+      
+      const el = document.createElement('div');
+      el.className = "w-4 h-4 bg-[#D7F24B] border-2 border-[#171717] rounded-full shadow-sm";
+      marker.current = new maplibregl.Marker(el).setLngLat([lng, lat]).addTo(map.current);
+    } else {
+      map.current.flyTo({ center: [lng, lat] });
+      if (marker.current) {
+        marker.current.setLngLat([lng, lat]);
+      }
+    }
+  }, [lat, lng]);
+
+  useEffect(() => {
+    return () => {
+      if (marker.current) {
+        marker.current.remove();
+        marker.current = null;
+      }
+      if (map.current) {
+        map.current.remove();
+        map.current = null;
+      }
+    };
+  }, []);
+
+  if (lat === null || lng === null) {
+    return (
+      <div className="w-full h-full flex flex-col items-center justify-center bg-gray-50 border-2 border-dashed border-gray-200 rounded-xl">
+        <MapPin className="w-8 h-8 text-gray-300 mb-2" />
+        <p className="text-xs font-bold text-gray-400">Informe latitude e longitude para visualizar o local no mapa.</p>
+      </div>
+    );
+  }
+
+  return <div ref={mapContainer} className="w-full h-full rounded-xl overflow-hidden bg-[#E8EAE6]" />;
+}
+
+
+
+function IntelligenceBar({ label, value }: { label: string; value: number | null }) {
+  if (value === null) {
+    return (
+      <div className="space-y-1.5">
+        <div className="flex justify-between items-center text-[11px] font-bold">
+          <span className="text-vf-text-2">{label}</span>
+          <span className="text-gray-400">Não calculado</span>
+        </div>
+        <div className="w-full h-1.5 bg-gray-100 rounded-full overflow-hidden"></div>
+      </div>
+    );
+  }
+  
+  let level = "Baixa afinidade";
+  let color = "bg-gray-400";
+  if (value >= 80) { level = "Alta afinidade"; color = "bg-emerald-500"; }
+  else if (value >= 60) { level = "Boa afinidade"; color = "bg-[#D7F24B]"; }
+  else if (value >= 40) { level = "Afinidade moderada"; color = "bg-amber-400"; }
+  
+  return (
+    <div className="space-y-1.5">
+      <div className="flex justify-between items-center text-[11px] font-bold">
+        <span className="text-vf-black">{label}</span>
+        <span className="text-vf-text-2">{value}% — {level}</span>
+      </div>
+      <div className="w-full h-1.5 bg-gray-100 rounded-full overflow-hidden">
+        <div className={`h-full ${color}`} style={{ width: `${value}%` }} />
+      </div>
+    </div>
+  );
+}
+
 export default function ExperienceEditor() {
   const { id } = useParams<{ id: string }>();
   const [searchParams] = useSearchParams();
@@ -158,6 +306,7 @@ export default function ExperienceEditor() {
   const [isSyncingAI, setIsSyncingAI] = useState(false);
   const [enrichUrl, setEnrichUrl] = useState('');
   const [isEnriching, setIsEnriching] = useState(false);
+  const [isManualAi, setIsManualAi] = useState(false);
   const [destinations, setDestinations] = useState<DestinationRow[]>([]);
   const [destinationsError, setDestinationsError] = useState<string | null>(null);
 
@@ -210,7 +359,35 @@ export default function ExperienceEditor() {
     }
   }, [validExperienceId, navigate]);
 
-  const handleSave = async (publish = false) => {
+  const handleSaveAsDraft = async () => {
+    await handleSave({ publish: false, unpublish: false });
+  };
+
+  const handlePublish = async () => {
+    await handleSave({ publish: true, unpublish: false });
+  };
+
+  const handleUnpublish = async () => {
+    if (window.confirm("Tem certeza que deseja despublicar esta experiência? Ela não será mais visível no aplicativo principal.")) {
+      await handleSave({ publish: false, unpublish: true });
+    }
+  };
+
+  const handleDiscard = () => {
+    if (form.title || form.booking_url) {
+      if (!window.confirm("Deseja realmente descartar esta importação? Os dados não salvos serão perdidos.")) {
+        return;
+      }
+    }
+    // Hard reset
+    setForm({ ...defaultForm, type: searchParams.get('type') || 'attraction' });
+    setEnrichUrl('');
+    setDestinationsError(null);
+    setIsManualAi(false);
+    navigate('/admin/experiences');
+  };
+
+  const handleSave = async ({ publish, unpublish }: { publish: boolean; unpublish: boolean }) => {
     const validation = validateExperienceForm(form, destinationsError);
     if (!validation.valid) {
       toast.error(validation.error);
@@ -218,10 +395,11 @@ export default function ExperienceEditor() {
     }
 
     setIsSaving(true);
-    const toastId = toast.loading(publish ? 'Publicando...' : 'Salvando rascunho...');
+    const toastId = toast.loading(publish ? 'Publicando...' : unpublish ? 'Despublicando...' : 'Salvando rascunho...');
     try {
       const row = buildExperiencePayload(form);
       if (publish) row.status = 'published';
+      else if (unpublish) row.status = 'draft';
 
       if (isNew) {
         await ExperienceRepository.create(row);
@@ -229,7 +407,7 @@ export default function ExperienceEditor() {
         await ExperienceRepository.update(validExperienceId, row);
       }
 
-      toast.success(publish ? '✅ Publicado!' : '💾 Salvo!', { id: toastId });
+      toast.success(publish ? '✅ Publicado!' : unpublish ? '✅ Despublicado!' : '💾 Salvo!', { id: toastId });
 
       if (validExperienceId) {
         // Just reload UI locally to show success without refetching from db in this basic flow
@@ -253,30 +431,52 @@ export default function ExperienceEditor() {
       setForm(prev => ({ ...prev, ...exp, booking_url: enrichUrl.trim() }));
       toast.success('✅ Dados importados!', { id: toastId });
       setEnrichUrl('');
+      handleAiSync({ ...form, ...exp, booking_url: enrichUrl.trim() });
     } catch (e: unknown) { toast.error('Erro: ' + (e as Error).message, { id: toastId }); }
     finally { setIsEnriching(false); }
   };
 
-  const handleAiSync = async () => {
-    if (!form.title.trim()) { toast.error('Título obrigatório para IA.'); return; }
+  
+  
+  const handleAiSync = async (prefilledForm?: any) => {
+    const dataToUse = prefilledForm || form;
+    if (!dataToUse.title?.trim()) { toast.error('Título obrigatório para IA.'); return; }
     setIsSyncingAI(true);
-    const toastId = toast.loading('Treinando algoritmo...');
+    const toastId = toast.loading('Analisando afinidade (Motor de Regras V1)...');
+    
+    await new Promise(r => setTimeout(r, 600));
+
     try {
-      const { data, error } = await supabase.functions.invoke('ai-engine-score', { body: form });
-      if (error || !data) {
-        setForm(p => ({
-          ...p,
-          personaWeights: { explorador_visual: 85, curador_experiencias: p.base_cost > 80 ? 80 : 50, descobridor: 70, aproveitador: 60, slow_traveler: 40 },
-          companionshipCompatibility: { solo: 70, couple: 80, family: 60, friends: 90 },
-        }));
-        toast.success('✅ Algoritmo calibrado localmente!', { id: toastId });
-      } else {
-        setForm(p => ({ ...p, ...data }));
-        toast.success('✅ Algoritmo calibrado via IA!', { id: toastId });
-      }
-    } catch (e: unknown) { toast.error('Erro: ' + (e as Error).message, { id: toastId }); }
-    finally { setIsSyncingAI(false); }
+      const result = calculateAffinityV1(dataToUse);
+
+      setForm(p => ({
+        ...p,
+        personaWeights: { 
+          explorador_visual: result.personaWeights.explorador_visual.score,
+          curador_experiencias: result.personaWeights.curador_experiencias.score,
+          descobridor: result.personaWeights.descobridor.score,
+          aproveitador: result.personaWeights.aproveitador.score,
+          slow_traveler: result.personaWeights.slow_traveler.score
+        },
+        companionshipCompatibility: { 
+          solo: result.companionshipCompatibility.solo.score,
+          couple: result.companionshipCompatibility.couple.score,
+          family: result.companionshipCompatibility.family.score,
+          friends: result.companionshipCompatibility.friends.score
+        },
+        intelligence_metadata_source: result.metadata.source,
+        intelligence_metadata_calculatedAt: result.metadata.calculatedAt,
+        manualOverride: false
+      }));
+      toast.success('✅ Afinidade calculada!', { id: toastId });
+    } catch (e: any) { 
+      toast.error('Erro: ' + e.message, { id: toastId }); 
+    } finally { 
+      setIsSyncingAI(false); 
+    }
   };
+
+
 
   const isLodging = ['hotel', 'hostel', 'accommodation'].includes(form.type.toLowerCase());
 
@@ -309,14 +509,27 @@ export default function ExperienceEditor() {
             <p className="text-[11px] text-vf-text-3 font-semibold">Treine a IA e gerencie as informações da atração.</p>
           </div>
         </div>
-        <div className="flex items-center gap-3">
-          <Button variant="outline" size="sm" onClick={() => handleSave(false)} disabled={isSaving} className="text-vf-text-2">
-            Salvar Rascunho
-          </Button>
-          <Button variant="lime" size="sm" onClick={() => handleSave(true)} disabled={isSaving}>
-            <Check className="w-4 h-4" /> Publicar Oficial
-          </Button>
+        
+        <div className="flex items-center gap-2">
+          {isNew ? (
+            <>
+              <Button variant="ghost" size="sm" onClick={handleDiscard} className="text-red-600 hover:bg-red-50 hover:text-red-700">Descartar importação</Button>
+              <Button variant="outline" size="sm" onClick={handleSaveAsDraft} disabled={isSaving}>Salvar Rascunho</Button>
+              <Button variant="lime" size="sm" onClick={handlePublish} disabled={isSaving}><Check className="w-4 h-4 mr-1"/> Publicar</Button>
+            </>
+          ) : (
+            <>
+              <Button variant="ghost" size="sm" onClick={() => navigate(-1)} className="text-gray-500">Cancelar edição</Button>
+              <Button variant="outline" size="sm" onClick={handleSaveAsDraft} disabled={isSaving}>Salvar Rascunho</Button>
+              {form.status === 'published' ? (
+                <Button variant="secondary" size="sm" onClick={handleUnpublish} disabled={isSaving}>Despublicar</Button>
+              ) : (
+                <Button variant="lime" size="sm" onClick={handlePublish} disabled={isSaving}><Check className="w-4 h-4 mr-1"/> Publicar</Button>
+              )}
+            </>
+          )}
         </div>
+
       </div>
 
       <div className="flex-1 overflow-auto p-6">
@@ -394,26 +607,12 @@ export default function ExperienceEditor() {
                     <Input value={form.address} onChange={e => set('address', e.target.value)} />
                   </Field>
                 </div>
-                <div className="h-48 rounded-xl overflow-hidden border border-vf-border bg-vf-muted relative flex items-center justify-center">
-                  {googleServicesEnabled ? (
-                    <APIProvider apiKey={import.meta.env.VITE_GOOGLE_MAPS_API_KEY}>
-                      <Map defaultCenter={{ lat: form.location_lat ?? 40.7580, lng: form.location_lng ?? -73.9855 }} defaultZoom={13} mapId="EDITOR_MAP_VF" disableDefaultUI={true} onClick={(e: { detail?: { latLng?: { lat: number; lng: number } } }) => { set('location_lat', e.detail?.latLng?.lat); set('location_lng', e.detail?.latLng?.lng); }} style={{ cursor: 'crosshair' }}>
-                        {form.location_lat != null && form.location_lng != null && (
-                           <AdvancedMarker position={{ lat: form.location_lat, lng: form.location_lng }}>
-                             <div className="w-4 h-4 bg-vf-lime border-2 border-black rounded-full shadow-sm" />
-                           </AdvancedMarker>
-                        )}
-                      </Map>
-                    </APIProvider>
-                  ) : (
-                    <div className="text-center p-4">
-                       <MapPin className="w-8 h-8 mx-auto text-vf-text-3 mb-2" />
-                       <p className="text-xs font-bold text-vf-text-2">Mapa Google Desativado</p>
-                       <p className="text-[10px] text-vf-text-3 mt-1">Lat: {form.location_lat || 'N/A'} Lng: {form.location_lng || 'N/A'}</p>
-                    </div>
-                  )}
+                
+                <div className="h-48 rounded-xl relative">
+                   <EditorMap lat={form.location_lat} lng={form.location_lng} />
                 </div>
               </Section>
+
 
               <Section title="Horários e Duração" icon={Clock}>
                 <div className="grid grid-cols-2 gap-4">
@@ -539,30 +738,53 @@ export default function ExperienceEditor() {
                   <p className="text-[11px] text-indigo-700/80 mb-4">A Engine decide para quem recomendar com base nestes pesos.</p>
                   <Button onClick={handleAiSync} disabled={isSyncingAI} className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs h-9">
                     {isSyncingAI ? <Zap className="w-3.5 h-3.5 animate-pulse" /> : <BrainCircuit className="w-3.5 h-3.5" />}
-                    Sincronizar Inteligência
+                    {form.personaWeights.explorador_visual === null ? "Calcular inteligência" : "Recalcular inteligência"}
                   </Button>
                 </div>
 
-                <div className="p-5 space-y-5 bg-white">
-
-                  <div className="space-y-3">
-                    <h4 className="text-[11px] font-black uppercase tracking-widest text-vf-text-3">Afinidade Persona (0-100)</h4>
-                    <RangeSlider label="📸 Visual" value={form.personaWeights.explorador_visual} onChange={v => setDeep('personaWeights', 'explorador_visual', v)} />
-                    <RangeSlider label="🎩 Curador" value={form.personaWeights.curador_experiencias} onChange={v => setDeep('personaWeights', 'curador_experiencias', v)} />
-                    <RangeSlider label="🎢 Aproveitador" value={form.personaWeights.aproveitador} onChange={v => setDeep('personaWeights', 'aproveitador', v)} />
-                    <RangeSlider label="🧭 Descobridor" value={form.personaWeights.descobridor} onChange={v => setDeep('personaWeights', 'descobridor', v)} />
-                    <RangeSlider label="☕ Slow Traveler" value={form.personaWeights.slow_traveler} onChange={v => setDeep('personaWeights', 'slow_traveler', v)} />
+                
+                <div className="p-5 bg-white">
+                  <div className="flex items-center justify-between mb-4">
+                     <h4 className="text-[11px] font-black uppercase tracking-widest text-vf-text-3">Resultados da Análise</h4>
+                     <button onClick={() => setIsManualAi(!isManualAi)} className="text-[10px] font-bold text-indigo-600 hover:text-indigo-800 bg-indigo-50 px-2 py-1 rounded transition-colors">
+                       {isManualAi ? "Ocultar Ajuste Manual" : "Ajustar Manualmente"}
+                     </button>
                   </div>
+                  
+                  {isManualAi && (
+                    <div className="mb-6 p-4 rounded-xl border border-dashed border-indigo-200 bg-indigo-50/50 space-y-4">
+                      <p className="text-[10px] text-indigo-600 font-bold mb-2">MODO MANUAL ATIVADO — Valores alterados manualmente terão precedência sobre a Engine.</p>
+                      <OptionalRangeSlider label="📸 Visual" value={form.personaWeights.explorador_visual} onChange={v => { setDeep('personaWeights', 'explorador_visual', v); set('manualOverride', true); }} />
+                      <OptionalRangeSlider label="🎩 Curador" value={form.personaWeights.curador_experiencias} onChange={v => { setDeep('personaWeights', 'curador_experiencias', v); set('manualOverride', true); }} />
+                      <OptionalRangeSlider label="🎢 Aproveitador" value={form.personaWeights.aproveitador} onChange={v => { setDeep('personaWeights', 'aproveitador', v); set('manualOverride', true); }} />
+                      <OptionalRangeSlider label="🧭 Descobridor" value={form.personaWeights.descobridor} onChange={v => { setDeep('personaWeights', 'descobridor', v); set('manualOverride', true); }} />
+                      <OptionalRangeSlider label="☕ Slow Traveler" value={form.personaWeights.slow_traveler} onChange={v => { setDeep('personaWeights', 'slow_traveler', v); set('manualOverride', true); }} />
+                      <div className="pt-2 border-t border-indigo-100 space-y-4">
+                        <OptionalRangeSlider label="🕺 Solo" value={form.companionshipCompatibility.solo} onChange={v => { setDeep('companionshipCompatibility', 'solo', v); set('manualOverride', true); }} />
+                        <OptionalRangeSlider label="👩‍❤️‍👨 Casal" value={form.companionshipCompatibility.couple} onChange={v => { setDeep('companionshipCompatibility', 'couple', v); set('manualOverride', true); }} />
+                        <OptionalRangeSlider label="👨‍👩‍👧 Família" value={form.companionshipCompatibility.family} onChange={v => { setDeep('companionshipCompatibility', 'family', v); set('manualOverride', true); }} />
+                        <OptionalRangeSlider label="🧑‍🤝‍🧑 Amigos" value={form.companionshipCompatibility.friends} onChange={v => { setDeep('companionshipCompatibility', 'friends', v); set('manualOverride', true); }} />
+                      </div>
+                    </div>
+                  )}
 
-                  <div className="space-y-3 pt-3 border-t border-vf-border">
-                    <h4 className="text-[11px] font-black uppercase tracking-widest text-vf-text-3">Companhia</h4>
-                    <RangeSlider label="🕺 Solo" value={form.companionshipCompatibility.solo} onChange={v => setDeep('companionshipCompatibility', 'solo', v)} />
-                    <RangeSlider label="👩‍❤️‍👨 Casal" value={form.companionshipCompatibility.couple} onChange={v => setDeep('companionshipCompatibility', 'couple', v)} />
-                    <RangeSlider label="👨‍👩‍👧 Família" value={form.companionshipCompatibility.family} onChange={v => setDeep('companionshipCompatibility', 'family', v)} />
+                  <div className="space-y-4">
+                     <IntelligenceBar label="📸 Explorador Visual" value={form.personaWeights.explorador_visual} />
+                     <IntelligenceBar label="🎩 Curador" value={form.personaWeights.curador_experiencias} />
+                     <IntelligenceBar label="🎢 Aproveitador" value={form.personaWeights.aproveitador} />
+                     <IntelligenceBar label="🧭 Descobridor" value={form.personaWeights.descobridor} />
+                     <IntelligenceBar label="☕ Slow Traveler" value={form.personaWeights.slow_traveler} />
+                     
+                     <div className="pt-4 mt-4 border-t border-vf-border space-y-4">
+                       <IntelligenceBar label="🕺 Solo" value={form.companionshipCompatibility.solo} />
+                       <IntelligenceBar label="👩‍❤️‍👨 Casal" value={form.companionshipCompatibility.couple} />
+                       <IntelligenceBar label="👨‍👩‍👧 Família" value={form.companionshipCompatibility.family} />
+                       <IntelligenceBar label="🧑‍🤝‍🧑 Amigos" value={form.companionshipCompatibility.friends} />
+                     </div>
                   </div>
                 </div>
-              </div>
 
+              </div>
             </div>
           </div>
         </div>
@@ -570,3 +792,4 @@ export default function ExperienceEditor() {
     </div>
   );
 }
+

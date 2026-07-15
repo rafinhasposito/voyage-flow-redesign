@@ -143,12 +143,12 @@ export class ExperienceRepository {
     const aiResult = parseExperienceMetadataValue(row.intelligence_metadata);
     const ai = (aiResult.data || {}) as Record<string, unknown>;
 
-    const normalizeScale = (value: number | undefined | null): number => {
-      if (value === undefined || value === null) return 0.5; // Default safe value
+    const normalizeScale = (value: number | undefined | null): number | null => {
+      if (value === undefined || value === null) return null;
       if (value >= 0 && value <= 1) return value;
       // Compatibilidade temporária: se > 1 e <= 100, divide por 100
       if (value > 1 && value <= 100) return value / 100;
-      return 0.5; // Fora da faixa, cai para default
+      return null;
     };
 
     const normalizeWeights = (weights: Record<string, unknown> | undefined) => {
