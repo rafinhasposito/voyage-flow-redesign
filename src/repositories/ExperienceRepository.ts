@@ -273,13 +273,14 @@ export class ExperienceRepository {
     return this.mapRowToModel(data);
   }
 
-  public static async create(payload: Database["public"]["Tables"]["experiences"]["Insert"]): Promise<void> {
+  public static async create(payload: Database["public"]["Tables"]["experiences"]["Insert"]): Promise<ExperienceRow> {
     if ('id' in payload) {
       delete payload.id;
     }
-    const { error } = await supabase.from('experiences').insert([payload]);
+    const { data, error } = await supabase.from('experiences').insert([payload]).select().single();
     if (error) throw error;
     this.invalidateCache();
+    return data;
   }
 
   public static async update(id: string, payload: Partial<Database["public"]["Tables"]["experiences"]["Insert"]>): Promise<void> {

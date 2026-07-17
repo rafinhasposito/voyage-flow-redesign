@@ -1,14 +1,19 @@
 import { describe, it, expect, vi } from 'vitest';
 import { resolveExperienceRouteMode, isValidExperienceId, mapNodeToFormState, matchesExperienceSection } from './experienceUtils';
 import { ExperienceRepository } from '../repositories/ExperienceRepository';
+import { supabase } from '@/lib/supabase';
 
 vi.mock('@/lib/supabase', () => ({
   supabase: {
     from: vi.fn(() => ({
-      insert: vi.fn().mockResolvedValue({ error: null }),
-      update: vi.fn().mockReturnValue({
-        eq: vi.fn().mockResolvedValue({ error: null })
-      })
+      select: vi.fn().mockReturnThis(),
+      single: vi.fn().mockResolvedValue({ data: { id: 'some-id' }, error: null }),
+      insert: vi.fn().mockReturnValue({ 
+        select: vi.fn().mockReturnValue({ single: vi.fn().mockResolvedValue({ data: { id: 'some-id' }, error: null }) }) 
+      }),
+      update: vi.fn().mockReturnValue({ 
+        eq: vi.fn().mockResolvedValue({ error: null }) 
+      }),
     }))
   }
 }));
@@ -87,7 +92,7 @@ describe('experienceUtils e routing', () => {
       const form = mapNodeToFormState(node, {});
       expect(form.title).toBe('');
       expect(form.description).toBe('');
-      expect(form.personaWeights.explorador_visual).toBe(50);
+      expect(form.personaWeights.explorador_visual).toBe(null);
       expect(form.recommendedSeasons).toEqual(['all']);
     });
 

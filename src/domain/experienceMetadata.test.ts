@@ -433,8 +433,8 @@ console.log("\n========================================");
 console.log(`Relatório de Testes: ${testsRun - testsFailed}/${testsRun} passaram.`);
 console.log("========================================");
 
-if (testsFailed > 0) {
-  process.exit(1);
-} else {
-  process.exit(0);
-}
+import { it, expect } from 'vitest';
+
+it('Legacy metadata tests pass', () => {
+  expect(testsFailed).toBe(0);
+});

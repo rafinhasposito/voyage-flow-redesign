@@ -3,7 +3,7 @@ import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import {
   ArrowLeft, MapPin, DollarSign, Star,
   Link2, Image as ImageIcon, Check, Plus, X, BrainCircuit,
-  Wand2, Zap, Heart, Video, AlertCircle, Save, Clock
+  Wand2, Zap, Heart, Video, AlertCircle, Save, Clock, Trash2, ArchiveRestore, MoreHorizontal
 } from "lucide-react";
 import maplibregl from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
@@ -13,13 +13,24 @@ import { cn, isVideoUrl } from "@/lib/utils";
 import { NEW_YORK_NEIGHBORHOODS } from "@/config/constants";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 import { ExperienceRepository } from "@/repositories/ExperienceRepository";
 import { DestinationRepository, DestinationRow } from "@/repositories/DestinationRepository";
 import { validateExperienceForm, buildExperiencePayload, resolveExperienceRouteMode, mapNodeToFormState } from "@/lib/experienceUtils";
 import { calculateAffinityV1 } from "@/lib/intelligence/experienceAffinityRules";
+import { MediaGallery } from "@/components/admin/media/MediaGallery";
+import { EditorPreviewPanel } from "@/components/admin/previews/EditorPreviewPanel";
+import { parseVideoUrl } from "@/lib/videoUtils";
+import { moveDraftMediaToPermanent, removeMediaSafely } from "@/lib/mediaUploadService";
 
 export interface FormState {
+  manual_override?: boolean;
   title: string;
   description: string;
   short_description: string;
@@ -57,9 +68,14 @@ export interface FormState {
   weatherCompatibility: string[];
 
   media_urls: string[];
+  cover_media_url: string | null;
+  cover_media_type: 'image' | 'video' | null;
+  cover_media_poster_url: string | null;
+  cover_image_url: string | null; // For legacy fallback
   video_embed_url: string | null;
 
   _original_intelligence_metadata: Record<string, unknown> | null;
+  _original_media_urls: string[];
 }
 
 const defaultForm: FormState = {
@@ -71,8 +87,9 @@ const defaultForm: FormState = {
   personaWeights: { explorador_visual: 50, curador_experiencias: 50, descobridor: 50, aproveitador: 50, slow_traveler: 50 },
   companionshipCompatibility: { solo: 50, couple: 50, family: 50, friends: 50 },
   recommendedSeasons: ["all"], weatherCompatibility: ["all"],
-  media_urls: [], video_embed_url: null,
-  _original_intelligence_metadata: null
+  media_urls: [], cover_media_url: null, cover_media_type: null, cover_media_poster_url: null, cover_image_url: null, video_embed_url: null,
+  _original_intelligence_metadata: null,
+  _original_media_urls: []
 };
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -309,6 +326,7 @@ export default function ExperienceEditor() {
   const [isManualAi, setIsManualAi] = useState(false);
   const [destinations, setDestinations] = useState<DestinationRow[]>([]);
   const [destinationsError, setDestinationsError] = useState<string | null>(null);
+  const [draftId] = useState(() => crypto.randomUUID());
 
   const set = useCallback((field: keyof FormState, value: unknown) => { setForm(prev => ({ ...prev, [field]: value })); }, []);
   const setDeep = useCallback((parent: keyof FormState, field: string, value: unknown) => { setForm(prev => ({ ...prev, [parent]: { ...(prev[parent] as Record<string, unknown>), [field]: value } })); }, []);
@@ -343,7 +361,11 @@ export default function ExperienceEditor() {
         const { data: node, error } = await supabase.from('experiences').select('*').eq('id', experienceId).single();
         if (error || !node) throw new Error("Experiência não encontrada");
 
-        setForm(prev => mapNodeToFormState(node, prev));
+        setForm(prev => {
+          const mapped = mapNodeToFormState(node, prev);
+          mapped._original_media_urls = [...mapped.media_urls];
+          return mapped;
+        });
       } catch (err: unknown) {
         toast.error((err as Error).message);
         navigate("/admin/experiences");
@@ -372,6 +394,16 @@ export default function ExperienceEditor() {
       await handleSave({ publish: false, unpublish: true });
     }
   };
+  
+  const handleArchive = async () => {
+    if (window.confirm(`Você está prestes a mover "${form.title}" para a Lixeira.\n\nEla não aparecerá mais nas listagens normais do Catálogo.\nVocê poderá restaurá-la posteriormente filtrando pela Lixeira.`)) {
+      await handleSave({ archive: true });
+    }
+  };
+  
+  const handleRestore = async () => {
+    await handleSave({ archive: false, restore: true });
+  };
 
   const handleDiscard = () => {
     if (form.title || form.booking_url) {
@@ -387,32 +419,82 @@ export default function ExperienceEditor() {
     navigate('/admin/experiences');
   };
 
-  const handleSave = async ({ publish, unpublish }: { publish: boolean; unpublish: boolean }) => {
+  const handleSave = async ({ publish, unpublish, archive, restore, isDraftSave }: { publish?: boolean; unpublish?: boolean; archive?: boolean; restore?: boolean; isDraftSave?: boolean } = {}) => {
     const validation = validateExperienceForm(form, destinationsError);
-    if (!validation.valid) {
+    if (!validation.valid && !archive && !restore) {
       toast.error(validation.error);
       return;
     }
 
     setIsSaving(true);
-    const toastId = toast.loading(publish ? 'Publicando...' : unpublish ? 'Despublicando...' : 'Salvando rascunho...');
+    const toastId = toast.loading(archive ? 'Movendo para a lixeira...' : restore ? 'Restaurando...' : publish ? 'Publicando...' : unpublish ? 'Despublicando...' : 'Salvando alterações...');
     try {
       const row = buildExperiencePayload(form);
+      
+      // Handle explicit status changes without mutating unrelated saves
       if (publish) row.status = 'published';
       else if (unpublish) row.status = 'draft';
+      else if (archive) row.status = 'archived';
+      else if (restore) row.status = 'draft';
+      // else keep row.status as is (from form state)
+      
+      let finalId = validExperienceId;
 
       if (isNew) {
-        await ExperienceRepository.create(row);
+        // Create the row first to get the real DB ID
+        const created = await ExperienceRepository.create(row);
+        finalId = created.id;
+        
+        // Now move the files to the permanent folder using the real ID
+        const newUrls = await moveDraftMediaToPermanent(draftId, finalId, row.media_urls);
+        row.media_urls = newUrls;
+        
+        // Update cover_media_url if it was part of the move
+        const intelligence = (row.intelligence_metadata as Record<string, any>) || {};
+        if (intelligence.cover_media_url) {
+           const coverIndex = form.media_urls.indexOf(intelligence.cover_media_url);
+           if (coverIndex !== -1 && newUrls[coverIndex]) {
+              intelligence.cover_media_url = newUrls[coverIndex];
+           }
+        }
+        if (intelligence.cover_media_poster_url) {
+           const posterIndex = form.media_urls.indexOf(intelligence.cover_media_poster_url);
+           if (posterIndex !== -1 && newUrls[posterIndex]) {
+              intelligence.cover_media_poster_url = newUrls[posterIndex];
+           }
+        }
+        row.intelligence_metadata = intelligence;
+        
+        // Second update to save the new permanent paths
+        await ExperienceRepository.update(finalId, { 
+          media_urls: row.media_urls,
+          intelligence_metadata: row.intelligence_metadata 
+        });
       } else if (validExperienceId) {
         await ExperienceRepository.update(validExperienceId, row);
       }
+      
+      // Cleanup orphan files safely
+      const removedUrls = form._original_media_urls.filter(u => !row.media_urls.includes(u));
+      if (removedUrls.length > 0) {
+        try {
+          await removeMediaSafely(removedUrls, finalId || '', draftId);
+        } catch (e) {
+          toast.warning("Mídia removida da experiência, mas há um arquivo pendente de limpeza no Storage.");
+        }
+      }
 
-      toast.success(publish ? '✅ Publicado!' : unpublish ? '✅ Despublicado!' : '💾 Salvo!', { id: toastId });
+      toast.success(archive ? '🗑️ Movido para a lixeira!' : restore ? '✅ Restaurado!' : publish ? '✅ Publicado!' : unpublish ? '✅ Despublicado!' : '💾 Salvo!', { id: toastId });
+
+      if (archive) {
+         navigate('/admin/experiences');
+         return;
+      }
 
       if (validExperienceId) {
-        // Just reload UI locally to show success without refetching from db in this basic flow
-      } else {
-        navigate('/admin/experiences');
+         setForm(prev => ({...prev, status: row.status, _original_media_urls: [...row.media_urls]}));
+      } else if (finalId) {
+        navigate(`/admin/experiences/${finalId}`);
       }
     } catch (e: unknown) { toast.error('Erro ao salvar: ' + (e as Error).message, { id: toastId }); }
     finally { setIsSaving(false); }
@@ -479,6 +561,7 @@ export default function ExperienceEditor() {
 
 
   const isLodging = ['hotel', 'hostel', 'accommodation'].includes(form.type.toLowerCase());
+  const effectiveCoverMediaUrl = form.cover_media_url ?? form.cover_image_url ?? null;
 
   if (routeMode === 'invalid') {
     return (
@@ -513,19 +596,50 @@ export default function ExperienceEditor() {
         <div className="flex items-center gap-2">
           {isNew ? (
             <>
-              <Button variant="ghost" size="sm" onClick={handleDiscard} className="text-red-600 hover:bg-red-50 hover:text-red-700">Descartar importação</Button>
-              <Button variant="outline" size="sm" onClick={handleSaveAsDraft} disabled={isSaving}>Salvar Rascunho</Button>
-              <Button variant="lime" size="sm" onClick={handlePublish} disabled={isSaving}><Check className="w-4 h-4 mr-1"/> Publicar</Button>
+              <Button variant="ghost" size="sm" onClick={handleDiscard} className="text-red-600 hover:bg-red-50 hover:text-red-700">Cancelar cadastro</Button>
+              <Button variant="outline" size="sm" onClick={() => handleSave({ isDraftSave: true })} disabled={isSaving}>Salvar como rascunho</Button>
+              <Button variant="lime" size="sm" onClick={() => handleSave({ publish: true })} disabled={isSaving}><Check className="w-4 h-4 mr-1"/> Salvar e publicar</Button>
+            </>
+          ) : form.status === 'archived' ? (
+            <>
+              <Button variant="ghost" size="sm" onClick={() => navigate(-1)} className="text-gray-500">Voltar ao Catálogo</Button>
+              <Button variant="lime" size="sm" onClick={handleRestore} disabled={isSaving}><ArchiveRestore className="w-4 h-4 mr-1"/> Restaurar</Button>
+            </>
+          ) : form.status === 'draft' ? (
+            <>
+              <Button variant="outline" size="sm" onClick={() => handleSave({})} disabled={isSaving}>Salvar alterações</Button>
+              <Button variant="lime" size="sm" onClick={() => handleSave({ publish: true })} disabled={isSaving}><Check className="w-4 h-4 mr-1"/> Publicar</Button>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" size="icon" className="h-9 w-9">
+                    <MoreHorizontal className="h-4 w-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem onClick={handleArchive} className="text-red-600 focus:text-red-600 focus:bg-red-50 cursor-pointer font-medium">
+                    <Trash2 className="w-4 h-4 mr-2" /> Mover para a Lixeira
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
             </>
           ) : (
             <>
-              <Button variant="ghost" size="sm" onClick={() => navigate(-1)} className="text-gray-500">Cancelar edição</Button>
-              <Button variant="outline" size="sm" onClick={handleSaveAsDraft} disabled={isSaving}>Salvar Rascunho</Button>
-              {form.status === 'published' ? (
-                <Button variant="secondary" size="sm" onClick={handleUnpublish} disabled={isSaving}>Despublicar</Button>
-              ) : (
-                <Button variant="lime" size="sm" onClick={handlePublish} disabled={isSaving}><Check className="w-4 h-4 mr-1"/> Publicar</Button>
-              )}
+              <Button variant="lime" size="sm" onClick={() => handleSave({})} disabled={isSaving}>Salvar alterações</Button>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" size="icon" className="h-9 w-9">
+                    <MoreHorizontal className="h-4 w-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem onClick={handleUnpublish} className="cursor-pointer font-medium">
+                    <ArrowLeft className="w-4 h-4 mr-2" /> Despublicar
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={handleArchive} className="text-red-600 focus:text-red-600 focus:bg-red-50 cursor-pointer font-medium">
+                    <Trash2 className="w-4 h-4 mr-2" /> Mover para a Lixeira
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
             </>
           )}
         </div>
@@ -556,7 +670,7 @@ export default function ExperienceEditor() {
 
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
 
-            {/* ── Left Column (2/3): Dados Principais & Mídia ── */}
+            {/* ── Left Column (2/3): Dados Principais, Mídia & IA Concierge ── */}
             <div className="lg:col-span-8 space-y-6">
 
               <Section title="Identidade" icon={AlertCircle}>
@@ -578,14 +692,34 @@ export default function ExperienceEditor() {
                   )}
                 </Field>
                 <div className="grid grid-cols-2 gap-4">
-                  <Field label="Categoria Editorial">
+                  <Field label="Categoria Editorial" hint="Define como a experiência será organizada e apresentada ao viajante.">
                     <select value={form.category} onChange={e => set('category', e.target.value)} className="flex h-10 w-full rounded-md border border-vf-border bg-white px-3.5 py-2.5 text-[13px] text-vf-text-1 focus:border-vf-black focus:outline-none focus:ring-1 focus:ring-vf-black">
-                      <option value="culture">Cultura</option><option value="food">Comida</option><option value="views">Vistas</option><option value="nature">Natureza</option><option value="shopping">Compras</option>
-                      <option value="classic">Clássico</option><option value="nightlife">Vida Noturna</option><option value="hidden_gem">Tesouro Escondido</option><option value="Atração">Atração</option>
+                      <optgroup label="[NOVA ESTRUTURA]">
+                        <option value="Arte e Cultura">Arte e Cultura</option>
+                        <option value="História">História</option>
+                        <option value="Gastronomia">Gastronomia</option>
+                        <option value="Natureza e Parques">Natureza e Parques</option>
+                        <option value="Compras">Compras</option>
+                        <option value="Vida Noturna">Vida Noturna</option>
+                        <option value="Entretenimento">Entretenimento</option>
+                        <option value="Família">Família</option>
+                        <option value="Romance">Romance</option>
+                        <option value="Aventura">Aventura</option>
+                        <option value="Bem-estar">Bem-estar</option>
+                        <option value="Ícones da Cidade">Ícones da Cidade</option>
+                        <option value="Experiências Locais">Experiências Locais</option>
+                      </optgroup>
+                      <optgroup label="[CATEGORIA LEGADA — REVISAR]">
+                        <option value={form.category}>{form.category}</option>
+                      </optgroup>
                     </select>
                   </Field>
-                  <Field label="Tipo (Técnico)">
-                    <Input value={form.type} onChange={e => set('type', e.target.value)} placeholder="ex: museum, hotel" />
+                  <Field label="Tipo de Experiência" hint="Define os campos e regras utilizados pelo sistema.">
+                    <select value={form.type} onChange={e => set('type', e.target.value)} className="flex h-10 w-full rounded-md border border-vf-border bg-white px-3.5 py-2.5 text-[13px] text-vf-text-1 focus:border-vf-black focus:outline-none focus:ring-1 focus:ring-vf-black">
+                      <option value="attraction">Atração</option>
+                      <option value="restaurant">Restaurante</option>
+                      <option value="hotel">Hotel</option>
+                    </select>
                   </Field>
                 </div>
                 <Field label="Descrição Principal">
@@ -650,31 +784,123 @@ export default function ExperienceEditor() {
               </Section>
 
               <Section title="Mídia Visual" icon={Video}>
-                <Field label="URLs de Imagem (Uma por linha)" hint="A primeira será a Capa.">
-                  <textarea
-                    value={form.media_urls.join('\n')}
-                    onChange={e => set('media_urls', e.target.value.split('\n').map(u => u.trim()).filter(Boolean))}
-                    rows={4} className="flex w-full rounded-md border border-vf-border bg-vf-muted px-3 py-2 text-[11px] font-mono whitespace-nowrap overflow-x-auto focus:border-vf-black focus:outline-none"
+                <Field label="Galeria de Imagens" hint="Arraste para reorganizar. A capa representará a experiência no aplicativo.">
+                  <MediaGallery 
+                    mediaUrls={form.media_urls}
+                    coverImageUrl={effectiveCoverMediaUrl}
+                    coverMediaType={form.cover_media_type}
+                    experienceId={validExperienceId || draftId}
+                    isDraft={isNew}
+                    onChangeUrls={(urls) => set('media_urls', urls)}
+                    onChangeCover={(url, type) => {
+                      set('cover_media_url', url);
+                      set('cover_media_type', type);
+                      if (type === 'video') {
+                         if (url) {
+                            const parsed = parseVideoUrl(url);
+                            set('cover_media_poster_url', parsed.thumbnailUrl || null);
+                         } else {
+                            set('cover_media_poster_url', null);
+                         }
+                      }
+                    }}
                   />
                 </Field>
-                {form.media_urls.length > 0 && (
-                  <div className="grid grid-cols-4 gap-3 mt-2">
-                    {form.media_urls.map((url, i) => (
-                      <div key={i} className="aspect-square rounded-lg overflow-hidden bg-vf-muted border border-vf-border relative">
-                        {isVideoUrl(url) ? <video src={url} className="w-full h-full object-cover" muted /> : <img src={url} className="w-full h-full object-cover" />}
-                        {i === 0 && <span className="absolute bottom-1 right-1 bg-vf-black/80 text-white text-[8px] font-bold px-1.5 py-0.5 rounded uppercase">Capa</span>}
-                      </div>
-                    ))}
-                  </div>
-                )}
-                <Field label="Video Embed URL (Opcional)">
-                   <Input value={form.video_embed_url || ""} onChange={e => set('video_embed_url', e.target.value)} placeholder="https://youtube.com/embed/..." />
+                
+                <Field label="Vídeo da Experiência (Opcional)" hint="Cole o link do YouTube ou Vimeo.">
+                   <Input 
+                      value={form.video_embed_url || ""} 
+                      onChange={e => set('video_embed_url', e.target.value)} 
+                      placeholder="https://youtube.com/watch?v=..." 
+                   />
                 </Field>
+                {form.video_embed_url && (
+                   <div className="mt-2 bg-slate-50 border border-vf-border rounded-lg p-3">
+                      {parseVideoUrl(form.video_embed_url).embedUrl ? (
+                         <div className="aspect-video w-full max-w-sm rounded-lg overflow-hidden bg-black shadow-sm mx-auto">
+                            <iframe 
+                               src={parseVideoUrl(form.video_embed_url).embedUrl!} 
+                               className="w-full h-full" 
+                               allowFullScreen 
+                               title="Video Preview"
+                            />
+                         </div>
+                      ) : (
+                         <div className="text-red-500 text-xs font-bold text-center">
+                           {parseVideoUrl(form.video_embed_url).error || "URL de vídeo inválida."}
+                         </div>
+                      )}
+                   </div>
+                )}
               </Section>
+
+              <div className="bg-indigo-50 border border-indigo-100 rounded-xl shadow-vf-sm overflow-hidden">
+                <div className="p-5 border-b border-indigo-100/50">
+                  <div className="flex items-center justify-between mb-2">
+                    <h3 className="text-[13px] font-black uppercase tracking-widest text-indigo-900 flex items-center gap-1.5"><BrainCircuit className="w-4 h-4"/> Compatibilidade de público</h3>
+                  </div>
+                  <p className="text-[11px] text-indigo-700/80 mb-4">Calculada por regras editoriais a partir dos dados preenchidos.</p>
+                  <Button onClick={() => handleAiSync()} disabled={isSyncingAI} className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs h-9">
+                    {isSyncingAI ? <Zap className="w-3.5 h-3.5 animate-pulse" /> : <BrainCircuit className="w-3.5 h-3.5" />}
+                    {form.personaWeights.explorador_visual === null ? "Calcular compatibilidade" : "Recalcular compatibilidade"}
+                  </Button>
+                </div>
+                
+                <div className="p-5 bg-white">
+                  <div className="flex items-center justify-between mb-4">
+                     <h4 className="text-[11px] font-black uppercase tracking-widest text-vf-text-3">Resultados da Análise</h4>
+                     <button onClick={() => setIsManualAi(!isManualAi)} className="text-[10px] font-bold text-indigo-600 hover:text-indigo-800 bg-indigo-50 px-2 py-1 rounded transition-colors">
+                       {isManualAi ? "Ocultar Ajuste Manual" : "Ajustar Manualmente"}
+                     </button>
+                  </div>
+                  
+                  <div className="grid grid-cols-2 gap-x-8 gap-y-6">
+                    <div className="space-y-4">
+                      <h4 className="text-[10px] font-black uppercase text-vf-text-3 mb-2">Psicografia (Personas)</h4>
+                      {isManualAi ? (
+                        <>
+                          <OptionalRangeSlider label="Explorador Visual" value={form.personaWeights.explorador_visual} onChange={v => { setDeep('personaWeights', 'explorador_visual', v); set('manual_override', true); }} />
+                          <OptionalRangeSlider label="Curador de Experiências" value={form.personaWeights.curador_experiencias} onChange={v => { setDeep('personaWeights', 'curador_experiencias', v); set('manual_override', true); }} />
+                          <OptionalRangeSlider label="Descobridor de Tendências" value={form.personaWeights.descobridor} onChange={v => { setDeep('personaWeights', 'descobridor', v); set('manual_override', true); }} />
+                          <OptionalRangeSlider label="Aproveitador de Oportunidades" value={form.personaWeights.aproveitador} onChange={v => { setDeep('personaWeights', 'aproveitador', v); set('manual_override', true); }} />
+                          <OptionalRangeSlider label="Slow Traveler" value={form.personaWeights.slow_traveler} onChange={v => { setDeep('personaWeights', 'slow_traveler', v); set('manual_override', true); }} />
+                        </>
+                      ) : (
+                        <div className="space-y-2">
+                           <div className="flex justify-between text-[11px]"><span>Explorador Visual</span><span className="font-bold">{form.personaWeights.explorador_visual ?? '-'}%</span></div>
+                           <div className="flex justify-between text-[11px]"><span>Curador</span><span className="font-bold">{form.personaWeights.curador_experiencias ?? '-'}%</span></div>
+                           <div className="flex justify-between text-[11px]"><span>Descobridor</span><span className="font-bold">{form.personaWeights.descobridor ?? '-'}%</span></div>
+                           <div className="flex justify-between text-[11px]"><span>Aproveitador</span><span className="font-bold">{form.personaWeights.aproveitador ?? '-'}%</span></div>
+                           <div className="flex justify-between text-[11px]"><span>Slow Traveler</span><span className="font-bold">{form.personaWeights.slow_traveler ?? '-'}%</span></div>
+                        </div>
+                      )}
+                    </div>
+                    
+                    <div className="space-y-4">
+                      <h4 className="text-[10px] font-black uppercase text-vf-text-3 mb-2">Companhia Ideal</h4>
+                      {isManualAi ? (
+                        <>
+                          <OptionalRangeSlider label="Solo" value={form.companionshipCompatibility.solo} onChange={v => { setDeep('companionshipCompatibility', 'solo', v); set('manual_override', true); }} />
+                          <OptionalRangeSlider label="Casal" value={form.companionshipCompatibility.couple} onChange={v => { setDeep('companionshipCompatibility', 'couple', v); set('manual_override', true); }} />
+                          <OptionalRangeSlider label="Família" value={form.companionshipCompatibility.family} onChange={v => { setDeep('companionshipCompatibility', 'family', v); set('manual_override', true); }} />
+                          <OptionalRangeSlider label="Amigos" value={form.companionshipCompatibility.friends} onChange={v => { setDeep('companionshipCompatibility', 'friends', v); set('manual_override', true); }} />
+                        </>
+                      ) : (
+                        <div className="space-y-2">
+                           <div className="flex justify-between text-[11px]"><span>Solo</span><span className="font-bold">{form.companionshipCompatibility.solo ?? '-'}%</span></div>
+                           <div className="flex justify-between text-[11px]"><span>Casal</span><span className="font-bold">{form.companionshipCompatibility.couple ?? '-'}%</span></div>
+                           <div className="flex justify-between text-[11px]"><span>Família</span><span className="font-bold">{form.companionshipCompatibility.family ?? '-'}%</span></div>
+                           <div className="flex justify-between text-[11px]"><span>Amigos</span><span className="font-bold">{form.companionshipCompatibility.friends ?? '-'}%</span></div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
 
             </div>
 
-            {/* ── Right Column (1/3): IA Concierge, Perfil & Status ── */}
+            {/* ── Right Column (1/3): Previews & Status ── */}
             <div className="lg:col-span-4 space-y-6">
 
               <div className="bg-white rounded-xl border border-vf-border shadow-vf-sm p-6">
@@ -701,13 +927,19 @@ export default function ExperienceEditor() {
                    <TagInput tags={form.tags} onChange={v => set('tags', v)} />
                  </Field>
                  <Field label="Nível de Exclusividade">
-                   <select value={form.exclusivity_level} onChange={e => set('exclusivity_level', e.target.value)} className="w-full rounded-md border border-vf-border py-1.5 px-2 text-xs">
-                     <option value="accessible">Acessível</option>
-                     <option value="premium">Premium</option>
-                     <option value="exclusive">Exclusivo</option>
-                     <option value="invite_only">Somente Convidados</option>
-                   </select>
-                 </Field>
+                    <select value={form.exclusivity_level} onChange={e => set('exclusivity_level', e.target.value)} className="w-full rounded-md border border-vf-border py-1.5 px-2 text-xs">
+                      <optgroup label="[NOVOS CRITÉRIOS]">
+                        <option value="accessible">Acessível</option>
+                        <option value="comfort">Conforto</option>
+                        <option value="premium">Premium</option>
+                        <option value="exclusive">Exclusivo</option>
+                      </optgroup>
+                      <optgroup label="[CLASSIFICAÇÃO LEGADA]">
+                         <option value={form.exclusivity_level}>{form.exclusivity_level}</option>
+                      </optgroup>
+                    </select>
+                    <p className="text-[10px] text-vf-text-3 mt-1">Por que possui este nível? Selecione os critérios para ensinar a IA.</p>
+                  </Field>
                  <Field label="Dress Code">
                    <select value={form.dress_code} onChange={e => set('dress_code', e.target.value)} className="w-full rounded-md border border-vf-border py-1.5 px-2 text-xs">
                      <option value="casual">Casual</option>
@@ -735,55 +967,66 @@ export default function ExperienceEditor() {
                   <div className="flex items-center justify-between mb-2">
                     <h3 className="text-[13px] font-black uppercase tracking-widest text-indigo-900 flex items-center gap-1.5"><BrainCircuit className="w-4 h-4"/> IA Concierge</h3>
                   </div>
-                  <p className="text-[11px] text-indigo-700/80 mb-4">A Engine decide para quem recomendar com base nestes pesos.</p>
-                  <Button onClick={handleAiSync} disabled={isSyncingAI} className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs h-9">
-                    {isSyncingAI ? <Zap className="w-3.5 h-3.5 animate-pulse" /> : <BrainCircuit className="w-3.5 h-3.5" />}
-                    {form.personaWeights.explorador_visual === null ? "Calcular inteligência" : "Recalcular inteligência"}
-                  </Button>
-                </div>
-
-                
-                <div className="p-5 bg-white">
-                  <div className="flex items-center justify-between mb-4">
-                     <h4 className="text-[11px] font-black uppercase tracking-widest text-vf-text-3">Resultados da Análise</h4>
-                     <button onClick={() => setIsManualAi(!isManualAi)} className="text-[10px] font-bold text-indigo-600 hover:text-indigo-800 bg-indigo-50 px-2 py-1 rounded transition-colors">
-                       {isManualAi ? "Ocultar Ajuste Manual" : "Ajustar Manualmente"}
-                     </button>
-                  </div>
+                  <p className="text-[11px] text-indigo-700/80 mb-4">Analisa os dados da experiência e ajuda a definir para quais perfis de viajante ela deve ser recomendada.</p>
                   
-                  {isManualAi && (
-                    <div className="mb-6 p-4 rounded-xl border border-dashed border-indigo-200 bg-indigo-50/50 space-y-4">
-                      <p className="text-[10px] text-indigo-600 font-bold mb-2">MODO MANUAL ATIVADO — Valores alterados manualmente terão precedência sobre a Engine.</p>
-                      <OptionalRangeSlider label="📸 Visual" value={form.personaWeights.explorador_visual} onChange={v => { setDeep('personaWeights', 'explorador_visual', v); set('manualOverride', true); }} />
-                      <OptionalRangeSlider label="🎩 Curador" value={form.personaWeights.curador_experiencias} onChange={v => { setDeep('personaWeights', 'curador_experiencias', v); set('manualOverride', true); }} />
-                      <OptionalRangeSlider label="🎢 Aproveitador" value={form.personaWeights.aproveitador} onChange={v => { setDeep('personaWeights', 'aproveitador', v); set('manualOverride', true); }} />
-                      <OptionalRangeSlider label="🧭 Descobridor" value={form.personaWeights.descobridor} onChange={v => { setDeep('personaWeights', 'descobridor', v); set('manualOverride', true); }} />
-                      <OptionalRangeSlider label="☕ Slow Traveler" value={form.personaWeights.slow_traveler} onChange={v => { setDeep('personaWeights', 'slow_traveler', v); set('manualOverride', true); }} />
-                      <div className="pt-2 border-t border-indigo-100 space-y-4">
-                        <OptionalRangeSlider label="🕺 Solo" value={form.companionshipCompatibility.solo} onChange={v => { setDeep('companionshipCompatibility', 'solo', v); set('manualOverride', true); }} />
-                        <OptionalRangeSlider label="👩‍❤️‍👨 Casal" value={form.companionshipCompatibility.couple} onChange={v => { setDeep('companionshipCompatibility', 'couple', v); set('manualOverride', true); }} />
-                        <OptionalRangeSlider label="👨‍👩‍👧 Família" value={form.companionshipCompatibility.family} onChange={v => { setDeep('companionshipCompatibility', 'family', v); set('manualOverride', true); }} />
-                        <OptionalRangeSlider label="🧑‍🤝‍🧑 Amigos" value={form.companionshipCompatibility.friends} onChange={v => { setDeep('companionshipCompatibility', 'friends', v); set('manualOverride', true); }} />
-                      </div>
-                    </div>
-                  )}
+                  <div className="bg-white p-4 rounded-lg border border-indigo-100/50 shadow-sm">
+                    <h4 className="text-[11px] font-black uppercase tracking-widest text-vf-text-3 mb-1">Compatibilidade de público</h4>
+                    <p className="text-[10px] text-vf-text-3 mb-4">Estimativa calculada por regras editoriais com base nas informações preenchidas.</p>
 
-                  <div className="space-y-4">
-                     <IntelligenceBar label="📸 Explorador Visual" value={form.personaWeights.explorador_visual} />
-                     <IntelligenceBar label="🎩 Curador" value={form.personaWeights.curador_experiencias} />
-                     <IntelligenceBar label="🎢 Aproveitador" value={form.personaWeights.aproveitador} />
-                     <IntelligenceBar label="🧭 Descobridor" value={form.personaWeights.descobridor} />
-                     <IntelligenceBar label="☕ Slow Traveler" value={form.personaWeights.slow_traveler} />
-                     
-                     <div className="pt-4 mt-4 border-t border-vf-border space-y-4">
-                       <IntelligenceBar label="🕺 Solo" value={form.companionshipCompatibility.solo} />
-                       <IntelligenceBar label="👩‍❤️‍👨 Casal" value={form.companionshipCompatibility.couple} />
-                       <IntelligenceBar label="👨‍👩‍👧 Família" value={form.companionshipCompatibility.family} />
-                       <IntelligenceBar label="🧑‍🤝‍🧑 Amigos" value={form.companionshipCompatibility.friends} />
-                     </div>
+                    <Button onClick={() => handleAiSync()} disabled={isSyncingAI} className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs h-9 mb-4">
+                      {isSyncingAI ? <Zap className="w-3.5 h-3.5 animate-pulse" /> : <BrainCircuit className="w-3.5 h-3.5" />}
+                      {form.personaWeights.explorador_visual === null ? "Calcular compatibilidade" : "Recalcular compatibilidade"}
+                    </Button>
+
+                    <div className="flex items-center justify-between mb-3">
+                       <span className="text-[11px] font-bold text-indigo-900">
+                          {form.personaWeights.explorador_visual === null 
+                            ? "Compatibilidade ainda não calculada" 
+                            : "Compatibilidade calculada"}
+                       </span>
+                       <button onClick={() => setIsManualAi(!isManualAi)} className="text-[10px] font-bold text-indigo-600 hover:text-indigo-800 bg-indigo-50 px-2 py-1 rounded transition-colors">
+                         {isManualAi ? "Ocultar Ajuste" : "Ajuste Manual"}
+                       </button>
+                    </div>
+                    
+                    <p className="text-[10px] text-vf-text-3 mb-4">
+                      {form.personaWeights.explorador_visual === null 
+                        ? "Preencha categoria, tags, nível de exclusividade, preço e demais informações para gerar uma estimativa mais precisa."
+                        : "Último cálculo realizado com base nos dados atuais da experiência."}
+                    </p>
+
+                    {isManualAi && (
+                      <div className="mb-6 p-4 rounded-xl border border-dashed border-indigo-200 bg-indigo-50/50 space-y-4">
+                        <p className="text-[10px] text-indigo-600 font-bold mb-2">MODO MANUAL ATIVADO — Valores alterados manualmente terão precedência sobre a Engine.</p>
+                        <OptionalRangeSlider label="Visual" value={form.personaWeights.explorador_visual} onChange={v => { setDeep('personaWeights', 'explorador_visual', v); set('manual_override', true); }} />
+                        <OptionalRangeSlider label="Curador" value={form.personaWeights.curador_experiencias} onChange={v => { setDeep('personaWeights', 'curador_experiencias', v); set('manual_override', true); }} />
+                        <OptionalRangeSlider label="Aproveitador" value={form.personaWeights.aproveitador} onChange={v => { setDeep('personaWeights', 'aproveitador', v); set('manual_override', true); }} />
+                        <OptionalRangeSlider label="Descobridor" value={form.personaWeights.descobridor} onChange={v => { setDeep('personaWeights', 'descobridor', v); set('manual_override', true); }} />
+                        <OptionalRangeSlider label="Slow Traveler" value={form.personaWeights.slow_traveler} onChange={v => { setDeep('personaWeights', 'slow_traveler', v); set('manual_override', true); }} />
+                        <div className="pt-2 border-t border-indigo-100 space-y-4">
+                          <OptionalRangeSlider label="Solo" value={form.companionshipCompatibility.solo} onChange={v => { setDeep('companionshipCompatibility', 'solo', v); set('manual_override', true); }} />
+                          <OptionalRangeSlider label="Casal" value={form.companionshipCompatibility.couple} onChange={v => { setDeep('companionshipCompatibility', 'couple', v); set('manual_override', true); }} />
+                          <OptionalRangeSlider label="Família" value={form.companionshipCompatibility.family} onChange={v => { setDeep('companionshipCompatibility', 'family', v); set('manual_override', true); }} />
+                          <OptionalRangeSlider label="Amigos" value={form.companionshipCompatibility.friends} onChange={v => { setDeep('companionshipCompatibility', 'friends', v); set('manual_override', true); }} />
+                        </div>
+                      </div>
+                    )}
+
+                    <div className="space-y-4">
+                       <h5 className="text-[10px] font-black uppercase text-vf-text-3">1. Afinidade com personas</h5>
+                       <IntelligenceBar label="Visual" value={form.personaWeights.explorador_visual} />
+                       <IntelligenceBar label="Curador" value={form.personaWeights.curador_experiencias} />
+                       <IntelligenceBar label="Aproveitador" value={form.personaWeights.aproveitador} />
+                       <IntelligenceBar label="Descobridor" value={form.personaWeights.descobridor} />
+                       <IntelligenceBar label="Slow Traveler" value={form.personaWeights.slow_traveler} />
+                       
+                       <h5 className="text-[10px] font-black uppercase text-vf-text-3 pt-2 mt-4 border-t border-vf-border">2. Adequação por companhia</h5>
+                       <IntelligenceBar label="Solo" value={form.companionshipCompatibility.solo} />
+                       <IntelligenceBar label="Casal" value={form.companionshipCompatibility.couple} />
+                       <IntelligenceBar label="Família" value={form.companionshipCompatibility.family} />
+                    </div>
                   </div>
                 </div>
-
               </div>
             </div>
           </div>
@@ -792,4 +1035,3 @@ export default function ExperienceEditor() {
     </div>
   );
 }
-

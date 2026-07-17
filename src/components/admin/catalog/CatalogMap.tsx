@@ -1,9 +1,11 @@
 import React, { useEffect, useRef, useState } from 'react';
 import maplibregl from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
+import { createRoot } from 'react-dom/client';
 import { Database } from '@/types/supabase.types';
 import { translateTerm } from '@/utils/translations';
 import { MapPin } from 'lucide-react';
+import { ExperienceMapMiniCard } from './ExperienceMapMiniCard';
 
 type ExperienceRow = Database["public"]["Tables"]["experiences"]["Row"];
 
@@ -126,7 +128,6 @@ export default function CatalogMap({ experiences, selectedId, onMarkerClick, onE
     }
   }, []);
 
-  // Update Data and Filter Behavior
   useEffect(() => {
     if (!map.current || !mapLoaded) return;
     const currentMap = map.current;
@@ -143,8 +144,7 @@ export default function CatalogMap({ experiences, selectedId, onMarkerClick, onE
     };
     source.setData(geojsonData);
 
-    // Filter behavior
-    if (!selectedId) { // Only adjust if we aren't clicking a specific marker (handled in another effect)
+    if (!selectedId) {
         if (validExperiences.length === 1) {
           currentMap.flyTo({ center: [validExperiences[0].location_lng!, validExperiences[0].location_lat!], zoom: 15 });
         } else if (validExperiences.length >= 2 && validExperiences.length <= 20) {
@@ -153,9 +153,8 @@ export default function CatalogMap({ experiences, selectedId, onMarkerClick, onE
           currentMap.fitBounds(bounds, { padding: 50, maxZoom: 10, duration: 800 });
         }
     }
-  }, [experiences, mapLoaded]); // removed selectedId from dependency so selecting a card doesn't refit
+  }, [experiences, mapLoaded]);
 
-  // Handle Selection Highlight and Popup
   useEffect(() => {
     if (!map.current || !mapLoaded) return;
     const currentMap = map.current;
@@ -183,62 +182,34 @@ export default function CatalogMap({ experiences, selectedId, onMarkerClick, onE
       const exp = validExperiences.find(e => e.id === selectedId);
       if (exp && exp.location_lng != null && exp.location_lat != null) {
         const popupNode = document.createElement('div');
+        const root = createRoot(popupNode);
         
-        // safe media url
-        const mediaUrls = exp.media_urls as string[] | null;
-        const mainImage = mediaUrls && mediaUrls.length > 0 ? mediaUrls[0] : null;
-        let imageHtml = '';
-        if (mainImage) {
-          const safeUrl = mainImage.startsWith('http') ? mainImage : `${import.meta.env.VITE_SUPABASE_URL}/storage/v1/object/public/${mainImage}`;
-          imageHtml = `<div class="w-full h-24 mb-3 rounded-lg overflow-hidden bg-gray-100">
-            <img src="${safeUrl}" alt="${exp.title}" class="w-full h-full object-cover" />
-          </div>`;
-        } else {
-          imageHtml = `<div class="w-full h-24 mb-3 rounded-lg flex items-center justify-center bg-[#F7F7F2]">
-            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-gray-300"><rect width="18" height="18" x="3" y="3" rx="2" ry="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/></svg>
-          </div>`;
-        }
-
-        const costStr = exp.base_cost && exp.base_cost > 0 ? `US$ ${exp.base_cost}` : 'Gratuito';
-        const ratingStr = exp.rating ? `⭐ ${exp.rating} (${exp.reviews_count || 0})` : '';
-
-        popupNode.innerHTML = `
-          <div class="p-2 min-w-[220px] max-w-[240px] font-sans">
-            ${imageHtml}
-            <h4 class="font-bold text-[#171717] text-[13px] mb-1 line-clamp-2 leading-tight">${exp.title}</h4>
-            <div class="flex items-center gap-1.5 mb-2 flex-wrap">
-              <span class="text-[10px] font-bold uppercase tracking-wide text-indigo-700 bg-indigo-50 px-1.5 py-0.5 rounded">${translateTerm(exp.category)}</span>
-              <span class="text-[11px] text-[#171717]/60 font-medium truncate max-w-[120px]">${exp.neighborhood || ''}</span>
-            </div>
-            
-            <div class="flex items-center justify-between mb-3 text-[11px] font-medium text-[#171717]/70">
-              <span>${costStr}</span>
-              <span>${ratingStr}</span>
-            </div>
-            
-            <div class="flex items-center justify-between mb-3">
-              <span class="text-[10px] font-bold uppercase ${exp.status === 'published' ? 'text-emerald-600' : 'text-amber-600'}">${exp.status === 'published' ? 'Publicado' : 'Rascunho'}</span>
-            </div>
-
-            <div class="flex gap-2">
-              <button class="list-btn flex-1 bg-white border border-[#171717]/10 hover:border-[#171717]/30 transition-colors text-[#171717] py-2 rounded-xl text-[11px] font-bold" data-id="${exp.id}">Ver na lista</button>
-              <button class="edit-btn flex-1 bg-[#171717] hover:bg-[#171717]/90 transition-colors text-white py-2 rounded-xl text-[11px] font-bold" data-id="${exp.id}">Editar</button>
-            </div>
-          </div>
-        `;
-
-        popupNode.querySelector('.edit-btn')?.addEventListener('click', () => {
-           onEditClick(exp.id);
-        });
+        const metadata = exp.intelligence_metadata as Record<string, any> | null;
+        const coverImageUrl = metadata?.cover_image_url || null;
         
-        popupNode.querySelector('.list-btn')?.addEventListener('click', () => {
-           onListClick?.(exp.id);
+        root.render(
+          <ExperienceMapMiniCard 
+            experience={{...exp, cover_image_url: coverImageUrl}} 
+            onEdit={onEditClick} 
+            onViewList={onMarkerClick} 
+          />
+        );
+
+        const popup = new maplibregl.Popup({
+          closeButton: false,
+          closeOnClick: false,
+          offset: 15,
+          className: 'vf-map-popup'
+        })
+        .setLngLat([exp.location_lng, exp.location_lat])
+        .setDOMContent(popupNode)
+        .addTo(currentMap);
+        
+        popup.on('close', () => {
+          setTimeout(() => root.unmount(), 0);
         });
 
-        activePopup.current = new maplibregl.Popup({ offset: 15, closeButton: false, className: 'catalog-popup overflow-hidden rounded-[16px]' })
-           .setLngLat([exp.location_lng, exp.location_lat])
-           .setDOMContent(popupNode)
-           .addTo(currentMap);
+        activePopup.current = popup;
            
         currentMap.flyTo({ center: [exp.location_lng, exp.location_lat], zoom: 15 });
       }

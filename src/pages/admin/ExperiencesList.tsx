@@ -277,7 +277,10 @@ export default function ExperiencesList() {
         || exp.description?.toLowerCase().includes(searchStr)
         || exp.neighborhood?.toLowerCase().includes(searchStr);
 
-      const matchesStatus = statusFilter === 'all' || exp.status === statusFilter;
+      const matchesStatus = statusFilter === 'all' 
+        ? exp.status !== 'archived' 
+        : exp.status === statusFilter;
+        
       const matchesCategory = categoryFilter === 'all' || exp.category === categoryFilter;
       const matchesType = typeFilter === 'all' || normalizeTechnicalType(exp.type) === typeFilter;
 
@@ -387,6 +390,7 @@ export default function ExperiencesList() {
                  <option value="all">Status: Todos</option>
                  <option value="published">Publicado</option>
                  <option value="draft">Rascunho</option>
+                 <option value="archived">Lixeira</option>
                </select>
                <div className="w-px h-5 bg-[#171717]/10" />
                <select 

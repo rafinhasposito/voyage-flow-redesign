@@ -39,7 +39,7 @@ export const defaultForm: FormState = {
   personaWeights: { explorador_visual: null, curador_experiencias: null, descobridor: null, aproveitador: null, slow_traveler: null },
   companionshipCompatibility: { solo: null, couple: null, family: null, friends: null },
   recommendedSeasons: ["all"], weatherCompatibility: ["all"],
-  media_urls: [], video_embed_url: null,
+  media_urls: [], video_embed_url: null, cover_image_url: null,
   _original_intelligence_metadata: null,
   manualOverride: false
 };
@@ -82,6 +82,9 @@ export function buildExperiencePayload(form: FormState): ExperienceInsert {
   const origRecommended = intelligence.recommendedSeasons || ['all'];
   const origWeather = intelligence.weatherCompatibility || ['all'];
   const origVideo = intelligence.video_embed_url || null;
+  const origCoverMediaUrl = intelligence.cover_media_url || null;
+  const origCoverMediaType = intelligence.cover_media_type || null;
+  const origCoverMediaPosterUrl = intelligence.cover_media_poster_url || null;
 
   if (JSON.stringify(form.recommendedSeasons) !== JSON.stringify(origRecommended)) {
     intelligence.recommendedSeasons = form.recommendedSeasons;
@@ -91,6 +94,16 @@ export function buildExperiencePayload(form: FormState): ExperienceInsert {
   }
   if (form.video_embed_url !== origVideo) {
     intelligence.video_embed_url = form.video_embed_url;
+  }
+  
+  if (form.cover_media_url !== origCoverMediaUrl) {
+    intelligence.cover_media_url = form.cover_media_url;
+  }
+  if (form.cover_media_type !== origCoverMediaType) {
+    intelligence.cover_media_type = form.cover_media_type;
+  }
+  if (form.cover_media_poster_url !== origCoverMediaPosterUrl) {
+    intelligence.cover_media_poster_url = form.cover_media_poster_url;
   }
 
   // Clear out empty objects if intelligence is just an empty object and we had nothing
@@ -183,6 +196,11 @@ export function mapNodeToFormState(node: Record<string, unknown>, prev: Record<s
     weatherCompatibility: (ai.weatherCompatibility as string[]) || ['all'],
 
     media_urls: node.media_urls || [],
+    video_embed_url: (ai.video_embed_url as string) || null,
+    cover_media_url: (ai.cover_media_url as string) || null,
+    cover_media_type: (ai.cover_media_type as 'image' | 'video') || null,
+    cover_media_poster_url: (ai.cover_media_poster_url as string) || null,
+    cover_image_url: (ai.cover_image_url as string) || null, // legacy
     intelligence_metadata_source: (ai.source as string) || undefined,
     intelligence_metadata_calculatedAt: (ai.calculatedAt as string) || undefined,
     manualOverride: (ai.manualOverride as boolean) || false,
