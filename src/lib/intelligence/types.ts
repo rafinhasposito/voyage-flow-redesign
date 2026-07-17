@@ -65,6 +65,24 @@ export interface ExperienceSemanticProfile {
   tourism_profile: ExperienceDimension<TourismProfile>;
 }
 
+export type ReviewConfidence = "high" | "medium" | "low" | "none";
+export type EditorialPriority = "high" | "medium" | "low" | "none";
+export type PremiumPositioning = "exclusive" | "high" | "moderate" | "accessible" | "none";
+export interface ExperiencePlanningRequirements {
+  reservation_required: ExperienceDimension<boolean | null>;
+  dress_code: ExperienceDimension<string | null>;
+}
+
+export interface ExperienceQualityResult {
+  quality_score: ExperienceDimension<number | null>;
+  review_confidence: ExperienceDimension<ReviewConfidence>;
+  editorial_priority: ExperienceDimension<EditorialPriority>;
+  premium_positioning: ExperienceDimension<PremiumPositioning>;
+  data_completeness: ExperienceDimension<number>;
+  planning_requirements: ExperiencePlanningRequirements;
+}
+
+
 export interface ExperienceIntelligenceMetadata {
   schema_version: "experience-intelligence-v1";
   rules_version: "affinity-v2";
@@ -101,9 +119,22 @@ export interface ExperienceIntelligenceInput {
   duration_minutes?: number;
   neighborhood?: string;
   reviews_count?: number;
+  rating?: number;
   reservation_required?: boolean;
   media_urls?: string[];
   dress_code?: string;
   title?: string;
   status?: string;
+}
+
+export interface ExperienceQualityInput {
+  rating?: number;
+  reviews_count?: number;
+  is_must_see?: boolean;
+  exclusivity_level?: string;
+  reservation_required?: boolean;
+  dress_code?: string;
+  description?: string;
+  tags?: string[];
+  media_urls?: string[];
 }
