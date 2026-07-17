@@ -1,13 +1,15 @@
 export type ConfidenceLevel = "high" | "medium" | "low" | "none";
 export type SourceOrigin = "rule" | "human" | "import" | "ai_suggestion";
 
-export interface ExperienceScoreDimension {
-  value: number | null; // 0-1 range internally, null if unknown
+export interface ExperienceDimension<T> {
+  value: T | null;
   confidence: ConfidenceLevel;
   evidences: string[];
   source: SourceOrigin;
   manual_override: boolean;
 }
+
+export type ExperienceScoreDimension = ExperienceDimension<number>;
 
 export interface ExperiencePersonas {
   explorador_visual: ExperienceScoreDimension;
@@ -38,16 +40,29 @@ export interface ExperienceRestrictions {
   verified_by?: string;
 }
 
+export type ExperienceFormat = "attraction" | "show" | "musical" | "museum" | "park" | "tour" | "dining" | "nightlife" | "shopping" | "wellness" | "event" | "hotel" | "transportation" | "other" | "unknown";
+export type ExperienceTheme = "broadway" | "fantasy" | "family" | "romance" | "history" | "art" | "culture" | "local" | "iconic" | "mainstream" | "hidden_gem" | "luxury" | "adventure" | "relaxation" | "gastronomy" | "entertainment";
+export type EnvironmentType = "indoor" | "outdoor" | "mixed" | "unknown";
+export type EnergyLevel = "calm" | "moderate" | "intense" | "unknown";
+export type NoiseLevel = "low" | "medium" | "high" | "unknown";
+export type CrowdLevel = "low" | "medium" | "high" | "unknown";
+export type FamilyOrientation = "child_focused" | "family_friendly" | "neutral" | "adult_oriented" | "unknown";
+export type CulturalProfile = "none" | "light" | "moderate" | "strong" | "unknown";
+export type TourismProfile = "local" | "balanced" | "mainstream" | "iconic" | "unknown";
+
 export interface ExperienceSemanticProfile {
-  semantic_tags?: string[];
-  nightlife?: boolean;
-  noise_level?: "low" | "medium" | "high";
-  energy_level?: "calm" | "moderate" | "intense";
-  alcohol_focused?: boolean;
-  crowd_level?: "low" | "medium" | "high";
-  environment_type?: "indoor" | "outdoor" | "mixed";
-  walking_intensity?: "low" | "medium" | "high";
-  wheelchair_accessible?: boolean;
+  semantic_tags: string[];
+  experience_format: ExperienceDimension<ExperienceFormat>;
+  themes: ExperienceDimension<ExperienceTheme[]>;
+  environment_type: ExperienceDimension<EnvironmentType>;
+  energy_level: ExperienceDimension<EnergyLevel>;
+  noise_level: ExperienceDimension<NoiseLevel>;
+  crowd_level: ExperienceDimension<CrowdLevel>;
+  nightlife: ExperienceDimension<boolean>;
+  alcohol_focused: ExperienceDimension<boolean>;
+  family_orientation: ExperienceDimension<FamilyOrientation>;
+  cultural_profile: ExperienceDimension<CulturalProfile>;
+  tourism_profile: ExperienceDimension<TourismProfile>;
 }
 
 export interface ExperienceIntelligenceMetadata {
