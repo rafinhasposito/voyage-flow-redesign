@@ -1,4 +1,4 @@
-import { FormState } from "@/pages/admin/ExperienceEditor";
+import { ExperienceIntelligenceInput } from "./types";
 
 export type AffinityResult = {
   score: number | null;
@@ -25,7 +25,7 @@ export type AffinityEngineResult = {
   };
 };
 
-export function calculateAffinityV1(form: Partial<FormState>): AffinityEngineResult {
+export function calculateAffinityV1(form: ExperienceIntelligenceInput): AffinityEngineResult {
   const clamp = (v: number) => Math.max(0, Math.min(100, v));
   const hasTags = (tags: string[]) => tags.some(t => form.tags?.includes(t));
 

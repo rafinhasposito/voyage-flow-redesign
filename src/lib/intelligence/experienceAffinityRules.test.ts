@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { calculateAffinityV1 } from './experienceAffinityRules';
 import { supabase } from '../supabase';
 import { buildExperiencePayload, mapNodeToFormState, defaultForm } from '../experienceUtils';
-import { FormState } from '../../pages/admin/ExperienceEditor';
+
 
 describe('Motor de Afinidade V1', () => {
   it('deve calcular corretamente sem evidencias vazias forçarem 50', () => {
@@ -46,7 +46,7 @@ describe('Persistência (Integração Lógica)', () => {
     console.log("Valores Iniciais (intelligence_metadata):", JSON.stringify(recordFromDB.intelligence_metadata, null, 2));
 
     // O Frontend mapeia esse JSON para o formulário
-    const parsedForm = mapNodeToFormState(recordFromDB, defaultForm) as FormState;
+    const parsedForm = mapNodeToFormState(recordFromDB, defaultForm);
 
     // O Admin edita manualmente os sliders:
     parsedForm.personaWeights.explorador_visual = 85; 
@@ -64,7 +64,7 @@ describe('Persistência (Integração Lógica)', () => {
     
     // Mapeamos de volta como o Frontend faria ao abrir a página
     const reFetchedRecord = { ...recordFromDB, intelligence_metadata: storedMetadata };
-    const refetchedForm = mapNodeToFormState(reFetchedRecord, defaultForm) as FormState;
+    const refetchedForm = mapNodeToFormState(reFetchedRecord, defaultForm);
     
     console.log("\n=== RESULTADOS APÓS REABERTURA ===");
     console.log("Visual Final (Esperado: 85):", refetchedForm.personaWeights.explorador_visual);
