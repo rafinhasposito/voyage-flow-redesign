@@ -41,7 +41,7 @@ export interface ExperienceRestrictions {
 }
 
 export type ExperienceFormat = "attraction" | "show" | "musical" | "museum" | "park" | "tour" | "dining" | "nightlife" | "shopping" | "wellness" | "event" | "hotel" | "transportation" | "other" | "unknown";
-export type ExperienceTheme = "broadway" | "fantasy" | "family" | "romance" | "history" | "art" | "culture" | "local" | "iconic" | "mainstream" | "hidden_gem" | "luxury" | "adventure" | "relaxation" | "gastronomy" | "entertainment";
+export type ExperienceTheme = "broadway" | "fantasy" | "family" | "romance" | "history" | "art" | "culture" | "local" | "iconic" | "mainstream" | "hidden_gem" | "luxury" | "adventure" | "relaxation" | "gastronomy" | "entertainment" | "scenic_view";
 export type EnvironmentType = "indoor" | "outdoor" | "mixed" | "unknown";
 export type EnergyLevel = "calm" | "moderate" | "intense" | "unknown";
 export type NoiseLevel = "low" | "medium" | "high" | "unknown";

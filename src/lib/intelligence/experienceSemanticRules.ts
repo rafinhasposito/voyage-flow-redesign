@@ -61,13 +61,14 @@ export function buildExperienceSemanticProfile(input: ExperienceIntelligenceInpu
   const themes: ExperienceTheme[] = [];
   const themeEvidences: string[] = [];
   if (isBroadway) { themes.push("broadway"); themeEvidences.push("Contém broadway"); }
-  if (isMusical) { themes.push("entertainment"); themeEvidences.push("É um musical"); }
+  if (isMusical || isBroadway || isNightclub) { themes.push("entertainment"); themeEvidences.push(`${isMusical ? "Musical" : isBroadway ? "Broadway" : "Nightclub"}: entretenimento explícito`); }
   if (isFantasy) { themes.push("fantasy"); themeEvidences.push("Contém fantasia"); }
   if (isKids || isDisney || isFamilyWord) { themes.push("family"); themeEvidences.push("Foco familiar (disney/kids/family)"); }
   if (isRomance) { themes.push("romance"); themeEvidences.push("Foco romântico"); }
   if (isMuseum) { themes.push("art", "culture"); themeEvidences.push("Museu detectado"); }
   if (isStreetFood) { themes.push("local", "gastronomy"); themeEvidences.push("Comida de rua"); }
   if (isSpa) { themes.push("relaxation"); themeEvidences.push("Spa detectado"); }
+  if (isRooftop && !isNightclub) { themes.push("scenic_view"); themeEvidences.push("Rooftop sem balada: vista cênica"); }
   if (isBroadway || isDisney || isMuseum) { themes.push("mainstream"); themeEvidences.push("Atração altamente turística"); }
 
   // Environment
@@ -127,10 +128,12 @@ export function buildExperienceSemanticProfile(input: ExperienceIntelligenceInpu
   if (environment !== "unknown") semanticTags.push(environment);
   if (familyOrientation !== "unknown") semanticTags.push(familyOrientation);
   if (cultural !== "unknown" && cultural !== "none") semanticTags.push(cultural);
-  if (tourism !== "unknown") semanticTags.push(tourism);
+  // tourism_profile somente se não redundante com os temas já inseridos
+  if (tourism !== "unknown" && !semanticTags.includes(tourism)) semanticTags.push(tourism);
 
   return {
-    semantic_tags: [...new Set(semanticTags)], // deduplicado
+    semantic_tags: [...new Set(semanticTags)], // garantia extra de deduplicação
+
     experience_format: createDimension(format, formatEvidences, format === "unknown" ? "none" : "high"),
     themes: createDimension(themes, themeEvidences, themes.length === 0 ? "none" : "high"),
     environment_type: createDimension(environment, envEvidences, environment === "unknown" ? "none" : "high"),

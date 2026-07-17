@@ -150,6 +150,18 @@ describe('EI-2: Perfil Semântico Determinístico', () => {
 });
 
 describe('EI-2: Casos Negativos', () => {
+  it('semantic_tags de Aladdin não contém duplicatas (mainstream aparece uma vez)', () => {
+    const profile = buildExperienceSemanticProfile({
+      title: "Aladdin The Musical",
+      description: "A spectacular broadway show for the whole family with magic and fantasy",
+    });
+    const mainstreams = profile.semantic_tags.filter(t => t === "mainstream");
+    expect(mainstreams.length).toBe(1);
+    // Sem nenhuma duplicata em nenhum campo
+    const unique = new Set(profile.semantic_tags);
+    expect(unique.size).toBe(profile.semantic_tags.length);
+  });
+
   it('rooftop restaurant não vira nightlife', () => {
     const profile = buildExperienceSemanticProfile({ title: "Rooftop Restaurant" });
     expect(profile.nightlife.value).not.toBe(true);
