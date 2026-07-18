@@ -87,10 +87,10 @@ export interface ExperienceIntelligenceMetadata {
   schema_version: "experience-intelligence-v1";
   rules_version: "affinity-v2";
   calculated_at?: string;
-  
+
   personas: ExperiencePersonas;
   companionship: ExperienceCompanionship;
-  
+
   // Contrato neutro - não processados/inferidos automaticamente nesta fase
   experience_profile?: ExperienceSemanticProfile;
   restrictions?: ExperienceRestrictions;
@@ -137,4 +137,52 @@ export interface ExperienceQualityInput {
   description?: string;
   tags?: string[];
   media_urls?: string[];
+}
+
+export type RestrictionVerificationSource = "official_website" | "official_contact" | "venue_policy" | "human_verification" | "import" | "ai_suggestion";
+
+export interface ExperienceRestrictionsInput {
+  min_age?: number | null;
+  adult_only?: boolean | null;
+  family_with_children_allowed?: boolean | null;
+  minimum_group_size?: number | null;
+  maximum_group_size?: number | null;
+  requires_companion?: boolean | null;
+  wheelchair_accessible?: boolean | null;
+  stairs_required?: boolean | null;
+  accessibility_notes?: string | null;
+
+  restriction_source?: string | null;
+  verified_at?: string | null;
+  verified_by?: string | null;
+}
+
+export type ExperienceRestrictionFact<T> = ExperienceDimension<T>;
+
+export interface RestrictionVerification {
+  source: string | null;
+  verified_at: string | null;
+  verified_by: string | null;
+}
+
+export interface RestrictionValidationIssue {
+  code: string;
+  severity: "error" | "warning";
+  message: string;
+  affected_fields: string[];
+}
+
+export interface ExperienceRestrictionsResult {
+  min_age: ExperienceRestrictionFact<number | null>;
+  adult_only: ExperienceRestrictionFact<boolean | null>;
+  family_with_children_allowed: ExperienceRestrictionFact<boolean | null>;
+  minimum_group_size: ExperienceRestrictionFact<number | null>;
+  maximum_group_size: ExperienceRestrictionFact<number | null>;
+  requires_companion: ExperienceRestrictionFact<boolean | null>;
+  wheelchair_accessible: ExperienceRestrictionFact<boolean | null>;
+  stairs_required: ExperienceRestrictionFact<boolean | null>;
+  accessibility_notes: ExperienceRestrictionFact<string | null>;
+
+  verification: RestrictionVerification;
+  issues: RestrictionValidationIssue[];
 }
