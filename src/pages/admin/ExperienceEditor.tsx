@@ -897,7 +897,8 @@ export default function ExperienceEditor() {
               </div>
 
               <div className="bg-white rounded-xl border border-vf-border shadow-vf-sm p-6 space-y-4">
-                 <h3 className="text-[13px] font-black uppercase tracking-widest text-vf-black mb-4">Perfil do Viajante</h3>
+                 <h3 className="text-[13px] font-black uppercase tracking-widest text-vf-black">Classificação Editorial</h3>
+                 <p className="text-[11px] text-vf-text-3 mb-4">Tags, exclusividade, dress code, avaliação e prioridade usados pela inteligência.</p>
                  <Field label="Tags">
                    <TagInput tags={form.tags} onChange={v => set('tags', v)} />
                  </Field>
