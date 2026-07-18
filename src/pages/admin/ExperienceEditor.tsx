@@ -28,6 +28,8 @@ import { MediaGallery } from "@/components/admin/media/MediaGallery";
 import { EditorPreviewPanel } from "@/components/admin/previews/EditorPreviewPanel";
 import { parseVideoUrl } from "@/lib/videoUtils";
 import { moveDraftMediaToPermanent, removeMediaSafely } from "@/lib/mediaUploadService";
+import { buildExperienceIntelligenceSnapshot, ExperienceIntelligenceSnapshot } from "@/lib/intelligence/experienceIntelligenceSnapshot";
+import { ExperienceIntelligencePanel } from "@/components/admin/intelligence/ExperienceIntelligencePanel";
 
 export interface FormState {
   manual_override?: boolean;
@@ -150,12 +152,12 @@ function OptionalRangeSlider({ label, value, onChange }: { label: string; value:
           <span className="text-vf-text-2">{label}</span>
         </div>
         <div className="flex items-center gap-2 mt-1">
-          <input 
-            type="number" min={0} max={100} 
-            value={tempValue} 
+          <input
+            type="number" min={0} max={100}
+            value={tempValue}
             onChange={e => setTempValue(e.target.value === '' ? '' : parseInt(e.target.value))}
-            className="w-16 h-7 text-xs border rounded px-1 outline-none focus:ring-1 focus:ring-indigo-500" 
-            placeholder="0-100" 
+            className="w-16 h-7 text-xs border rounded px-1 outline-none focus:ring-1 focus:ring-indigo-500"
+            placeholder="0-100"
           />
           <button onClick={() => {
             if (tempValue !== '' && tempValue >= 0 && tempValue <= 100) {
@@ -234,7 +236,7 @@ function EditorMap({ lat, lng }: { lat: number | null, lng: number | null }) {
         attributionControl: true
       });
       map.current.addControl(new maplibregl.NavigationControl(), 'bottom-right');
-      
+
       const el = document.createElement('div');
       el.className = "w-4 h-4 bg-[#D7F24B] border-2 border-[#171717] rounded-full shadow-sm";
       marker.current = new maplibregl.Marker(el).setLngLat([lng, lat]).addTo(map.current);
@@ -285,13 +287,13 @@ function IntelligenceBar({ label, value }: { label: string; value: number | null
       </div>
     );
   }
-  
+
   let level = "Baixa afinidade";
   let color = "bg-gray-400";
   if (value >= 80) { level = "Alta afinidade"; color = "bg-emerald-500"; }
   else if (value >= 60) { level = "Boa afinidade"; color = "bg-[#D7F24B]"; }
   else if (value >= 40) { level = "Afinidade moderada"; color = "bg-amber-400"; }
-  
+
   return (
     <div className="space-y-1.5">
       <div className="flex justify-between items-center text-[11px] font-bold">
@@ -327,6 +329,30 @@ export default function ExperienceEditor() {
   const [destinations, setDestinations] = useState<DestinationRow[]>([]);
   const [destinationsError, setDestinationsError] = useState<string | null>(null);
   const [draftId] = useState(() => crypto.randomUUID());
+  const [snapshot, setSnapshot] = useState<ExperienceIntelligenceSnapshot | null>(null);
+
+  const calculateSnapshot = useCallback((currentForm: FormState) => {
+    const intelMeta = currentForm._original_intelligence_metadata || {};
+    const restrictionsInput = {
+      min_age: intelMeta.min_age as number | null,
+      adult_only: intelMeta.adult_only as boolean | null,
+      family_with_children_allowed: intelMeta.family_with_children_allowed as boolean | null,
+      minimum_group_size: intelMeta.minimum_group_size as number | null,
+      maximum_group_size: intelMeta.maximum_group_size as number | null,
+      requires_companion: intelMeta.requires_companion as boolean | null,
+      wheelchair_accessible: intelMeta.wheelchair_accessible as boolean | null,
+      stairs_required: intelMeta.stairs_required as boolean | null,
+      accessibility_notes: intelMeta.accessibility_notes as string | null,
+      restriction_source: intelMeta.restriction_source as string | null,
+      verified_at: intelMeta.verified_at as string | null,
+      verified_by: intelMeta.verified_by as string | null,
+    };
+
+    return buildExperienceIntelligenceSnapshot({
+      ...currentForm,
+      ...restrictionsInput
+    } as any);
+  }, []);
 
   const set = useCallback((field: keyof FormState, value: unknown) => { setForm(prev => ({ ...prev, [field]: value })); }, []);
   const setDeep = useCallback((parent: keyof FormState, field: string, value: unknown) => { setForm(prev => ({ ...prev, [parent]: { ...(prev[parent] as Record<string, unknown>), [field]: value } })); }, []);
@@ -364,6 +390,7 @@ export default function ExperienceEditor() {
         setForm(prev => {
           const mapped = mapNodeToFormState(node, prev);
           mapped._original_media_urls = [...mapped.media_urls];
+          setSnapshot(calculateSnapshot(mapped));
           return mapped;
         });
       } catch (err: unknown) {
@@ -378,6 +405,7 @@ export default function ExperienceEditor() {
       loadData(validExperienceId);
     } else {
       setIsLoading(false);
+      setSnapshot(calculateSnapshot(form));
     }
   }, [validExperienceId, navigate]);
 
@@ -394,13 +422,13 @@ export default function ExperienceEditor() {
       await handleSave({ publish: false, unpublish: true });
     }
   };
-  
+
   const handleArchive = async () => {
     if (window.confirm(`Você está prestes a mover "${form.title}" para a Lixeira.\n\nEla não aparecerá mais nas listagens normais do Catálogo.\nVocê poderá restaurá-la posteriormente filtrando pela Lixeira.`)) {
       await handleSave({ archive: true });
     }
   };
-  
+
   const handleRestore = async () => {
     await handleSave({ archive: false, restore: true });
   };
@@ -430,25 +458,25 @@ export default function ExperienceEditor() {
     const toastId = toast.loading(archive ? 'Movendo para a lixeira...' : restore ? 'Restaurando...' : publish ? 'Publicando...' : unpublish ? 'Despublicando...' : 'Salvando alterações...');
     try {
       const row = buildExperiencePayload(form);
-      
+
       // Handle explicit status changes without mutating unrelated saves
       if (publish) row.status = 'published';
       else if (unpublish) row.status = 'draft';
       else if (archive) row.status = 'archived';
       else if (restore) row.status = 'draft';
       // else keep row.status as is (from form state)
-      
+
       let finalId = validExperienceId;
 
       if (isNew) {
         // Create the row first to get the real DB ID
         const created = await ExperienceRepository.create(row);
         finalId = created.id;
-        
+
         // Now move the files to the permanent folder using the real ID
         const newUrls = await moveDraftMediaToPermanent(draftId, finalId, row.media_urls);
         row.media_urls = newUrls;
-        
+
         // Update cover_media_url if it was part of the move
         const intelligence = (row.intelligence_metadata as Record<string, any>) || {};
         if (intelligence.cover_media_url) {
@@ -464,16 +492,16 @@ export default function ExperienceEditor() {
            }
         }
         row.intelligence_metadata = intelligence;
-        
+
         // Second update to save the new permanent paths
-        await ExperienceRepository.update(finalId, { 
+        await ExperienceRepository.update(finalId, {
           media_urls: row.media_urls,
-          intelligence_metadata: row.intelligence_metadata 
+          intelligence_metadata: row.intelligence_metadata
         });
       } else if (validExperienceId) {
         await ExperienceRepository.update(validExperienceId, row);
       }
-      
+
       // Cleanup orphan files safely
       const removedUrls = form._original_media_urls.filter(u => !row.media_urls.includes(u));
       if (removedUrls.length > 0) {
@@ -518,14 +546,23 @@ export default function ExperienceEditor() {
     finally { setIsEnriching(false); }
   };
 
-  
-  
+  const handleRecalculateDiagnostics = () => {
+    setIsSyncingAI(true);
+    setTimeout(() => {
+      setSnapshot(calculateSnapshot(form));
+      setIsSyncingAI(false);
+      toast.success("Diagnóstico recalculado com os dados atuais.");
+    }, 500);
+  };
+
+
+
   const handleAiSync = async (prefilledForm?: any) => {
     const dataToUse = prefilledForm || form;
     if (!dataToUse.title?.trim()) { toast.error('Título obrigatório para IA.'); return; }
     setIsSyncingAI(true);
     const toastId = toast.loading('Analisando afinidade (Motor de Regras V1)...');
-    
+
     await new Promise(r => setTimeout(r, 600));
 
     try {
@@ -533,14 +570,14 @@ export default function ExperienceEditor() {
 
       setForm(p => ({
         ...p,
-        personaWeights: { 
+        personaWeights: {
           explorador_visual: result.personaWeights.explorador_visual.score,
           curador_experiencias: result.personaWeights.curador_experiencias.score,
           descobridor: result.personaWeights.descobridor.score,
           aproveitador: result.personaWeights.aproveitador.score,
           slow_traveler: result.personaWeights.slow_traveler.score
         },
-        companionshipCompatibility: { 
+        companionshipCompatibility: {
           solo: result.companionshipCompatibility.solo.score,
           couple: result.companionshipCompatibility.couple.score,
           family: result.companionshipCompatibility.family.score,
@@ -551,10 +588,10 @@ export default function ExperienceEditor() {
         manualOverride: false
       }));
       toast.success('✅ Afinidade calculada!', { id: toastId });
-    } catch (e: any) { 
-      toast.error('Erro: ' + e.message, { id: toastId }); 
-    } finally { 
-      setIsSyncingAI(false); 
+    } catch (e: any) {
+      toast.error('Erro: ' + e.message, { id: toastId });
+    } finally {
+      setIsSyncingAI(false);
     }
   };
 
@@ -592,7 +629,7 @@ export default function ExperienceEditor() {
             <p className="text-[11px] text-vf-text-3 font-semibold">Treine a IA e gerencie as informações da atração.</p>
           </div>
         </div>
-        
+
         <div className="flex items-center gap-2">
           {isNew ? (
             <>
@@ -741,7 +778,7 @@ export default function ExperienceEditor() {
                     <Input value={form.address} onChange={e => set('address', e.target.value)} />
                   </Field>
                 </div>
-                
+
                 <div className="h-48 rounded-xl relative">
                    <EditorMap lat={form.location_lat} lng={form.location_lng} />
                 </div>
@@ -785,7 +822,7 @@ export default function ExperienceEditor() {
 
               <Section title="Mídia Visual" icon={Video}>
                 <Field label="Galeria de Imagens" hint="Arraste para reorganizar. A capa representará a experiência no aplicativo.">
-                  <MediaGallery 
+                  <MediaGallery
                     mediaUrls={form.media_urls}
                     coverImageUrl={effectiveCoverMediaUrl}
                     coverMediaType={form.cover_media_type}
@@ -806,22 +843,22 @@ export default function ExperienceEditor() {
                     }}
                   />
                 </Field>
-                
+
                 <Field label="Vídeo da Experiência (Opcional)" hint="Cole o link do YouTube ou Vimeo.">
-                   <Input 
-                      value={form.video_embed_url || ""} 
-                      onChange={e => set('video_embed_url', e.target.value)} 
-                      placeholder="https://youtube.com/watch?v=..." 
+                   <Input
+                      value={form.video_embed_url || ""}
+                      onChange={e => set('video_embed_url', e.target.value)}
+                      placeholder="https://youtube.com/watch?v=..."
                    />
                 </Field>
                 {form.video_embed_url && (
                    <div className="mt-2 bg-slate-50 border border-vf-border rounded-lg p-3">
                       {parseVideoUrl(form.video_embed_url).embedUrl ? (
                          <div className="aspect-video w-full max-w-sm rounded-lg overflow-hidden bg-black shadow-sm mx-auto">
-                            <iframe 
-                               src={parseVideoUrl(form.video_embed_url).embedUrl!} 
-                               className="w-full h-full" 
-                               allowFullScreen 
+                            <iframe
+                               src={parseVideoUrl(form.video_embed_url).embedUrl!}
+                               className="w-full h-full"
+                               allowFullScreen
                                title="Video Preview"
                             />
                          </div>
@@ -834,69 +871,7 @@ export default function ExperienceEditor() {
                 )}
               </Section>
 
-              <div className="bg-indigo-50 border border-indigo-100 rounded-xl shadow-vf-sm overflow-hidden">
-                <div className="p-5 border-b border-indigo-100/50">
-                  <div className="flex items-center justify-between mb-2">
-                    <h3 className="text-[13px] font-black uppercase tracking-widest text-indigo-900 flex items-center gap-1.5"><BrainCircuit className="w-4 h-4"/> Compatibilidade de público</h3>
-                  </div>
-                  <p className="text-[11px] text-indigo-700/80 mb-4">Calculada por regras editoriais a partir dos dados preenchidos.</p>
-                  <Button onClick={() => handleAiSync()} disabled={isSyncingAI} className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs h-9">
-                    {isSyncingAI ? <Zap className="w-3.5 h-3.5 animate-pulse" /> : <BrainCircuit className="w-3.5 h-3.5" />}
-                    {form.personaWeights.explorador_visual === null ? "Calcular compatibilidade" : "Recalcular compatibilidade"}
-                  </Button>
-                </div>
-                
-                <div className="p-5 bg-white">
-                  <div className="flex items-center justify-between mb-4">
-                     <h4 className="text-[11px] font-black uppercase tracking-widest text-vf-text-3">Resultados da Análise</h4>
-                     <button onClick={() => setIsManualAi(!isManualAi)} className="text-[10px] font-bold text-indigo-600 hover:text-indigo-800 bg-indigo-50 px-2 py-1 rounded transition-colors">
-                       {isManualAi ? "Ocultar Ajuste Manual" : "Ajustar Manualmente"}
-                     </button>
-                  </div>
-                  
-                  <div className="grid grid-cols-2 gap-x-8 gap-y-6">
-                    <div className="space-y-4">
-                      <h4 className="text-[10px] font-black uppercase text-vf-text-3 mb-2">Psicografia (Personas)</h4>
-                      {isManualAi ? (
-                        <>
-                          <OptionalRangeSlider label="Explorador Visual" value={form.personaWeights.explorador_visual} onChange={v => { setDeep('personaWeights', 'explorador_visual', v); set('manual_override', true); }} />
-                          <OptionalRangeSlider label="Curador de Experiências" value={form.personaWeights.curador_experiencias} onChange={v => { setDeep('personaWeights', 'curador_experiencias', v); set('manual_override', true); }} />
-                          <OptionalRangeSlider label="Descobridor de Tendências" value={form.personaWeights.descobridor} onChange={v => { setDeep('personaWeights', 'descobridor', v); set('manual_override', true); }} />
-                          <OptionalRangeSlider label="Aproveitador de Oportunidades" value={form.personaWeights.aproveitador} onChange={v => { setDeep('personaWeights', 'aproveitador', v); set('manual_override', true); }} />
-                          <OptionalRangeSlider label="Slow Traveler" value={form.personaWeights.slow_traveler} onChange={v => { setDeep('personaWeights', 'slow_traveler', v); set('manual_override', true); }} />
-                        </>
-                      ) : (
-                        <div className="space-y-2">
-                           <div className="flex justify-between text-[11px]"><span>Explorador Visual</span><span className="font-bold">{form.personaWeights.explorador_visual ?? '-'}%</span></div>
-                           <div className="flex justify-between text-[11px]"><span>Curador</span><span className="font-bold">{form.personaWeights.curador_experiencias ?? '-'}%</span></div>
-                           <div className="flex justify-between text-[11px]"><span>Descobridor</span><span className="font-bold">{form.personaWeights.descobridor ?? '-'}%</span></div>
-                           <div className="flex justify-between text-[11px]"><span>Aproveitador</span><span className="font-bold">{form.personaWeights.aproveitador ?? '-'}%</span></div>
-                           <div className="flex justify-between text-[11px]"><span>Slow Traveler</span><span className="font-bold">{form.personaWeights.slow_traveler ?? '-'}%</span></div>
-                        </div>
-                      )}
-                    </div>
-                    
-                    <div className="space-y-4">
-                      <h4 className="text-[10px] font-black uppercase text-vf-text-3 mb-2">Companhia Ideal</h4>
-                      {isManualAi ? (
-                        <>
-                          <OptionalRangeSlider label="Solo" value={form.companionshipCompatibility.solo} onChange={v => { setDeep('companionshipCompatibility', 'solo', v); set('manual_override', true); }} />
-                          <OptionalRangeSlider label="Casal" value={form.companionshipCompatibility.couple} onChange={v => { setDeep('companionshipCompatibility', 'couple', v); set('manual_override', true); }} />
-                          <OptionalRangeSlider label="Família" value={form.companionshipCompatibility.family} onChange={v => { setDeep('companionshipCompatibility', 'family', v); set('manual_override', true); }} />
-                          <OptionalRangeSlider label="Amigos" value={form.companionshipCompatibility.friends} onChange={v => { setDeep('companionshipCompatibility', 'friends', v); set('manual_override', true); }} />
-                        </>
-                      ) : (
-                        <div className="space-y-2">
-                           <div className="flex justify-between text-[11px]"><span>Solo</span><span className="font-bold">{form.companionshipCompatibility.solo ?? '-'}%</span></div>
-                           <div className="flex justify-between text-[11px]"><span>Casal</span><span className="font-bold">{form.companionshipCompatibility.couple ?? '-'}%</span></div>
-                           <div className="flex justify-between text-[11px]"><span>Família</span><span className="font-bold">{form.companionshipCompatibility.family ?? '-'}%</span></div>
-                           <div className="flex justify-between text-[11px]"><span>Amigos</span><span className="font-bold">{form.companionshipCompatibility.friends ?? '-'}%</span></div>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              </div>
+
 
             </div>
 
@@ -962,71 +937,18 @@ export default function ExperienceEditor() {
                  </div>
               </div>
 
-              <div className="bg-indigo-50 border border-indigo-100 rounded-xl shadow-vf-sm overflow-hidden">
-                <div className="p-5 border-b border-indigo-100/50">
-                  <div className="flex items-center justify-between mb-2">
-                    <h3 className="text-[13px] font-black uppercase tracking-widest text-indigo-900 flex items-center gap-1.5"><BrainCircuit className="w-4 h-4"/> IA Concierge</h3>
+              <div className="mt-6">
+                {snapshot ? (
+                  <ExperienceIntelligencePanel
+                    snapshot={snapshot}
+                    onRecalculate={handleRecalculateDiagnostics}
+                    isRecalculating={isSyncingAI}
+                  />
+                ) : (
+                  <div className="p-8 text-center text-zinc-500 bg-zinc-50 rounded-xl border border-zinc-200">
+                    Carregando inteligência...
                   </div>
-                  <p className="text-[11px] text-indigo-700/80 mb-4">Analisa os dados da experiência e ajuda a definir para quais perfis de viajante ela deve ser recomendada.</p>
-                  
-                  <div className="bg-white p-4 rounded-lg border border-indigo-100/50 shadow-sm">
-                    <h4 className="text-[11px] font-black uppercase tracking-widest text-vf-text-3 mb-1">Compatibilidade de público</h4>
-                    <p className="text-[10px] text-vf-text-3 mb-4">Estimativa calculada por regras editoriais com base nas informações preenchidas.</p>
-
-                    <Button onClick={() => handleAiSync()} disabled={isSyncingAI} className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs h-9 mb-4">
-                      {isSyncingAI ? <Zap className="w-3.5 h-3.5 animate-pulse" /> : <BrainCircuit className="w-3.5 h-3.5" />}
-                      {form.personaWeights.explorador_visual === null ? "Calcular compatibilidade" : "Recalcular compatibilidade"}
-                    </Button>
-
-                    <div className="flex items-center justify-between mb-3">
-                       <span className="text-[11px] font-bold text-indigo-900">
-                          {form.personaWeights.explorador_visual === null 
-                            ? "Compatibilidade ainda não calculada" 
-                            : "Compatibilidade calculada"}
-                       </span>
-                       <button onClick={() => setIsManualAi(!isManualAi)} className="text-[10px] font-bold text-indigo-600 hover:text-indigo-800 bg-indigo-50 px-2 py-1 rounded transition-colors">
-                         {isManualAi ? "Ocultar Ajuste" : "Ajuste Manual"}
-                       </button>
-                    </div>
-                    
-                    <p className="text-[10px] text-vf-text-3 mb-4">
-                      {form.personaWeights.explorador_visual === null 
-                        ? "Preencha categoria, tags, nível de exclusividade, preço e demais informações para gerar uma estimativa mais precisa."
-                        : "Último cálculo realizado com base nos dados atuais da experiência."}
-                    </p>
-
-                    {isManualAi && (
-                      <div className="mb-6 p-4 rounded-xl border border-dashed border-indigo-200 bg-indigo-50/50 space-y-4">
-                        <p className="text-[10px] text-indigo-600 font-bold mb-2">MODO MANUAL ATIVADO — Valores alterados manualmente terão precedência sobre a Engine.</p>
-                        <OptionalRangeSlider label="Visual" value={form.personaWeights.explorador_visual} onChange={v => { setDeep('personaWeights', 'explorador_visual', v); set('manual_override', true); }} />
-                        <OptionalRangeSlider label="Curador" value={form.personaWeights.curador_experiencias} onChange={v => { setDeep('personaWeights', 'curador_experiencias', v); set('manual_override', true); }} />
-                        <OptionalRangeSlider label="Aproveitador" value={form.personaWeights.aproveitador} onChange={v => { setDeep('personaWeights', 'aproveitador', v); set('manual_override', true); }} />
-                        <OptionalRangeSlider label="Descobridor" value={form.personaWeights.descobridor} onChange={v => { setDeep('personaWeights', 'descobridor', v); set('manual_override', true); }} />
-                        <OptionalRangeSlider label="Slow Traveler" value={form.personaWeights.slow_traveler} onChange={v => { setDeep('personaWeights', 'slow_traveler', v); set('manual_override', true); }} />
-                        <div className="pt-2 border-t border-indigo-100 space-y-4">
-                          <OptionalRangeSlider label="Solo" value={form.companionshipCompatibility.solo} onChange={v => { setDeep('companionshipCompatibility', 'solo', v); set('manual_override', true); }} />
-                          <OptionalRangeSlider label="Casal" value={form.companionshipCompatibility.couple} onChange={v => { setDeep('companionshipCompatibility', 'couple', v); set('manual_override', true); }} />
-                          <OptionalRangeSlider label="Família" value={form.companionshipCompatibility.family} onChange={v => { setDeep('companionshipCompatibility', 'family', v); set('manual_override', true); }} />
-                          <OptionalRangeSlider label="Amigos" value={form.companionshipCompatibility.friends} onChange={v => { setDeep('companionshipCompatibility', 'friends', v); set('manual_override', true); }} />
-                        </div>
-                      </div>
-                    )}
-
-                    <div className="space-y-4">
-                       <h5 className="text-[10px] font-black uppercase text-vf-text-3">1. Afinidade com personas</h5>
-                       <IntelligenceBar label="Visual" value={form.personaWeights.explorador_visual} />
-                       <IntelligenceBar label="Curador" value={form.personaWeights.curador_experiencias} />
-                       <IntelligenceBar label="Aproveitador" value={form.personaWeights.aproveitador} />
-                       <IntelligenceBar label="Descobridor" value={form.personaWeights.descobridor} />
-                       <IntelligenceBar label="Slow Traveler" value={form.personaWeights.slow_traveler} />
-                       
-                       <h5 className="text-[10px] font-black uppercase text-vf-text-3 pt-2 mt-4 border-t border-vf-border">2. Adequação por companhia</h5>
-                       <IntelligenceBar label="Solo" value={form.companionshipCompatibility.solo} />
-                       <IntelligenceBar label="Casal" value={form.companionshipCompatibility.couple} />
-                       <IntelligenceBar label="Família" value={form.companionshipCompatibility.family} />
-                    </div>
-                  </div>
-                </div>
+                )}
               </div>
             </div>
           </div>
