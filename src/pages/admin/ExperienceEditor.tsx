@@ -22,7 +22,7 @@ import {
 
 import { ExperienceRepository } from "@/repositories/ExperienceRepository";
 import { DestinationRepository, DestinationRow } from "@/repositories/DestinationRepository";
-import { validateExperienceForm, buildExperiencePayload, resolveExperienceRouteMode, mapNodeToFormState } from "@/lib/experienceUtils";
+import { validateExperienceForm, buildExperiencePayload, resolveExperienceRouteMode, mapNodeToFormState, isFactEmpty, sanitizeRestrictionsProvenance } from "@/lib/experienceUtils";
 import { calculateAffinityV1 } from "@/lib/intelligence/experienceAffinityRules";
 import { MediaGallery } from "@/components/admin/media/MediaGallery";
 import { EditorPreviewPanel } from "@/components/admin/previews/EditorPreviewPanel";
@@ -30,6 +30,7 @@ import { parseVideoUrl } from "@/lib/videoUtils";
 import { moveDraftMediaToPermanent, removeMediaSafely } from "@/lib/mediaUploadService";
 import { buildExperienceIntelligenceSnapshot, ExperienceIntelligenceSnapshot } from "@/lib/intelligence/experienceIntelligenceSnapshot";
 import { ExperienceIntelligencePanel } from "@/components/admin/intelligence/ExperienceIntelligencePanel";
+import { RestrictionFieldKey, RestrictionsProvenance, RestrictionVerificationSource } from "@/lib/intelligence/types";
 
 export interface FormState {
   manual_override?: boolean;
@@ -76,6 +77,24 @@ export interface FormState {
   cover_image_url: string | null; // For legacy fallback
   video_embed_url: string | null;
 
+  // Políticas e Acessibilidade (EI-6C)
+  min_age: number | null;
+  adult_only: boolean | null;
+  family_with_children_allowed: boolean | null;
+  requires_companion: boolean | null;
+  minimum_group_size: number | null;
+  maximum_group_size: number | null;
+  wheelchair_accessible: boolean | null;
+  stairs_required: boolean | null;
+  accessibility_notes: string | null;
+  restrictions_provenance: RestrictionsProvenance | null;
+
+  _ui_provenance_source: RestrictionVerificationSource | null;
+  _ui_provenance_source_url: string | null;
+  _ui_provenance_verified_at: string | null;
+  _ui_provenance_verified_by: string | null;
+  _ui_provenance_selected_fields: RestrictionFieldKey[];
+
   _original_intelligence_metadata: Record<string, unknown> | null;
   _original_media_urls: string[];
 }
@@ -90,6 +109,9 @@ const defaultForm: FormState = {
   companionshipCompatibility: { solo: 50, couple: 50, family: 50, friends: 50 },
   recommendedSeasons: ["all"], weatherCompatibility: ["all"],
   media_urls: [], cover_media_url: null, cover_media_type: null, cover_media_poster_url: null, cover_image_url: null, video_embed_url: null,
+  min_age: null, adult_only: null, family_with_children_allowed: null, requires_companion: null,
+  minimum_group_size: null, maximum_group_size: null, wheelchair_accessible: null, stairs_required: null,
+  accessibility_notes: null, restriction_source: null, restriction_source_url: null, verified_at: null, verified_by: null,
   _original_intelligence_metadata: null,
   _original_media_urls: []
 };
@@ -321,36 +343,68 @@ export default function ExperienceEditor() {
     type: searchParams.get('type') || 'attraction',
   });
   const [isSaving, setIsSaving] = useState(false);
+  const [destinations, setDestinations] = useState<DestinationRow[]>([]);
+  const [destinationsError, setDestinationsError] = useState<string | null>(null);
+  const [draftId] = useState(() => crypto.randomUUID());
+  const [snapshot, setSnapshot] = useState<ExperienceIntelligenceSnapshot | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isSyncingAI, setIsSyncingAI] = useState(false);
   const [enrichUrl, setEnrichUrl] = useState('');
   const [isEnriching, setIsEnriching] = useState(false);
   const [isManualAi, setIsManualAi] = useState(false);
-  const [destinations, setDestinations] = useState<DestinationRow[]>([]);
-  const [destinationsError, setDestinationsError] = useState<string | null>(null);
-  const [draftId] = useState(() => crypto.randomUUID());
-  const [snapshot, setSnapshot] = useState<ExperienceIntelligenceSnapshot | null>(null);
+
+  useEffect(() => {
+    setForm(prev => {
+      const { provenance, selectedFields } = sanitizeRestrictionsProvenance(
+        prev,
+        prev.restrictions_provenance,
+        prev._ui_provenance_selected_fields
+      );
+
+      // Check if references changed (our pure function returns new references if changed)
+      if (provenance !== prev.restrictions_provenance || selectedFields !== prev._ui_provenance_selected_fields) {
+        return {
+          ...prev,
+          restrictions_provenance: provenance as RestrictionsProvenance | null,
+          _ui_provenance_selected_fields: selectedFields as RestrictionFieldKey[]
+        };
+      }
+      return prev;
+    });
+  }, [
+    form.min_age, form.adult_only, form.family_with_children_allowed, form.requires_companion,
+    form.minimum_group_size, form.maximum_group_size, form.wheelchair_accessible, form.stairs_required, form.accessibility_notes
+  ]);
 
   const calculateSnapshot = useCallback((currentForm: FormState) => {
-    const intelMeta = currentForm._original_intelligence_metadata || {};
-    const restrictionsInput = {
-      min_age: intelMeta.min_age as number | null,
-      adult_only: intelMeta.adult_only as boolean | null,
-      family_with_children_allowed: intelMeta.family_with_children_allowed as boolean | null,
-      minimum_group_size: intelMeta.minimum_group_size as number | null,
-      maximum_group_size: intelMeta.maximum_group_size as number | null,
-      requires_companion: intelMeta.requires_companion as boolean | null,
-      wheelchair_accessible: intelMeta.wheelchair_accessible as boolean | null,
-      stairs_required: intelMeta.stairs_required as boolean | null,
-      accessibility_notes: intelMeta.accessibility_notes as string | null,
-      restriction_source: intelMeta.restriction_source as string | null,
-      verified_at: intelMeta.verified_at as string | null,
-      verified_by: intelMeta.verified_by as string | null,
-    };
+    // Generate the provenances for selected fields based on UI state
+    const generatedProvenance = { ...currentForm.restrictions_provenance };
+    const hasUiProvenance = currentForm._ui_provenance_source || currentForm._ui_provenance_source_url || currentForm._ui_provenance_verified_by || currentForm._ui_provenance_verified_at;
+
+    if (hasUiProvenance && currentForm._ui_provenance_selected_fields && currentForm._ui_provenance_selected_fields.length > 0) {
+      for (const field of currentForm._ui_provenance_selected_fields) {
+        generatedProvenance[field] = {
+          source: currentForm._ui_provenance_source,
+          source_url: currentForm._ui_provenance_source_url,
+          captured_at: null,
+          verified_at: currentForm._ui_provenance_verified_at,
+          verified_by: currentForm._ui_provenance_verified_by
+        };
+      }
+    }
 
     return buildExperienceIntelligenceSnapshot({
       ...currentForm,
-      ...restrictionsInput
+      min_age: currentForm.min_age,
+      adult_only: currentForm.adult_only,
+      family_with_children_allowed: currentForm.family_with_children_allowed,
+      minimum_group_size: currentForm.minimum_group_size,
+      maximum_group_size: currentForm.maximum_group_size,
+      requires_companion: currentForm.requires_companion,
+      wheelchair_accessible: currentForm.wheelchair_accessible,
+      stairs_required: currentForm.stairs_required,
+      accessibility_notes: currentForm.accessibility_notes,
+      restrictions_provenance: generatedProvenance,
     } as any);
   }, []);
 
@@ -935,6 +989,180 @@ export default function ExperienceEditor() {
                  <div className="flex items-center gap-2 mt-2">
                     <input type="checkbox" checked={form.is_must_see} onChange={e => set('is_must_see', e.target.checked)} className="w-4 h-4" />
                     <label className="text-xs font-bold text-vf-black">Imperdível (Must See)</label>
+                 </div>
+              </div>
+
+              <div className="mt-6 bg-white rounded-xl border border-vf-border shadow-vf-sm p-6 space-y-4">
+                 <h3 className="text-[13px] font-black uppercase tracking-widest text-vf-black">Políticas e Acessibilidade</h3>
+                 <p className="text-[11px] text-vf-text-3 mb-4">Registre informações factuais sobre idade, público, grupos e acessibilidade. A IA não cria restrições sem uma fonte.</p>
+                 <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg text-amber-700 text-[11px] mb-4">
+                    Campos preparados. A persistência será ativada após a aprovação da migration.
+                 </div>
+
+                 <div className="grid grid-cols-2 gap-4">
+                    <Field label="Idade Mínima">
+                      <Input type="number" min="0" value={form.min_age ?? ""} onChange={e => set('min_age', e.target.value === "" ? null : Number(e.target.value))} />
+                    </Field>
+                    <Field label="Somente Adultos?">
+                       <select value={form.adult_only === null ? "" : form.adult_only.toString()} onChange={e => set('adult_only', e.target.value === "" ? null : e.target.value === "true")} className="w-full rounded-md border border-vf-border py-1.5 px-2 text-xs">
+                         <option value="">Não informado</option>
+                         <option value="true">Sim</option>
+                         <option value="false">Não</option>
+                       </select>
+                    </Field>
+                    <Field label="Crianças Permitidas?">
+                       <select value={form.family_with_children_allowed === null ? "" : form.family_with_children_allowed.toString()} onChange={e => set('family_with_children_allowed', e.target.value === "" ? null : e.target.value === "true")} className="w-full rounded-md border border-vf-border py-1.5 px-2 text-xs">
+                         <option value="">Não informado</option>
+                         <option value="true">Sim</option>
+                         <option value="false">Não</option>
+                       </select>
+                    </Field>
+                    <Field label="Exige Acompanhante?">
+                       <select value={form.requires_companion === null ? "" : form.requires_companion.toString()} onChange={e => set('requires_companion', e.target.value === "" ? null : e.target.value === "true")} className="w-full rounded-md border border-vf-border py-1.5 px-2 text-xs">
+                         <option value="">Não informado</option>
+                         <option value="true">Sim</option>
+                         <option value="false">Não</option>
+                       </select>
+                    </Field>
+                 </div>
+
+                 <div className="grid grid-cols-2 gap-4">
+                    <Field label="Tamanho Mín. do Grupo">
+                      <Input type="number" min="1" value={form.minimum_group_size ?? ""} onChange={e => set('minimum_group_size', e.target.value === "" ? null : Number(e.target.value))} />
+                    </Field>
+                    <Field label="Tamanho Máx. do Grupo">
+                      <Input type="number" min="1" value={form.maximum_group_size ?? ""} onChange={e => set('maximum_group_size', e.target.value === "" ? null : Number(e.target.value))} />
+                    </Field>
+                 </div>
+
+                 <div className="h-px bg-zinc-100 my-4" />
+
+                 <div className="grid grid-cols-2 gap-4">
+                    <Field label="Acesso Cadeira de Rodas?">
+                       <select value={form.wheelchair_accessible === null ? "" : form.wheelchair_accessible.toString()} onChange={e => set('wheelchair_accessible', e.target.value === "" ? null : e.target.value === "true")} className="w-full rounded-md border border-vf-border py-1.5 px-2 text-xs">
+                         <option value="">Não informado</option>
+                         <option value="true">Sim</option>
+                         <option value="false">Não</option>
+                       </select>
+                    </Field>
+                    <Field label="Possui Escadas?">
+                       <select value={form.stairs_required === null ? "" : form.stairs_required.toString()} onChange={e => set('stairs_required', e.target.value === "" ? null : e.target.value === "true")} className="w-full rounded-md border border-vf-border py-1.5 px-2 text-xs">
+                         <option value="">Não informado</option>
+                         <option value="true">Sim</option>
+                         <option value="false">Não</option>
+                       </select>
+                    </Field>
+                    <div className="col-span-2">
+                      <Field label="Observações de Acessibilidade">
+                        <textarea className="w-full rounded-md border border-vf-border p-2 text-xs h-16" placeholder="Anotações factuais..." value={form.accessibility_notes ?? ""} onChange={e => set('accessibility_notes', e.target.value === "" ? null : e.target.value)} />
+                      </Field>
+                    </div>
+                 </div>
+
+                 <div className="h-px bg-zinc-100 my-4" />
+
+                 <div className="grid grid-cols-2 gap-4">
+                    <Field label="Origem da Informação">
+                       <select value={form._ui_provenance_source ?? ""} onChange={e => set('_ui_provenance_source', e.target.value === "" ? null : e.target.value as RestrictionVerificationSource)} className="w-full rounded-md border border-vf-border py-1.5 px-2 text-xs">
+                         <option value="">Não informada</option>
+                         <option value="official_website">Site oficial</option>
+                         <option value="official_contact">Contato oficial</option>
+                         <option value="venue_policy">Política do local</option>
+                         <option value="human_verification">Verificação humana</option>
+                         <option value="import">Importação</option>
+                         <option value="ai_suggestion">Sugestão de IA</option>
+                       </select>
+                    </Field>
+                    <Field label="URL da Fonte">
+                      <Input type="url" placeholder="https://..." value={form._ui_provenance_source_url ?? ""} onChange={e => set('_ui_provenance_source_url', e.target.value === "" ? null : e.target.value)} />
+                    </Field>
+                    <Field label="Verificado por">
+                      <Input type="text" placeholder="Nome do revisor" value={form._ui_provenance_verified_by ?? ""} onChange={e => set('_ui_provenance_verified_by', e.target.value === "" ? null : e.target.value)} />
+                    </Field>
+                    <Field label="Data da Verificação">
+                      <Input type="date" value={form._ui_provenance_verified_at ?? ""} onChange={e => set('_ui_provenance_verified_at', e.target.value === "" ? null : e.target.value)} />
+                    </Field>
+                 </div>
+
+                 <div className="mt-4 p-3 bg-zinc-50 border border-zinc-200 rounded-lg">
+                   <p className="text-[11px] font-semibold text-zinc-700 mb-1">Quais informações esta fonte confirma?</p>
+                   <p className="text-[10px] text-zinc-500 mb-3">Preencha o valor antes de associar uma fonte.</p>
+                   <div className="grid grid-cols-2 gap-2 text-[11px] text-zinc-600">
+                     {[
+                       { key: 'min_age', label: 'Idade mínima' },
+                       { key: 'adult_only', label: 'Somente adultos' },
+                       { key: 'family_with_children_allowed', label: 'Crianças permitidas' },
+                       { key: 'requires_companion', label: 'Exige acompanhante' },
+                       { key: 'minimum_group_size', label: 'Tamanho mínimo do grupo' },
+                       { key: 'maximum_group_size', label: 'Tamanho máximo do grupo' },
+                       { key: 'wheelchair_accessible', label: 'Acesso para cadeira de rodas' },
+                       { key: 'stairs_required', label: 'Escadas obrigatórias' },
+                       { key: 'accessibility_notes', label: 'Observações de acessibilidade' },
+                     ].map(opt => {
+                       const empty = isFactEmpty(form[opt.key as RestrictionFieldKey]);
+                       const checked = form._ui_provenance_selected_fields?.includes(opt.key as RestrictionFieldKey) || false;
+                       const existingProv = form.restrictions_provenance?.[opt.key as RestrictionFieldKey];
+                       const hasDifferentSource = existingProv && existingProv.source && existingProv.source !== form._ui_provenance_source;
+
+                       return (
+                         <div key={opt.key} className="flex flex-col">
+                           <label className={`flex items-center gap-2 ${empty ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}>
+                             <input
+                               type="checkbox"
+                               className="rounded border-zinc-300 text-vf-black focus:ring-vf-black disabled:bg-zinc-100 disabled:border-zinc-200"
+                               checked={checked}
+                               disabled={empty}
+                               onChange={(e) => {
+                                 const current = form._ui_provenance_selected_fields || [];
+                                 if (e.target.checked) {
+                                   set('_ui_provenance_selected_fields', [...current, opt.key as RestrictionFieldKey]);
+                                 } else {
+                                   set('_ui_provenance_selected_fields', current.filter(k => k !== opt.key));
+                                 }
+                               }}
+                             />
+                             {opt.label}
+                           </label>
+                           {hasDifferentSource && checked && (
+                             <span className="text-[10px] text-amber-500 ml-5 mt-0.5 leading-tight">
+                               Aviso: Sobrescreverá a fonte atual ({existingProv.source}) ao recalcular.
+                             </span>
+                           )}
+                         </div>
+                       );
+                     })}
+                   </div>
+                 </div>
+
+                 {/* Validações visuais */}
+                 <div className="space-y-2 mt-4">
+                   {form.min_age !== null && form.min_age < 0 && (
+                     <div className="text-red-500 text-xs flex items-center gap-1"><AlertCircle className="w-3 h-3"/> Idade mínima não pode ser negativa.</div>
+                   )}
+                   {form.minimum_group_size !== null && form.minimum_group_size < 1 && (
+                     <div className="text-red-500 text-xs flex items-center gap-1"><AlertCircle className="w-3 h-3"/> Tamanho mínimo do grupo deve ser ao menos 1.</div>
+                   )}
+                   {form.maximum_group_size !== null && form.minimum_group_size !== null && form.maximum_group_size < form.minimum_group_size && (
+                     <div className="text-red-500 text-xs flex items-center gap-1"><AlertCircle className="w-3 h-3"/> O tamanho máximo não pode ser menor que o mínimo.</div>
+                   )}
+                   {form.adult_only === true && form.family_with_children_allowed === true && (
+                     <div className="text-amber-500 text-xs flex items-center gap-1"><AlertCircle className="w-3 h-3"/> Contradição: "Somente adultos" está marcado como "Sim", mas "Crianças permitidas" também é "Sim".</div>
+                   )}
+                   {form.requires_companion === false && form.minimum_group_size !== null && form.minimum_group_size > 1 && (
+                     <div className="text-amber-500 text-xs flex items-center gap-1"><AlertCircle className="w-3 h-3"/> "Exige acompanhante" é "Não", mas o tamanho mínimo do grupo é maior que 1.</div>
+                   )}
+                   {form._ui_provenance_verified_at !== null && form._ui_provenance_verified_by === null && (
+                     <div className="text-amber-500 text-xs flex items-center gap-1"><AlertCircle className="w-3 h-3"/> Data de verificação preenchida sem indicar o responsável.</div>
+                   )}
+                   {form._ui_provenance_verified_by !== null && form._ui_provenance_verified_at === null && (
+                     <div className="text-amber-500 text-xs flex items-center gap-1"><AlertCircle className="w-3 h-3"/> Responsável pela verificação preenchido sem data.</div>
+                   )}
+                   {form._ui_provenance_source === 'ai_suggestion' && (form._ui_provenance_verified_by !== null || form._ui_provenance_verified_at !== null) && (
+                     <div className="text-red-500 text-xs flex items-center gap-1"><AlertCircle className="w-3 h-3"/> Sugestão de IA não deve ser marcada como verificada (exige revisão de outra fonte).</div>
+                   )}
+                   {(form._ui_provenance_source !== null || form._ui_provenance_source_url !== null) && (!form._ui_provenance_selected_fields || form._ui_provenance_selected_fields.length === 0) && (
+                     <div className="text-amber-500 text-xs flex items-center gap-1"><AlertCircle className="w-3 h-3"/> Fonte preenchida, mas nenhum campo foi selecionado para receber esta proveniência.</div>
+                   )}
                  </div>
               </div>
 

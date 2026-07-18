@@ -30,6 +30,49 @@ export function validateExperienceForm(form: FormState, destinationsError: strin
   return { valid: true };
 }
 
+export const isFactEmpty = (val: any) => {
+  if (val === null || val === undefined) return true;
+  if (typeof val === 'string' && val.trim() === '') return true;
+  return false; // 0 and false are considered NOT empty
+};
+
+export function sanitizeRestrictionsProvenance(
+  facts: Record<string, any>,
+  provenance: Record<string, any> | null,
+  selectedFields: string[]
+): { provenance: Record<string, any> | null; selectedFields: string[] } {
+  let changed = false;
+  const newProv = { ...(provenance || {}) };
+  let newSelected = [...(selectedFields || [])];
+
+  const restrictionKeys = [
+    "min_age", "adult_only", "family_with_children_allowed", "requires_companion",
+    "minimum_group_size", "maximum_group_size", "wheelchair_accessible", "stairs_required", "accessibility_notes"
+  ];
+
+  for (const key of restrictionKeys) {
+    if (isFactEmpty(facts[key])) {
+      if (newProv[key]) {
+        delete newProv[key];
+        changed = true;
+      }
+      if (newSelected.includes(key)) {
+        newSelected = newSelected.filter(k => k !== key);
+        changed = true;
+      }
+    }
+  }
+
+  if (changed) {
+    return {
+      provenance: Object.keys(newProv).length > 0 ? newProv : null,
+      selectedFields: newSelected
+    };
+  }
+
+  return { provenance, selectedFields };
+}
+
 export const defaultForm: FormState = {
   title: "", description: "", short_description: "", category: "Atração", type: "attraction", status: "draft", destination_id: "",
   address: "", neighborhood: "Midtown", location_lat: null, location_lng: null,
@@ -40,6 +83,10 @@ export const defaultForm: FormState = {
   companionshipCompatibility: { solo: null, couple: null, family: null, friends: null },
   recommendedSeasons: ["all"], weatherCompatibility: ["all"],
   media_urls: [], video_embed_url: null, cover_image_url: null,
+  min_age: null, adult_only: null, family_with_children_allowed: null, requires_companion: null,
+  minimum_group_size: null, maximum_group_size: null, wheelchair_accessible: null, stairs_required: null,
+  accessibility_notes: null, restrictions_provenance: null,
+  _ui_provenance_source: null, _ui_provenance_source_url: null, _ui_provenance_verified_at: null, _ui_provenance_verified_by: null, _ui_provenance_selected_fields: [],
   _original_intelligence_metadata: null,
   manualOverride: false
 };
@@ -72,7 +119,7 @@ export function buildExperiencePayload(form: FormState): ExperienceInsert {
   // Only assign if they are actively provided by the rules engine or manual
   if (form.intelligence_metadata_source) intelligence.source = form.intelligence_metadata_source;
   if (form.intelligence_metadata_calculatedAt) intelligence.calculatedAt = form.intelligence_metadata_calculatedAt;
-  
+
   if (form.manualOverride) {
     intelligence.manualOverride = true;
     intelligence.source = "manual";
@@ -95,7 +142,7 @@ export function buildExperiencePayload(form: FormState): ExperienceInsert {
   if (form.video_embed_url !== origVideo) {
     intelligence.video_embed_url = form.video_embed_url;
   }
-  
+
   if (form.cover_media_url !== origCoverMediaUrl) {
     intelligence.cover_media_url = form.cover_media_url;
   }
@@ -205,6 +252,19 @@ export function mapNodeToFormState(node: Record<string, unknown>, prev: Record<s
     intelligence_metadata_calculatedAt: (ai.calculatedAt as string) || undefined,
     manualOverride: (ai.manualOverride as boolean) || false,
     _original_intelligence_metadata: ai,
+
+    // Precedence: structured column > intelligence_metadata > null
+    min_age: node.min_age !== undefined ? node.min_age : (ai.min_age ?? null),
+    adult_only: node.adult_only !== undefined ? node.adult_only : (ai.adult_only ?? null),
+    family_with_children_allowed: node.family_with_children_allowed !== undefined ? node.family_with_children_allowed : (ai.family_with_children_allowed ?? null),
+    requires_companion: node.requires_companion !== undefined ? node.requires_companion : (ai.requires_companion ?? null),
+    minimum_group_size: node.minimum_group_size !== undefined ? node.minimum_group_size : (ai.minimum_group_size ?? null),
+    maximum_group_size: node.maximum_group_size !== undefined ? node.maximum_group_size : (ai.maximum_group_size ?? null),
+    wheelchair_accessible: node.wheelchair_accessible !== undefined ? node.wheelchair_accessible : (ai.wheelchair_accessible ?? null),
+    stairs_required: node.stairs_required !== undefined ? node.stairs_required : (ai.stairs_required ?? null),
+    accessibility_notes: node.accessibility_notes !== undefined ? node.accessibility_notes : (ai.accessibility_notes ?? null),
+    restrictions_provenance: node.restrictions_provenance !== undefined ? node.restrictions_provenance : (ai.restrictions_provenance ?? null),
+
     partner_id: node.partner_id || ''
   };
 }

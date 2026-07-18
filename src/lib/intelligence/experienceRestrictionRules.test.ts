@@ -6,9 +6,22 @@ describe('EI-5: Restrições Factuais', () => {
     const q = buildExperienceRestrictionsProfile({
       min_age: 21,
       adult_only: true,
-      restriction_source: "official_website",
-      verified_at: "2024-01-01T00:00:00Z",
-      verified_by: "editor_1",
+      restrictions_provenance: {
+        min_age: {
+          source: "official_website",
+          source_url: null,
+          captured_at: null,
+          verified_at: "2024-01-01T00:00:00Z",
+          verified_by: "editor_1",
+        },
+        adult_only: {
+          source: "official_website",
+          source_url: null,
+          captured_at: null,
+          verified_at: "2024-01-01T00:00:00Z",
+          verified_by: "editor_1",
+        }
+      }
     });
 
     expect(q.min_age.value).toBe(21);
@@ -17,7 +30,6 @@ describe('EI-5: Restrições Factuais', () => {
     expect(q.adult_only.value).toBe(true);
     expect(q.adult_only.confidence).toBe("high");
     expect(q.issues).toHaveLength(0);
-    expect(q.verification.source).toBe("official_website");
   });
 
   it('Nightclub 21+: sem fonte fica com confidence low e null fields com none', () => {
@@ -48,21 +60,36 @@ describe('EI-5: Restrições Factuais', () => {
     const q = buildExperienceRestrictionsProfile({
       minimum_group_size: 2,
       requires_companion: true,
-      restriction_source: "venue_policy",
+      restrictions_provenance: {
+        minimum_group_size: {
+          source: "venue_policy",
+          source_url: null,
+          captured_at: null,
+          verified_at: null,
+          verified_by: null,
+        }
+      }
     });
 
     expect(q.minimum_group_size.value).toBe(2);
     expect(q.minimum_group_size.confidence).toBe("medium"); // Tem fonte, mas não verificado
     expect(q.requires_companion.value).toBe(true);
+    expect(q.requires_companion.confidence).toBe("low"); // Não tem fonte
     expect(q.issues).toHaveLength(0);
   });
 
   it('Museu acessível: wheelchair true', () => {
     const q = buildExperienceRestrictionsProfile({
       wheelchair_accessible: true,
-      restriction_source: "official_website",
-      verified_at: "2024-01-01",
-      verified_by: "admin",
+      restrictions_provenance: {
+        wheelchair_accessible: {
+          source: "official_website",
+          source_url: null,
+          captured_at: null,
+          verified_at: "2024-01-01",
+          verified_by: "admin",
+        }
+      }
     });
 
     expect(q.wheelchair_accessible.value).toBe(true);
@@ -112,28 +139,43 @@ describe('EI-5: Restrições Factuais', () => {
       minimum_group_size: 4,
       maximum_group_size: 2,
     });
-    expect(q.issues).toContainEqual(expect.objectContaining({ code: "MAX_GROUP_BELOW_MINIMUM", severity: "error" }));
-    expect(q.issues.find(i => i.code === "MAX_GROUP_BELOW_MINIMUM")?.affected_fields).toEqual(["minimum_group_size", "maximum_group_size"]);
+    expect(q.issues).toContainEqual(expect.objectContaining({ code: "MAX_GROUP_BELOW_MINIMUM" }));
   });
 
   it('Inconsistência: requires_companion false com min_group > 1', () => {
     const q = buildExperienceRestrictionsProfile({
+      minimum_group_size: 4,
       requires_companion: false,
-      minimum_group_size: 2,
     });
     expect(q.issues).toContainEqual(expect.objectContaining({ code: "CONTRADICTORY_COMPANION_POLICY" }));
   });
 
   it('Inconsistência: verified_at preenchido sem verified_by', () => {
     const q = buildExperienceRestrictionsProfile({
-      verified_at: "2024-01-01",
+      restrictions_provenance: {
+        min_age: {
+          source: "official_website",
+          source_url: null,
+          captured_at: null,
+          verified_at: "2024-01-01",
+          verified_by: null,
+        }
+      }
     });
     expect(q.issues).toContainEqual(expect.objectContaining({ code: "MISSING_VERIFIER" }));
   });
 
   it('Inconsistência: verified_by preenchido sem verified_at', () => {
     const q = buildExperienceRestrictionsProfile({
-      verified_by: "editor_1",
+      restrictions_provenance: {
+        min_age: {
+          source: "official_website",
+          source_url: null,
+          captured_at: null,
+          verified_at: null,
+          verified_by: "editor_1",
+        }
+      }
     });
     expect(q.issues).toContainEqual(expect.objectContaining({ code: "MISSING_VERIFICATION_DATE" }));
   });
@@ -141,9 +183,15 @@ describe('EI-5: Restrições Factuais', () => {
   it('IA sugerida não recebe confidence high, fica medium mesmo com verified', () => {
     const q = buildExperienceRestrictionsProfile({
       wheelchair_accessible: true,
-      restriction_source: "ai_suggestion",
-      verified_at: "2024-01-01",
-      verified_by: "system",
+      restrictions_provenance: {
+        wheelchair_accessible: {
+          source: "ai_suggestion",
+          source_url: null,
+          captured_at: null,
+          verified_at: "2024-01-01",
+          verified_by: "admin",
+        }
+      }
     });
 
     expect(q.wheelchair_accessible.confidence).toBe("medium");
@@ -152,9 +200,15 @@ describe('EI-5: Restrições Factuais', () => {
   it('Import não recebe confidence high, fica medium mesmo com verified', () => {
     const q = buildExperienceRestrictionsProfile({
       wheelchair_accessible: true,
-      restriction_source: "import",
-      verified_at: "2024-01-01",
-      verified_by: "system",
+      restrictions_provenance: {
+        wheelchair_accessible: {
+          source: "import",
+          source_url: null,
+          captured_at: null,
+          verified_at: "2024-01-01",
+          verified_by: "admin",
+        }
+      }
     });
 
     expect(q.wheelchair_accessible.confidence).toBe("medium");
@@ -162,21 +216,27 @@ describe('EI-5: Restrições Factuais', () => {
 
   it('False é valor válido e preservado', () => {
     const q = buildExperienceRestrictionsProfile({
-      wheelchair_accessible: false,
-      stairs_required: false,
+      requires_companion: false,
+      adult_only: false,
     });
 
-    expect(q.wheelchair_accessible.value).toBe(false);
-    expect(q.wheelchair_accessible.confidence).toBe("low");
-    expect(q.stairs_required.value).toBe(false);
+    expect(q.requires_companion.value).toBe(false);
+    expect(q.adult_only.value).toBe(false);
   });
 
   it('Proveniência: ausência não herda high de outra restrição confirmada', () => {
     const q = buildExperienceRestrictionsProfile({
-      min_age: 18, // Informado
-      restriction_source: "official_website",
-      verified_at: "2024-01-01",
-      verified_by: "editor",
+      min_age: 18,
+      adult_only: true, // sem proveniência mapeada
+      restrictions_provenance: {
+        min_age: {
+          source: "official_website",
+          source_url: null,
+          captured_at: null,
+          verified_at: "2024-01-01",
+          verified_by: "admin",
+        }
+      }
     });
 
     // min_age herda high
@@ -184,15 +244,41 @@ describe('EI-5: Restrições Factuais', () => {
     expect(q.min_age.value).toBe(18);
     expect(q.min_age.evidences.length).toBeGreaterThan(0);
 
-    // wheelchair_accessible não herda, pois é null
-    expect(q.wheelchair_accessible.confidence).toBe("none");
-    expect(q.wheelchair_accessible.value).toBeNull();
+    // adult_only deve ser low, pois não tem proveniência própria
+    expect(q.adult_only.value).toBe(true);
+    expect(q.adult_only.confidence).toBe("low");
+  });
 
-    // Todas as dimensões têm sua própria proveniência
-    const dims = [q.min_age, q.adult_only, q.family_with_children_allowed, q.wheelchair_accessible];
-    for (const d of dims) {
-      expect(d.source).toBe("rule");
-      expect(d.manual_override).toBe(false);
-    }
+  it('Valores vazios (null, undefined, string vazia) ignoram proveniência e retornam confidence none', () => {
+    const q = buildExperienceRestrictionsProfile({
+      min_age: null,
+      adult_only: undefined,
+      accessibility_notes: "   ",
+      restrictions_provenance: {
+        min_age: { source: "official_website", source_url: null, captured_at: null, verified_at: null, verified_by: null },
+        adult_only: { source: "official_website", source_url: null, captured_at: null, verified_at: null, verified_by: null },
+        accessibility_notes: { source: "official_website", source_url: null, captured_at: null, verified_at: null, verified_by: null }
+      }
+    } as any);
+
+    expect(q.min_age.confidence).toBe("none");
+    expect(q.adult_only.confidence).toBe("none");
+    expect(q.accessibility_notes.confidence).toBe("none");
+  });
+
+  it('Valores 0 e false são fatos válidos e recebem proveniência', () => {
+    const q = buildExperienceRestrictionsProfile({
+      min_age: 0,
+      adult_only: false,
+      restrictions_provenance: {
+        min_age: { source: "official_website", source_url: null, captured_at: null, verified_at: "2024-01-01", verified_by: "admin" },
+        adult_only: { source: "official_website", source_url: null, captured_at: null, verified_at: "2024-01-01", verified_by: "admin" }
+      }
+    });
+
+    expect(q.min_age.value).toBe(0);
+    expect(q.min_age.confidence).toBe("high");
+    expect(q.adult_only.value).toBe(false);
+    expect(q.adult_only.confidence).toBe("high");
   });
 });

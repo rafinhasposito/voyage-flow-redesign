@@ -4,19 +4,45 @@ import {
   ExperienceRestrictionFact,
   RestrictionVerification,
   RestrictionValidationIssue,
-  ConfidenceLevel
+  ConfidenceLevel,
+  RestrictionFieldKey,
+  RestrictionProvenanceEntry,
+  RestrictionsProvenance
 } from "./types";
+
+function getFieldConfidence(
+  provenance: RestrictionProvenanceEntry | undefined
+): ConfidenceLevel {
+  if (!provenance || !provenance.source || provenance.source.trim() === "") {
+    return "low";
+  }
+  const hasVerifiedAt = Boolean(provenance.verified_at && provenance.verified_at.trim() !== "");
+  const hasVerifiedBy = Boolean(provenance.verified_by && provenance.verified_by.trim() !== "");
+
+  if (!hasVerifiedAt || !hasVerifiedBy) {
+    return "medium";
+  }
+
+  const isAiSuggestion = provenance.source === "ai_suggestion" || provenance.source === "Sugestão de IA";
+  const isImport = provenance.source === "import" || provenance.source === "Importação";
+
+  if (isAiSuggestion || isImport) {
+    return "medium";
+  }
+
+  return "high";
+}
 
 function createFact<T>(
   value: T | null,
-  globalConfidence: ConfidenceLevel,
+  provenance: RestrictionProvenanceEntry | undefined,
   evidences: string[] = []
 ): ExperienceRestrictionFact<T | null> {
-  const isAbsent = value === null || value === undefined;
+  const isAbsent = value === null || value === undefined || (typeof value === 'string' && value.trim() === '');
 
   return {
     value: isAbsent ? null : value,
-    confidence: isAbsent ? "none" : globalConfidence,
+    confidence: isAbsent ? "none" : getFieldConfidence(provenance),
     evidences: isAbsent ? ["Restrição não informada"] : evidences,
     source: "rule",
     manual_override: false,
@@ -28,52 +54,43 @@ export function buildExperienceRestrictionsProfile(
 ): ExperienceRestrictionsResult {
   const issues: RestrictionValidationIssue[] = [];
 
-  // 1. Calculate Global Confidence
-  let globalConfidence: ConfidenceLevel = "low";
+  const prov = input.restrictions_provenance || {};
 
-  const hasSource = Boolean(input.restriction_source && input.restriction_source.trim() !== "");
-  const hasVerifiedAt = Boolean(input.verified_at && input.verified_at.trim() !== "");
-  const hasVerifiedBy = Boolean(input.verified_by && input.verified_by.trim() !== "");
-  const isAiSuggestion = input.restriction_source === "ai_suggestion";
-  const isImport = input.restriction_source === "import";
+  // Check verification issues for all prov entries
+  for (const key in prov) {
+    const entry = prov[key as RestrictionFieldKey];
+    if (!entry) continue;
 
-  if (!hasSource) {
-    globalConfidence = "low";
-  } else if (hasSource && (!hasVerifiedAt || !hasVerifiedBy)) {
-    globalConfidence = "medium";
-  } else if (hasSource && hasVerifiedAt && hasVerifiedBy) {
-    globalConfidence = (isAiSuggestion || isImport) ? "medium" : "high";
-  } else {
-    globalConfidence = "medium";
-  }
+    const hasSource = Boolean(entry.source && entry.source.trim() !== "");
+    const hasVerifiedAt = Boolean(entry.verified_at && entry.verified_at.trim() !== "");
+    const hasVerifiedBy = Boolean(entry.verified_by && entry.verified_by.trim() !== "");
 
-  // Detect issues that don't depend on individual fields
-  if (hasVerifiedAt && !hasVerifiedBy) {
-    issues.push({
-      code: "MISSING_VERIFIER",
-      severity: "warning",
-      message: "Data de verificação preenchida sem o responsável (verified_by).",
-      affected_fields: ["verified_at", "verified_by"],
-    });
-  }
+    if (hasVerifiedAt && !hasVerifiedBy) {
+      issues.push({
+        code: "MISSING_VERIFIER",
+        severity: "warning",
+        message: `Data de verificação preenchida sem o responsável (verified_by) para ${key}.`,
+        affected_fields: ["verified_at", "verified_by"],
+      });
+    }
 
-  if (hasVerifiedBy && !hasVerifiedAt) {
-    issues.push({
-      code: "MISSING_VERIFICATION_DATE",
-      severity: "warning",
-      message: "Responsável pela verificação preenchido sem a data (verified_at).",
-      affected_fields: ["verified_at", "verified_by"],
-    });
-  }
+    if (hasVerifiedBy && !hasVerifiedAt) {
+      issues.push({
+        code: "MISSING_VERIFICATION_DATE",
+        severity: "warning",
+        message: `Responsável pela verificação preenchido sem a data (verified_at) para ${key}.`,
+        affected_fields: ["verified_at", "verified_by"],
+      });
+    }
 
-  if (globalConfidence === "high" && !hasSource) {
-    // This branch might not be hit naturally due to our logic above, but strictly following requirements:
-    issues.push({
-      code: "UNVERIFIABLE_HIGH_CONFIDENCE",
-      severity: "warning",
-      message: "Confiança alta requer uma fonte verificável.",
-      affected_fields: ["restriction_source"],
-    });
+    if (getFieldConfidence(entry) === "high" && !hasSource) {
+      issues.push({
+        code: "UNVERIFIABLE_HIGH_CONFIDENCE",
+        severity: "warning",
+        message: "Confiança alta requer uma fonte verificável.",
+        affected_fields: ["restriction_source"],
+      });
+    }
   }
 
   // 2. Map facts
@@ -135,19 +152,19 @@ export function buildExperienceRestrictionsProfile(
 
   // Create facts
   const result: ExperienceRestrictionsResult = {
-    min_age: createFact(minAge, globalConfidence, [`Idade mínima informada: ${minAge}`]),
-    adult_only: createFact(adultOnly, globalConfidence, [`Política apenas para adultos: ${adultOnly}`]),
-    family_with_children_allowed: createFact(familyAllowed, globalConfidence, [`Crianças permitidas: ${familyAllowed}`]),
-    minimum_group_size: createFact(minGroup, globalConfidence, [`Tamanho mínimo do grupo: ${minGroup}`]),
-    maximum_group_size: createFact(maxGroup, globalConfidence, [`Tamanho máximo do grupo: ${maxGroup}`]),
-    requires_companion: createFact(requiresCompanion, globalConfidence, [`Exige acompanhante: ${requiresCompanion}`]),
-    wheelchair_accessible: createFact(wheelchair, globalConfidence, [`Acessibilidade para cadeirantes: ${wheelchair}`]),
-    stairs_required: createFact(stairs, globalConfidence, [`Requer subir escadas: ${stairs}`]),
-    accessibility_notes: createFact(accessNotes, globalConfidence, [`Notas de acessibilidade fornecidas`]),
+    min_age: createFact(minAge, prov.min_age, [`Idade mínima informada: ${minAge}`]),
+    adult_only: createFact(adultOnly, prov.adult_only, [`Política apenas para adultos: ${adultOnly}`]),
+    family_with_children_allowed: createFact(familyAllowed, prov.family_with_children_allowed, [`Crianças permitidas: ${familyAllowed}`]),
+    minimum_group_size: createFact(minGroup, prov.minimum_group_size, [`Tamanho mínimo do grupo: ${minGroup}`]),
+    maximum_group_size: createFact(maxGroup, prov.maximum_group_size, [`Tamanho máximo do grupo: ${maxGroup}`]),
+    requires_companion: createFact(requiresCompanion, prov.requires_companion, [`Exige acompanhante: ${requiresCompanion}`]),
+    wheelchair_accessible: createFact(wheelchair, prov.wheelchair_accessible, [`Acessibilidade para cadeirantes: ${wheelchair}`]),
+    stairs_required: createFact(stairs, prov.stairs_required, [`Requer subir escadas: ${stairs}`]),
+    accessibility_notes: createFact(accessNotes, prov.accessibility_notes, [`Notas de acessibilidade fornecidas`]),
     verification: {
-      source: input.restriction_source ?? null,
-      verified_at: input.verified_at ?? null,
-      verified_by: input.verified_by ?? null,
+      source: null,
+      verified_at: null,
+      verified_by: null,
     },
     issues,
   };

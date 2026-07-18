@@ -141,6 +141,27 @@ export interface ExperienceQualityInput {
 
 export type RestrictionVerificationSource = "official_website" | "official_contact" | "venue_policy" | "human_verification" | "import" | "ai_suggestion";
 
+export type RestrictionFieldKey =
+  | "min_age"
+  | "adult_only"
+  | "family_with_children_allowed"
+  | "requires_companion"
+  | "minimum_group_size"
+  | "maximum_group_size"
+  | "wheelchair_accessible"
+  | "stairs_required"
+  | "accessibility_notes";
+
+export interface RestrictionProvenanceEntry {
+  source: RestrictionVerificationSource | null;
+  source_url: string | null;
+  captured_at: string | null;
+  verified_at: string | null;
+  verified_by: string | null;
+}
+
+export type RestrictionsProvenance = Partial<Record<RestrictionFieldKey, RestrictionProvenanceEntry>>;
+
 export interface ExperienceRestrictionsInput {
   min_age?: number | null;
   adult_only?: boolean | null;
@@ -152,9 +173,7 @@ export interface ExperienceRestrictionsInput {
   stairs_required?: boolean | null;
   accessibility_notes?: string | null;
 
-  restriction_source?: string | null;
-  verified_at?: string | null;
-  verified_by?: string | null;
+  restrictions_provenance?: RestrictionsProvenance | null;
 }
 
 export type ExperienceRestrictionFact<T> = ExperienceDimension<T>;
