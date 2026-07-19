@@ -177,3 +177,8 @@ O atual `ExperienceRepository` (que puxa do Supabase e faz cache SWR) evoluirá 
 - A Engine Logística (LogisticsEngine) avalia dias da semana, exceções e tempos de deslocamento (transit_options_origin).
 - **Ressalva de UX para Trânsito**: Quando o deslocamento não existe na base (nulo), emitimos `TRANSIT_TIME_UNKNOWN`. Nesses casos, o horário no Roteiro é uma **estimativa aproximada** e não uma confirmação de viabilidade.
 - **Ressalva de Edição Manual**: A EI-8 integra a logística no orquestrador `generateSmartItinerary`, porém a **preservação real da edição manual de roteiro pelo usuário** ainda não está completa. Testes atuais provaram a lógica apenas simulando um score alto via Mock. O refinamento absoluto da edição manual foi registrado como pendência para a próxima fase (EI-9).
+
+## 2026-07-19: Edição manual e recálculo parcial (EI-9)
+- Foi introduzido o conceito de `StopEditMetadata` no state do usuário, contendo flags como `locked`, `source` ("engine" ou "manual"), e `conflict`.
+- Em vez de reescrever o roteiro inteiro via `generateSmartItinerary` em alterações manuais, foi criado um módulo `recalculateItinerary` que recalcula APENAS os conflitos de logística e restrições.
+- Alterações manuais geram histórico local `itineraryHistory` no `TravelState` para viabilizar o botão "Desfazer".

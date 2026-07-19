@@ -127,4 +127,13 @@ Este documento acompanha as fases do projeto de forma macro, definindo o que já
 - [x] Ajuste automático de horários para a janela disponível (9:00 - 22:00) respeitando conflitos.
 - [x] **Ressalvas/Pendências**: Preservação e edição manual real do roteiro serão refinadas na EI-9 (atualmente os testes apenas simulam forçando scores altos). Quando o deslocamento é desconhecido (`TRANSIT_TIME_UNKNOWN`), o horário apresentado no roteiro é aproximado (estimado) e não representa um deslocamento real confirmado.
 
-### Fase EI-9: Refinamento de UX, Edição Manual e Roteiro Consumer [Próxima]
+### Fase EI-9: Refinamento de UX, Edição Manual e Roteiro Consumer [Concluída]
+- [x] Criação do estado `StopEditMetadata` para registrar intenções manuais do usuário (fonte manual ou engine, trancamento e conflitos).
+- [x] Lógica de recálculo parcial (`recalculateItinerary`) separada da criação inteligente.
+- [x] Capacidade de Mover e Fixar componentes pelo `Dashboard`.
+- [x] Recálculo logístico focalizado apenas nos nós de contato.
+- [x] Identificação de conflitos e persistência visual ao invés de exclusão silenciosa.
+- [x] Lógica de "Desfazer" utilizando array de `itineraryHistory`.
+
+### Fase EI-10: Polimento UX e Refinamentos de Interface do Consumer [Próxima]
+- Implementar transições fluidas no roteiro, drag and drop avançado de atrações, modal de substituição e layout refinado de viagem.

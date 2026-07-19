@@ -99,3 +99,7 @@ O motor foi expandido para calcular tempos (duração + deslocamento base de 30m
 ## Pendências de UX / Logística (EI-8 para EI-9)
 - **Edição Manual Real**: O orquestrador autogerado integra a logística, mas a feature de preservar de fato o drag & drop ou exclusões manuais feitas pelo usuário está catalogada para a fase EI-9, com refinamento de UI.
 - **Trânsito Desconhecido**: Ausência de trânsito emite alerta e não bloqueia. A UI deve refletir, no Consumer, que esse trajeto possui horário aproximado e não confirmado (aviso visual de `TRANSIT_TIME_UNKNOWN`).
+
+## Preservação de Escopo Manual (EI-9)
+- Ao interagir com o Dashboard, a intenção do usuário sobre o roteiro gerado possui prioridade estrutural (`locked: true`).
+- Em caso de infrações lógicas (ex: fechado no dia, restrição de perfil), a atração **não é apagada**. Ela exibe a tag `conflict` e sinaliza os erros visualmente, permitindo ao viajante decidir.

@@ -130,12 +130,24 @@ export type RestrictionEvaluation = {
   information: RestrictionReason[];
 };
 
+export type StopEditMetadata = {
+  source: "engine" | "manual";
+  locked: boolean;
+  manuallyMoved?: boolean;
+  manuallyScheduled?: boolean;
+  conflict?: {
+    logistics?: { codes: string[]; messages: string[] };
+    restrictions?: { codes: string[]; messages: string[] };
+  };
+};
+
 export interface RecommendedExperience {
   experience: TravelExperience;
   finalScore: number;
   confidence: number;
   explanation: MatchExplanation;
   restrictions?: RestrictionEvaluation;
+  manualMetadata?: StopEditMetadata;
 }
 
 export type TravelerPersona = 
@@ -274,6 +286,7 @@ export interface TravelState {
   profile: UserProfile;
   trip: TripContext;
   itinerary: ItineraryDay[];
+  itineraryHistory: ItineraryDay[][]; // Max 1 previous state for Undo
   checklist: { id: string; text: string; done: boolean }[];
   customExpenses: { id: string; category: string; amountUSD: number; description: string }[];
 }

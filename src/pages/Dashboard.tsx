@@ -12,6 +12,8 @@ import { showSuccess } from "@/utils/toast";
 import { MatchScoreBadge } from "@/components/MatchScoreBadge";
 import { ConciergeExplanation } from "@/components/ConciergeExplanation";
 import { ExperienceWarning } from "@/components/ExperienceWarning";
+import { recalculateAffectedSegment } from "@/utils/travelItineraryPartial";
+import { Lock, Unlock, ArrowUp, ArrowDown, Undo, CalendarPlus, Replace, Clock as ClockIcon } from "lucide-react";
 
 export default function Dashboard() {
   const navigate = useNavigate();
@@ -32,7 +34,17 @@ export default function Dashboard() {
     saveTravelState(newState);
   };
 
+  const saveStateToHistory = (currentState: typeof state) => {
+    return [currentState.itinerary];
+  };
+
   const handleRemoveAttraction = (dayNumber: number, attractionId: string) => {
+    const history = saveStateToHistory(state);
+    const dayIndex = state.itinerary.findIndex(d => d.dayNumber === dayNumber);
+    if (dayIndex === -1) return;
+
+    const stopIndex = state.itinerary[dayIndex].recommendations?.findIndex(r => r.experience.id === attractionId) ?? -1;
+
     const updatedItinerary = state.itinerary.map(day => {
       if (day.dayNumber === dayNumber) {
         return {
@@ -43,10 +55,164 @@ export default function Dashboard() {
       }
       return day;
     });
-    const newState = { ...state, itinerary: updatedItinerary };
+    
+    const recalculated = recalculateAffectedSegment(updatedItinerary, state.profile, dayIndex, Math.max(0, stopIndex - 1));
+    const newState = { ...state, itinerary: recalculated, itineraryHistory: history };
     setState(newState);
     saveTravelState(newState);
     showSuccess("Atração removida do roteiro!");
+  };
+
+  const handleToggleLock = (dayNumber: number, attractionId: string) => {
+    const history = saveStateToHistory(state);
+    const dayIndex = state.itinerary.findIndex(d => d.dayNumber === dayNumber);
+    
+    const updatedItinerary = state.itinerary.map(day => {
+      if (day.dayNumber === dayNumber) {
+        return {
+          ...day,
+          recommendations: day.recommendations?.map(r => {
+             if (r.experience.id === attractionId) {
+                return {
+                   ...r,
+                   manualMetadata: {
+                      ...(r.manualMetadata || {}),
+                      source: "manual",
+                      locked: !(r.manualMetadata?.locked)
+                   }
+                }
+             }
+             return r;
+          })
+        };
+      }
+      return day;
+    });
+    const recalculated = recalculateAffectedSegment(updatedItinerary, state.profile, dayIndex, 0);
+    const newState = { ...state, itinerary: recalculated, itineraryHistory: history };
+    setState(newState);
+    saveTravelState(newState);
+    showSuccess("Fixação alterada!");
+  };
+
+  const handleMove = (dayNumber: number, attractionId: string, direction: -1 | 1) => {
+    const history = saveStateToHistory(state);
+    const updatedItinerary = [...state.itinerary];
+    const dayIndex = updatedItinerary.findIndex(d => d.dayNumber === dayNumber);
+    if (dayIndex === -1) return;
+    
+    const recs = [...(updatedItinerary[dayIndex].recommendations || [])];
+    const idx = recs.findIndex(r => r.experience.id === attractionId);
+    if (idx === -1) return;
+    
+    const newIdx = idx + direction;
+    if (newIdx < 0 || newIdx >= recs.length) return;
+    
+    const temp = recs[idx];
+    recs[idx] = recs[newIdx];
+    recs[newIdx] = temp;
+    
+    recs[idx].manualMetadata = { ...recs[idx].manualMetadata, source: "manual", manuallyMoved: true, locked: true };
+    recs[newIdx].manualMetadata = { ...recs[newIdx].manualMetadata, source: "manual", manuallyMoved: true, locked: true };
+    
+    updatedItinerary[dayIndex] = { ...updatedItinerary[dayIndex], recommendations: recs };
+    
+    const recalculated = recalculateAffectedSegment(updatedItinerary, state.profile, dayIndex, Math.min(idx, newIdx));
+    const newState = { ...state, itinerary: recalculated, itineraryHistory: history };
+    setState(newState);
+    saveTravelState(newState);
+  };
+  
+  const handleMoveToDay = (dayNumber: number, attractionId: string, targetDayNumber: number) => {
+    if (dayNumber === targetDayNumber) return;
+    const history = saveStateToHistory(state);
+    const updatedItinerary = [...state.itinerary];
+    const sourceDayIndex = updatedItinerary.findIndex(d => d.dayNumber === dayNumber);
+    const targetDayIndex = updatedItinerary.findIndex(d => d.dayNumber === targetDayNumber);
+    if (sourceDayIndex === -1 || targetDayIndex === -1) return;
+
+    const sourceRecs = [...(updatedItinerary[sourceDayIndex].recommendations || [])];
+    const idx = sourceRecs.findIndex(r => r.experience.id === attractionId);
+    if (idx === -1) return;
+
+    const item = { ...sourceRecs[idx] };
+    item.manualMetadata = { ...item.manualMetadata, source: "manual", manuallyMoved: true, locked: true };
+    sourceRecs.splice(idx, 1);
+    updatedItinerary[sourceDayIndex] = { ...updatedItinerary[sourceDayIndex], recommendations: sourceRecs };
+
+    const targetRecs = [...(updatedItinerary[targetDayIndex].recommendations || [])];
+    targetRecs.push(item);
+    updatedItinerary[targetDayIndex] = { ...updatedItinerary[targetDayIndex], recommendations: targetRecs };
+
+    let recalculated = recalculateAffectedSegment(updatedItinerary, state.profile, sourceDayIndex, Math.max(0, idx - 1));
+    recalculated = recalculateAffectedSegment(recalculated, state.profile, targetDayIndex, targetRecs.length - 1);
+
+    const newState = { ...state, itinerary: recalculated, itineraryHistory: history };
+    setState(newState);
+    saveTravelState(newState);
+    showSuccess(`Movido para o Dia ${targetDayNumber}`);
+  };
+
+  const handleChangeTime = (dayNumber: number, attractionId: string, newTime: string) => {
+    const history = saveStateToHistory(state);
+    const updatedItinerary = [...state.itinerary];
+    const dayIndex = updatedItinerary.findIndex(d => d.dayNumber === dayNumber);
+    if (dayIndex === -1) return;
+    
+    const recs = [...(updatedItinerary[dayIndex].recommendations || [])];
+    const idx = recs.findIndex(r => r.experience.id === attractionId);
+    if (idx === -1) return;
+    
+    recs[idx].experience = { ...recs[idx].experience, plannedStartTime: newTime };
+    recs[idx].manualMetadata = { ...recs[idx].manualMetadata, source: "manual", manuallyScheduled: true, locked: true };
+    
+    updatedItinerary[dayIndex] = { ...updatedItinerary[dayIndex], recommendations: recs };
+    
+    const recalculated = recalculateAffectedSegment(updatedItinerary, state.profile, dayIndex, idx);
+    const newState = { ...state, itinerary: recalculated, itineraryHistory: history };
+    setState(newState);
+    saveTravelState(newState);
+    showSuccess("Horário atualizado");
+  };
+
+  const handleSwap = async (dayNumber: number, attractionId: string) => {
+    const history = saveStateToHistory(state);
+    const updatedItinerary = [...state.itinerary];
+    const dayIndex = updatedItinerary.findIndex(d => d.dayNumber === dayNumber);
+    if (dayIndex === -1) return;
+    
+    const recs = [...(updatedItinerary[dayIndex].recommendations || [])];
+    const idx = recs.findIndex(r => r.experience.id === attractionId);
+    if (idx === -1) return;
+
+    // Use findSubstituteExperience
+    const { findSubstituteExperience } = await import("@/utils/travelItineraryPartial");
+    const substitute = findSubstituteExperience(updatedItinerary, state.profile, dayNumber, attractionId);
+       
+    if (!substitute) {
+      showSuccess("Nenhuma atração extra disponível ou compatível para substituir.");
+      return;
+    }
+
+    recs[idx] = substitute;
+
+    updatedItinerary[dayIndex] = { ...updatedItinerary[dayIndex], recommendations: recs };
+    const recalculated = recalculateAffectedSegment(updatedItinerary, state.profile, dayIndex, idx);
+       
+    const newState = { ...state, itinerary: recalculated, itineraryHistory: history };
+    setState(newState);
+    saveTravelState(newState);
+    showSuccess("Atração substituída!");
+  };
+  
+  const handleUndo = () => {
+    if (!state.itineraryHistory || state.itineraryHistory.length === 0) return;
+    const history = [...state.itineraryHistory];
+    const previous = history.pop()!;
+    const newState = { ...state, itinerary: previous, itineraryHistory: history };
+    setState(newState);
+    saveTravelState(newState);
+    showSuccess("Alteração desfeita!");
   };
 
   const handleResetItinerary = () => {
@@ -100,13 +266,23 @@ export default function Dashboard() {
                 Seu dia a dia em <span className="italic">Nova York</span>
               </h1>
             </div>
-            <button 
-              onClick={handleResetItinerary}
-              className="inline-flex items-center gap-1.5 text-xs font-medium text-slate-400 hover:text-red-500 transition-colors"
-            >
-              <RefreshCw className="h-3.5 w-3.5" />
-              Reiniciar Roteiro
-            </button>
+            <div className="flex gap-2">
+              <button 
+                onClick={handleUndo}
+                disabled={!state.itineraryHistory || state.itineraryHistory.length === 0}
+                className="inline-flex items-center gap-1.5 text-xs font-medium text-slate-400 hover:text-slate-600 disabled:opacity-50 transition-colors"
+              >
+                <Undo className="h-3.5 w-3.5" />
+                Desfazer
+              </button>
+              <button 
+                onClick={handleResetItinerary}
+                className="inline-flex items-center gap-1.5 text-xs font-medium text-slate-400 hover:text-red-500 transition-colors"
+              >
+                <RefreshCw className="h-3.5 w-3.5" />
+                Reiniciar
+              </button>
+            </div>
           </div>
 
           {/* Day Selector Tabs */}
@@ -173,20 +349,72 @@ export default function Dashboard() {
                         <div className="space-y-2">
                           <div className="flex items-start justify-between gap-2">
                             <div>
-                              <span className="text-[10px] font-semibold uppercase tracking-wider text-[#C5A85C]">
+                              <span className="text-[10px] font-semibold uppercase tracking-wider text-[#C5A85C] flex items-center gap-1">
                                 {attr.categoryLabel}
+                                {rec?.manualMetadata?.locked && (
+                                  <span className="bg-slate-100 text-slate-500 px-1 py-0.5 rounded text-[9px] flex items-center gap-0.5">
+                                    <Lock className="w-2 h-2" /> Fixado
+                                  </span>
+                                )}
+                                {rec?.manualMetadata?.source === "manual" && !rec?.manualMetadata?.locked && (
+                                  <span className="bg-slate-100 text-slate-500 px-1 py-0.5 rounded text-[9px]">
+                                    Manual
+                                  </span>
+                                )}
                               </span>
                               <h4 className="font-serif text-lg font-medium text-[#0D0E10] mt-0.5">
                                 {attr.name}
                               </h4>
                             </div>
-                            <button
-                              onClick={() => handleRemoveAttraction(activeDay, attr.id)}
-                              className="text-slate-300 hover:text-red-500 p-1 transition-colors"
-                              title="Remover do roteiro"
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </button>
+                            <div className="flex flex-wrap gap-1 mt-2">
+                              <button
+                                onClick={() => handleMove(activeDay, attr.id, -1)}
+                                className="text-slate-300 hover:text-[#C5A85C] p-1 transition-colors"
+                                title="Mover para cima"
+                              >
+                                <ArrowUp className="h-4 w-4" />
+                              </button>
+                              <button
+                                onClick={() => handleMove(activeDay, attr.id, 1)}
+                                className="text-slate-300 hover:text-[#C5A85C] p-1 transition-colors"
+                                title="Mover para baixo"
+                              >
+                                <ArrowDown className="h-4 w-4" />
+                              </button>
+                              <button
+                                onClick={() => handleToggleLock(activeDay, attr.id)}
+                                className={`p-1 transition-colors ${rec?.manualMetadata?.locked ? 'text-[#C5A85C]' : 'text-slate-300 hover:text-[#C5A85C]'}`}
+                                title="Fixar / Soltar"
+                              >
+                                {rec?.manualMetadata?.locked ? <Lock className="h-4 w-4" /> : <Unlock className="h-4 w-4" />}
+                              </button>
+                              <button
+                                onClick={() => handleSwap(activeDay, attr.id)}
+                                className="text-slate-300 hover:text-[#C5A85C] p-1 transition-colors"
+                                title="Substituir"
+                              >
+                                <Replace className="h-4 w-4" />
+                              </button>
+                              <button
+                                onClick={() => handleRemoveAttraction(activeDay, attr.id)}
+                                className="text-slate-300 hover:text-red-500 p-1 transition-colors"
+                                title="Remover do roteiro"
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </button>
+                              
+                              <select 
+                                className="text-[10px] bg-slate-50 border border-slate-200 rounded px-1 text-slate-500 h-6 outline-none"
+                                value={activeDay}
+                                onChange={(e) => handleMoveToDay(activeDay, attr.id, Number(e.target.value))}
+                                title="Mover para outro dia"
+                              >
+                                {state.itinerary.map(d => (
+                                  <option key={d.dayNumber} value={d.dayNumber}>Dia {d.dayNumber}</option>
+                                ))}
+                              </select>
+
+                            </div>
                           </div>
 
                           <p className="text-xs text-slate-500 leading-relaxed">{attr.description}</p>
@@ -200,11 +428,17 @@ export default function Dashboard() {
                               <ExperienceWarning 
                                 warnings={[
                                   ...rec.explanation.warnings,
+                                  ...(rec.manualMetadata?.conflict?.restrictions?.messages || []),
+                                  ...(rec.manualMetadata?.conflict?.logistics?.messages || []),
                                   ...(attr.logisticsEvaluation?.warnings?.map(w => w.message) || []),
                                   ...(attr.logisticsEvaluation?.blockers?.map(b => b.message) || []),
                                   ...(attr.logisticsEvaluation?.suggestedAdjustment ? [`Sugestão: ${attr.logisticsEvaluation.suggestedAdjustment.reason}`] : [])
                                 ]} 
-                                isBlocker={rec.restrictions?.allowed === false || attr.logisticsEvaluation?.feasible === false} 
+                                isBlocker={
+                                  rec.restrictions?.allowed === false || 
+                                  attr.logisticsEvaluation?.feasible === false || 
+                                  !!rec.manualMetadata?.conflict
+                                } 
                               />
                             </>
                           )}
@@ -217,7 +451,15 @@ export default function Dashboard() {
                             <span className="flex items-center gap-1">
                               <Clock className="h-3.5 w-3.5 text-slate-300" />
                               {attr.plannedStartTime && attr.plannedEndTime 
-                                ? <span className="font-medium text-slate-700">{attr.plannedStartTime} - {attr.plannedEndTime}</span>
+                                ? <span className="font-medium text-slate-700 flex items-center gap-1">
+                                    <input 
+                                      type="time" 
+                                      className="bg-transparent border-b border-slate-200 outline-none text-slate-700 w-16 text-center" 
+                                      value={attr.plannedStartTime} 
+                                      onChange={(e) => handleChangeTime(activeDay, attr.id, e.target.value)}
+                                    />
+                                    - {attr.plannedEndTime}
+                                  </span>
                                 : <span>{attr.durationHours}h · {attr.bestTime}</span>
                               }
                             </span>
