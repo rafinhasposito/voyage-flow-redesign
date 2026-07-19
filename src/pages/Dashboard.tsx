@@ -19,6 +19,12 @@ export default function Dashboard() {
   const navigate = useNavigate();
   const [state, setState] = useState(getTravelState());
   const [activeDay, setActiveDay] = useState(1);
+  const [draggedItem, setDraggedItem] = useState<{ day: number; id: string } | null>(null);
+  const [replacingItem, setReplacingItem] = useState<{ day: number; id: string, triggerRef?: React.RefObject<HTMLButtonElement> } | null>(null);
+  const [replacementCandidates, setReplacementCandidates] = useState<RecommendedExperience[]>([]);
+  
+  // Ref to hold the trigger button for focus restoration
+  const replaceTriggerRef = React.useRef<HTMLButtonElement | null>(null);
 
   useEffect(() => {
     // Garante que o estado inicial esteja carregado
@@ -175,7 +181,38 @@ export default function Dashboard() {
     showSuccess("Horário atualizado");
   };
 
-  const handleSwap = async (dayNumber: number, attractionId: string) => {
+  const openReplacementModal = async (dayNumber: number, attractionId: string, e: React.MouseEvent<HTMLButtonElement>) => {
+    e.preventDefault();
+    replaceTriggerRef.current = e.currentTarget;
+    
+    const { findAllSubstituteExperiences } = await import("@/utils/travelItineraryPartial");
+    const candidates = findAllSubstituteExperiences(state.itinerary, state.profile, dayNumber, attractionId);
+    
+    if (candidates.length === 0) {
+      showSuccess("Nenhuma atração extra disponível ou compatível para substituir.");
+      // Se não há candidatos, devolvemos o foco imediatamente
+      if (replaceTriggerRef.current) {
+         replaceTriggerRef.current.focus();
+      }
+      return;
+    }
+    setReplacementCandidates(candidates);
+    setReplacingItem({ day: dayNumber, id: attractionId });
+  };
+
+  const closeReplacementModal = () => {
+    setReplacingItem(null);
+    setReplacementCandidates([]);
+    // Devolve o foco ao botão que abriu
+    if (replaceTriggerRef.current) {
+      replaceTriggerRef.current.focus();
+    }
+  };
+
+  const confirmSwap = (candidate: RecommendedExperience) => {
+    if (!replacingItem) return;
+    const { day: dayNumber, id: attractionId } = replacingItem;
+    
     const history = saveStateToHistory(state);
     const updatedItinerary = [...state.itinerary];
     const dayIndex = updatedItinerary.findIndex(d => d.dayNumber === dayNumber);
@@ -185,16 +222,7 @@ export default function Dashboard() {
     const idx = recs.findIndex(r => r.experience.id === attractionId);
     if (idx === -1) return;
 
-    // Use findSubstituteExperience
-    const { findSubstituteExperience } = await import("@/utils/travelItineraryPartial");
-    const substitute = findSubstituteExperience(updatedItinerary, state.profile, dayNumber, attractionId);
-       
-    if (!substitute) {
-      showSuccess("Nenhuma atração extra disponível ou compatível para substituir.");
-      return;
-    }
-
-    recs[idx] = substitute;
+    recs[idx] = candidate;
 
     updatedItinerary[dayIndex] = { ...updatedItinerary[dayIndex], recommendations: recs };
     const recalculated = recalculateAffectedSegment(updatedItinerary, state.profile, dayIndex, idx);
@@ -203,7 +231,67 @@ export default function Dashboard() {
     setState(newState);
     saveTravelState(newState);
     showSuccess("Atração substituída!");
+    closeReplacementModal();
   };
+
+  const handleDragStart = (e: React.DragEvent, dayNumber: number, attractionId: string) => {
+    e.dataTransfer.effectAllowed = "move";
+    e.dataTransfer.setData("text/plain", `${dayNumber}|${attractionId}`);
+    setDraggedItem({ day: dayNumber, id: attractionId });
+  };
+
+  const handleDrop = (e: React.DragEvent, targetDayNumber: number, targetAttractionId?: string) => {
+    e.preventDefault();
+    if (!draggedItem) return;
+
+    const { day: sourceDay, id: sourceId } = draggedItem;
+    if (sourceDay === targetDayNumber && sourceId === targetAttractionId) {
+      setDraggedItem(null);
+      return;
+    }
+
+    const sourceDayIndex = state.itinerary.findIndex(d => d.dayNumber === sourceDay);
+    if (sourceDayIndex === -1) return;
+    const sourceRecs = state.itinerary[sourceDayIndex].recommendations || [];
+    const sourceIdx = sourceRecs.findIndex(r => r.experience.id === sourceId);
+    if (sourceIdx !== -1 && sourceRecs[sourceIdx].manualMetadata?.locked) {
+      showSuccess("Item fixado não pode ser movido! Desafixe primeiro.");
+      setDraggedItem(null);
+      return;
+    }
+
+    const history = saveStateToHistory(state);
+    
+    // Import moveAttractionToPosition dynamically or assume it's in travelItineraryPartial
+    import("@/utils/travelItineraryPartial").then(({ moveAttractionToPosition }) => {
+      const recalculated = moveAttractionToPosition(state.itinerary, state.profile, sourceDay, sourceId, targetDayNumber, targetAttractionId);
+      const newState = { ...state, itinerary: recalculated, itineraryHistory: history };
+      setState(newState);
+      saveTravelState(newState);
+      setDraggedItem(null);
+      showSuccess("Atração movida com sucesso.");
+    });
+  };
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && replacingItem) {
+        closeReplacementModal();
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [replacingItem]);
+
+  // Foca no modal quando abrir
+  useEffect(() => {
+    if (replacingItem) {
+      const modalTitle = document.getElementById("modal-title");
+      if (modalTitle) {
+        modalTitle.focus();
+      }
+    }
+  }, [replacingItem]);
   
   const handleUndo = () => {
     if (!state.itineraryHistory || state.itineraryHistory.length === 0) return;
@@ -326,13 +414,27 @@ export default function Dashboard() {
             </div>
 
             {currentDayData && currentDayData.attractions.length > 0 ? (
-              <div className="relative border-l-2 border-[#EAE6DF] ml-4 pl-6 space-y-8">
+              <div 
+                className="relative border-l-2 border-[#EAE6DF] ml-4 pl-6 space-y-8 min-h-[100px]"
+                onDragOver={(e) => e.preventDefault()}
+                onDrop={(e) => handleDrop(e, activeDay)}
+              >
                 {currentDayData.attractions.map((attr, idx) => {
                   const rec = currentDayData.recommendations?.find(r => r.experience.id === attr.id);
+                  const isDragged = draggedItem?.id === attr.id;
+                  const isApproximate = attr.logisticsEvaluation?.warnings?.some(w => w.code === 'TRANSIT_TIME_UNKNOWN');
+                  
                   return (
-                    <div key={attr.id} className="relative group">
+                    <div 
+                      key={attr.id} 
+                      className={`relative group p-4 rounded-xl transition-all ${isDragged ? 'opacity-40 border-dashed border-2 border-slate-300' : 'bg-white hover:shadow-md border border-transparent hover:border-[#E2F18A]'}`}
+                      draggable={!rec?.manualMetadata?.locked}
+                      onDragStart={(e) => handleDragStart(e, activeDay, attr.id)}
+                      onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = "move"; }}
+                      onDrop={(e) => { e.stopPropagation(); handleDrop(e, activeDay, attr.id); }}
+                    >
                       {/* Timeline Dot */}
-                      <span className="absolute -left-[31px] top-1.5 grid h-4 w-4 place-items-center rounded-full bg-white border-2 border-[#C5A85C] group-hover:bg-[#C5A85C] transition-colors" />
+                      <span className="absolute -left-[43px] top-6 grid h-4 w-4 place-items-center rounded-full bg-white border-2 border-[#E2F18A] group-hover:bg-[#E2F18A] transition-colors" />
 
                       <div className="grid gap-4 md:grid-cols-[120px_1fr] items-start">
                         {/* Attraction Image */}
@@ -349,16 +451,24 @@ export default function Dashboard() {
                         <div className="space-y-2">
                           <div className="flex items-start justify-between gap-2">
                             <div>
-                              <span className="text-[10px] font-semibold uppercase tracking-wider text-[#C5A85C] flex items-center gap-1">
+                              <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 flex items-center gap-1">
                                 {attr.categoryLabel}
-                                {rec?.manualMetadata?.locked && (
-                                  <span className="bg-slate-100 text-slate-500 px-1 py-0.5 rounded text-[9px] flex items-center gap-0.5">
-                                    <Lock className="w-2 h-2" /> Fixado
+                                {rec?.manualMetadata?.locked ? (
+                                  <span className="bg-[#FAF8F5] text-slate-500 border border-[#EAE6DF] px-1.5 py-0.5 rounded text-[9px] flex items-center gap-0.5">
+                                    <Lock className="w-2.5 h-2.5" /> Fixado
+                                  </span>
+                                ) : rec?.manualMetadata?.source === "manual" ? (
+                                  <span className="bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded text-[9px]">
+                                    Manual
+                                  </span>
+                                ) : (
+                                  <span className="bg-[#E2F18A]/30 text-[#6B7A23] px-1.5 py-0.5 rounded text-[9px]">
+                                    IA
                                   </span>
                                 )}
-                                {rec?.manualMetadata?.source === "manual" && !rec?.manualMetadata?.locked && (
-                                  <span className="bg-slate-100 text-slate-500 px-1 py-0.5 rounded text-[9px]">
-                                    Manual
+                                {isApproximate && (
+                                  <span className="bg-orange-50 text-orange-600 border border-orange-100 px-1.5 py-0.5 rounded text-[9px]">
+                                    Horário Aproximado
                                   </span>
                                 )}
                               </span>
@@ -389,15 +499,15 @@ export default function Dashboard() {
                                 {rec?.manualMetadata?.locked ? <Lock className="h-4 w-4" /> : <Unlock className="h-4 w-4" />}
                               </button>
                               <button
-                                onClick={() => handleSwap(activeDay, attr.id)}
-                                className="text-slate-300 hover:text-[#C5A85C] p-1 transition-colors"
+                                onClick={(e) => openReplacementModal(activeDay, attr.id, e)}
+                                className="text-slate-400 hover:text-slate-700 p-1.5 rounded bg-slate-50 transition-colors"
                                 title="Substituir"
                               >
                                 <Replace className="h-4 w-4" />
                               </button>
                               <button
                                 onClick={() => handleRemoveAttraction(activeDay, attr.id)}
-                                className="text-slate-300 hover:text-red-500 p-1 transition-colors"
+                                className="text-slate-400 hover:text-red-500 p-1.5 rounded bg-slate-50 transition-colors"
                                 title="Remover do roteiro"
                               >
                                 <Trash2 className="h-4 w-4" />
@@ -564,6 +674,78 @@ export default function Dashboard() {
         </div>
 
       </main>
+      {/* Replacement Modal */}
+      {replacingItem && (
+        <div 
+          className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 backdrop-blur-sm p-4"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="modal-title"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) closeReplacementModal();
+          }}
+        >
+          <div className="bg-white rounded-3xl w-full max-w-xl max-h-[85vh] flex flex-col overflow-hidden shadow-2xl">
+            <div className="p-6 border-b border-[#EAE6DF] flex justify-between items-center bg-[#FAF8F5]">
+              <div>
+                <h3 id="modal-title" tabIndex={-1} className="font-serif text-xl font-medium text-[#0D0E10] focus:outline-none">Substituir Atração</h3>
+                <p className="text-xs text-slate-500 mt-1">Alternativas compatíveis com horário e restrições</p>
+              </div>
+              <button 
+                onClick={closeReplacementModal}
+                className="text-slate-400 hover:text-slate-700 p-2 rounded-full focus:outline-none focus:ring-2 focus:ring-[#7CFE9D]"
+                aria-label="Cancelar substituição"
+              >
+                ✕
+              </button>
+            </div>
+            
+            <div className="flex-1 overflow-y-auto p-6 space-y-4">
+              {replacementCandidates.length === 0 ? (
+                <div className="text-center text-slate-500 py-10">
+                  <p>Nenhuma alternativa disponível para este dia/horário.</p>
+                </div>
+              ) : (
+                replacementCandidates.map((cand, i) => (
+                  <div key={cand.experience.id} className="border border-[#EAE6DF] rounded-xl p-4 flex gap-4 hover:border-[#E2F18A] transition-colors bg-white">
+                    <div className="h-20 w-20 shrink-0 rounded-lg overflow-hidden bg-slate-100">
+                      <img src={cand.experience.image} className="w-full h-full object-cover" alt={cand.experience.name} />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex justify-between items-start gap-2">
+                        <h4 className="font-medium text-[#0D0E10] truncate">{cand.experience.name}</h4>
+                        <MatchScoreBadge score={cand.finalScore} />
+                      </div>
+                      <p className="text-xs text-slate-500 line-clamp-1 mt-1">{cand.experience.description}</p>
+                      <div className="flex items-center gap-3 mt-3 text-xs text-slate-400">
+                        <span className="flex items-center gap-1"><Clock className="w-3.5 h-3.5" /> {cand.experience.durationHours}h</span>
+                        <span className="flex items-center gap-1"><DollarSign className="w-3.5 h-3.5" /> {cand.experience.costLevel}</span>
+                      </div>
+                    </div>
+                    <div className="flex items-center">
+                      <button 
+                        onClick={() => confirmSwap(cand)}
+                        className="bg-[#0D0E10] text-white px-4 py-2 rounded-full text-xs font-medium hover:bg-slate-800 focus:ring-2 focus:ring-[#7CFE9D] transition-colors whitespace-nowrap"
+                      >
+                        Escolher
+                      </button>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+            
+            <div className="p-4 border-t border-[#EAE6DF] bg-slate-50 text-right">
+              <button 
+                onClick={closeReplacementModal}
+                className="bg-white border border-slate-200 text-slate-600 px-4 py-2 rounded-full text-xs font-medium hover:bg-slate-100 focus:ring-2 focus:ring-slate-400 transition-colors"
+              >
+                Cancelar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

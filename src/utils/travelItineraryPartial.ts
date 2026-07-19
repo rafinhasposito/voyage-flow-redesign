@@ -1,21 +1,21 @@
 import { ItineraryDay, UserProfile, StopEditMetadata, RecommendedExperience, ExperienceMatchingEngine, RecommendationContext, getStoredAttractions, DEFAULT_ENGINE_WEIGHTS, migrateTrip, TravelExperience } from "./travelState";
 import { LogisticsEngine } from "../lib/intelligence/logistics";
 
-export function findSubstituteExperience(
+export function findAllSubstituteExperiences(
   itinerary: ItineraryDay[],
   profile: UserProfile,
   dayNumber: number,
   attractionId: string
-): RecommendedExperience | null {
+): RecommendedExperience[] {
   const allExperiences = getStoredAttractions();
   const currentIds = itinerary.flatMap(d => d.recommendations?.map(r => r.experience.id) || []);
   
   const dayIndex = itinerary.findIndex(d => d.dayNumber === dayNumber);
-  if (dayIndex === -1) return null;
+  if (dayIndex === -1) return [];
   const day = itinerary[dayIndex];
   const recs = day.recommendations || [];
   const idx = recs.findIndex(r => r.experience.id === attractionId);
-  if (idx === -1) return null;
+  if (idx === -1) return [];
 
   // 1. Build context
   const context: RecommendationContext = {
@@ -48,6 +48,8 @@ export function findSubstituteExperience(
     previousExp = prevRec.experience;
     previousEndTime = prevRec.experience.plannedEndTime || null;
   }
+
+  const validCandidates: RecommendedExperience[] = [];
 
   for (const candidate of validRanked) {
     // Already in itinerary?
@@ -91,15 +93,25 @@ export function findSubstituteExperience(
 
     if (evalRes.feasible && evalRes.blockers.length === 0) {
       // Valid candidate!
-      return {
+      validCandidates.push({
         ...candidate,
         explanation: { ...candidate.explanation, humanJustification: "Substituição manual com filtro avançado." },
         manualMetadata: { source: "manual", locked: true }
-      };
+      });
     }
   }
 
-  return null;
+  return validCandidates;
+}
+
+export function findSubstituteExperience(
+  itinerary: ItineraryDay[],
+  profile: UserProfile,
+  dayNumber: number,
+  attractionId: string
+): RecommendedExperience | null {
+  const candidates = findAllSubstituteExperiences(itinerary, profile, dayNumber, attractionId);
+  return candidates.length > 0 ? candidates[0] : null;
 }
 
 export function recalculateAffectedSegment(
@@ -230,4 +242,79 @@ export function recalculateAffectedSegment(
   newItinerary[affectedDayIndex] = day;
 
   return newItinerary;
+}
+
+export function moveAttractionToPosition(
+  itinerary: ItineraryDay[],
+  profile: UserProfile,
+  sourceDayNumber: number,
+  sourceAttractionId: string,
+  targetDayNumber: number,
+  targetAttractionId?: string
+): ItineraryDay[] {
+  const sourceDayIndex = itinerary.findIndex(d => d.dayNumber === sourceDayNumber);
+  const targetDayIndex = itinerary.findIndex(d => d.dayNumber === targetDayNumber);
+  if (sourceDayIndex === -1 || targetDayIndex === -1) return itinerary;
+
+  const updatedItinerary = [...itinerary];
+
+  const sourceRecs = [...(updatedItinerary[sourceDayIndex].recommendations || [])];
+  const sourceIdx = sourceRecs.findIndex(r => r.experience.id === sourceAttractionId);
+  if (sourceIdx === -1) return itinerary;
+  
+  // Prevent dragging locked items
+  if (sourceRecs[sourceIdx].manualMetadata?.locked) {
+    return itinerary;
+  }
+
+  const itemToMove = { ...sourceRecs[sourceIdx] };
+  itemToMove.manualMetadata = { ...itemToMove.manualMetadata, source: "manual", manuallyMoved: true, locked: true };
+  
+  sourceRecs.splice(sourceIdx, 1);
+  updatedItinerary[sourceDayIndex] = { ...updatedItinerary[sourceDayIndex], recommendations: sourceRecs };
+
+  const targetRecs = [...(updatedItinerary[targetDayIndex].recommendations || [])];
+  let targetIdx = targetRecs.length;
+  if (targetAttractionId) {
+    targetIdx = targetRecs.findIndex(r => r.experience.id === targetAttractionId);
+    if (targetIdx === -1) targetIdx = targetRecs.length;
+  }
+  
+  targetRecs.splice(targetIdx, 0, itemToMove);
+  updatedItinerary[targetDayIndex] = { ...updatedItinerary[targetDayIndex], recommendations: targetRecs };
+
+  let recalculated = recalculateAffectedSegment(updatedItinerary, profile, sourceDayIndex, Math.max(0, sourceIdx - 1));
+  if (sourceDayIndex !== targetDayIndex) {
+    recalculated = recalculateAffectedSegment(recalculated, profile, targetDayIndex, Math.max(0, targetIdx - 1));
+  }
+
+  return recalculated;
+}
+
+export function undoItineraryState(
+  currentState: ItineraryDay[],
+  history: ItineraryDay[][]
+): { itinerary: ItineraryDay[], history: ItineraryDay[][] } | null {
+  if (history.length === 0) return null;
+  const newHistory = [...history];
+  const previous = newHistory.pop()!;
+  return { itinerary: previous, history: newHistory };
+}
+
+export function getBadgeForAttraction(
+  rec: RecommendedExperience | undefined,
+  isApproximate: boolean
+): { label: string; type: 'fixed' | 'manual' | 'ia'; approximate?: boolean } {
+  let type: 'fixed' | 'manual' | 'ia' = 'ia';
+  if (rec?.manualMetadata?.locked) {
+    type = 'fixed';
+  } else if (rec?.manualMetadata?.source === "manual") {
+    type = 'manual';
+  }
+  
+  return {
+    label: type === 'fixed' ? 'Fixado' : type === 'manual' ? 'Manual' : 'IA',
+    type,
+    approximate: isApproximate
+  };
 }

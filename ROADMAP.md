@@ -135,5 +135,8 @@ Este documento acompanha as fases do projeto de forma macro, definindo o que já
 - [x] Identificação de conflitos e persistência visual ao invés de exclusão silenciosa.
 - [x] Lógica de "Desfazer" utilizando array de `itineraryHistory`.
 
-### Fase EI-10: Polimento UX e Refinamentos de Interface do Consumer [Próxima]
-- Implementar transições fluidas no roteiro, drag and drop avançado de atrações, modal de substituição e layout refinado de viagem.
+### Fase EI-10: Polimento UX e Refinamentos de Interface do Consumer [Concluída]
+- [x] **EI-10A:** Drag and Drop inteligente (reordenar dias/slots).
+- [x] **EI-10B:** Indicadores visuais de edição ("IA", "Fixado", "Manual").
+- [x] **EI-10C:** Modal flutuante para substituição local.
+- [x] **EI-10D:** Refinamento A11y e padronização das paletas.

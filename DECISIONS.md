@@ -128,6 +128,14 @@ O atual `ExperienceRepository` (que puxa do Supabase e faz cache SWR) evoluirá 
 - **Decisão:** Acoplar a Places API do Google às Edge Functions de Importação (Unitária e Lote).
 - **Justificativa:** A OpenAI (GPT-4o-mini) e a Jina AI são excelentes para extrair textos (preço, descrição, categoria) de páginas web, mas a IA falhava consistentemente em adivinhar a latitude e longitude exatas. Ao cruzar o título extraído pela IA com a Places API (`textsearch`), o sistema garante a coordenada exata para os Roteiros Inteligentes e extrai fotos em alta resolução nativas do Google, tornando a curadoria quase 100% automatizada e precisa.
 
+### 8. Frontend Tooling e Dependências de UX (EI-10)
+- **Decisão:** Utilizar HTML5 Drag and Drop nativo.
+- **Motivo:** Evitar inchaço no bundle (como instalar `dnd-kit` ou `react-beautiful-dnd`) para funcionalidades razoavelmente simples de reordenação em Bento Box, mantendo alinhamento com a arquitetura leve e clean demandada pelo projeto.
+- **Impacto:** Menor tempo de compilação, dependência zero no pacote final. A UX se mantém responsiva via atributos `draggable` nativos do DOM aliados ao layout grid Tailwind.
+
+### 9. Arquitetura de Validação
+- **Decisão:** As validações do Supabase (Row Level Security - RLS) devem ser a fonte primária de segurança de leitura/escrita.
+
 ## 22. Auto-Heal (Cura de Dados) e Dashboard de Qualidade
 - **Decisão:** Centralizar a inteligência de enriquecimento de catálogo no `QualityDashboard.tsx` (`/admin/quality`) em vez das telas de listagem, e programar o worker `enrich-catalog` para curar *todos* os campos críticos (Rating, Avaliações, Endereço, GPS, Fotos).
 - **Justificativa:** Botões de "atualização mágica" nas telas de listagem causavam confusão UX e desvio de propósito (listagem vs curadoria). Ao mover para o Dashboard de Qualidade, transformamos o sistema em um monitor ativo de saúde dos dados. A query agora detecta de forma holística qualquer vazio crítico e tenta resolvê-lo sozinho via Google Places, reduzindo o trabalho manual do operador a quase zero.

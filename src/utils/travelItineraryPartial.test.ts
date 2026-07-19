@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { recalculateAffectedSegment, findSubstituteExperience } from "./travelItineraryPartial";
+import { recalculateAffectedSegment, findAllSubstituteExperiences, findSubstituteExperience, moveAttractionToPosition, undoItineraryState, getBadgeForAttraction } from "./travelItineraryPartial";
 import { ItineraryDay, UserProfile, TravelExperience, RecommendedExperience } from "./travelState";
 
 // Mocking getStoredAttractions for the tests
@@ -168,5 +168,140 @@ describe("Edição Manual e Recálculo Parcial (EI-9)", () => {
     const day: ItineraryDay = { dayNumber: 1, attractions: [exp1, exp2], recommendations: [rec1, rec2] }; // no transit options
     const result = recalculateAffectedSegment([day], mockProfile, 0, 1);
     expect(result[0].recommendations![1].experience.plannedStartTime).toBe("11:00"); // gap 0
+  });
+
+  describe('EI-10: drag and drop pure logic (moveAttractionToPosition)', () => {
+    it('1. arrastar dentro do mesmo dia e inserir na posição exata', () => {
+      const it: ItineraryDay[] = [{
+        dayNumber: 1,
+        attractions: [exp1, exp2, exp3],
+        recommendations: [
+          { ...rec1 },
+          { ...rec2 },
+          { ...rec3, manualMetadata: undefined }
+        ]
+      }];
+      
+      const r1 = it[0].recommendations![0].experience.id;
+      const r2 = it[0].recommendations![1].experience.id;
+      const r3 = it[0].recommendations![2].experience.id;
+
+      const res = moveAttractionToPosition(it, mockProfile, 1, r1, 1, r3);
+      
+      const newRecs = res[0].recommendations!;
+      
+      expect(newRecs[0].experience.id).toBe(r2);
+      expect(newRecs[1].experience.id).toBe(r1);
+      expect(newRecs[2].experience.id).toBe(r3);
+      
+      expect(newRecs[1].manualMetadata?.source).toBe('manual');
+      expect(newRecs[1].manualMetadata?.manuallyMoved).toBe(true);
+      expect(newRecs[1].manualMetadata?.locked).toBe(true);
+    });
+
+    it('3. arrastar para outro dia', () => {
+      const it: ItineraryDay[] = [{
+        dayNumber: 1,
+        attractions: [exp1],
+        recommendations: [{ ...rec1 }]
+      }, {
+        dayNumber: 2,
+        attractions: [],
+        recommendations: []
+      }];
+
+      const r1 = it[0].recommendations![0].experience.id;
+      const res = moveAttractionToPosition(it, mockProfile, 1, r1, 2);
+      
+      expect(res[0].recommendations!.length).toBe(0);
+      expect(res[1].recommendations!.length).toBe(1);
+      expect(res[1].recommendations![0].experience.id).toBe(r1);
+    });
+
+    it('4. item fixado não pode ser arrastado', () => {
+      const it: ItineraryDay[] = [{
+        dayNumber: 1,
+        attractions: [exp1, exp2],
+        recommendations: [
+          { ...rec1, manualMetadata: { source: 'manual', locked: true } },
+          { ...rec2 }
+        ]
+      }];
+      
+      const r1 = it[0].recommendations![0].experience.id;
+      const r2 = it[0].recommendations![1].experience.id;
+      
+      const res = moveAttractionToPosition(it, mockProfile, 1, r1, 1, r2);
+      
+      // O estado original deve ser preservado sem alterações
+      expect(res).toEqual(it);
+    });
+
+    it('5. recálculo parcial após arraste afeta os índices corretamente', () => {
+      const it: ItineraryDay[] = [{
+        dayNumber: 1,
+        attractions: [exp1, exp2],
+        recommendations: [
+          { ...rec1, experience: { ...exp1, plannedStartTime: '09:00' } },
+          { ...rec2, experience: { ...exp2, plannedStartTime: '11:00' } }
+        ]
+      }];
+      
+      const r1 = it[0].recommendations![0].experience.id;
+      
+      const res = moveAttractionToPosition(it, mockProfile, 1, r1, 1, undefined); // move pro final
+      
+      // first item      // Move rec1 pro final, o primeiro agora é rec2
+      expect(res[0].recommendations![0].experience.plannedStartTime).toBe('09:00');
+    });
+
+    it('6. desfazer movimentação', () => {
+      const it: ItineraryDay[] = [{ dayNumber: 1, attractions: [], recommendations: [] }];
+      const history = [it];
+      const currentState: ItineraryDay[] = [{ dayNumber: 1, attractions: [exp1], recommendations: [{...rec1}] }];
+      
+      const undone = undoItineraryState(currentState, history);
+      expect(undone?.itinerary).toEqual(it);
+      expect(undone?.history).toEqual([]);
+    });
+
+    it('7. abrir estado de substituição (findAllSubstituteExperiences)', () => {
+      // testamos que retorna candidatos e vazio se não houver
+      const it = [{ dayNumber: 1, attractions: [exp1], recommendations: [{...rec1}] }];
+      const res = findAllSubstituteExperiences(it, mockProfile, 1, exp1.id);
+      // deve retornar candidatos baseados na lista mockada
+      expect(res.length).toBeGreaterThan(0);
+      expect(res[0].experience.id).not.toBe(exp1.id);
+    });
+
+    it('8. estado IA gera badge correto', () => {
+      const b = getBadgeForAttraction({ ...rec1, manualMetadata: undefined }, false);
+      expect(b.type).toBe('ia');
+      expect(b.label).toBe('IA');
+    });
+
+    it('9. estado Manual gera badge correto', () => {
+      const b = getBadgeForAttraction({ ...rec1, manualMetadata: { source: 'manual' } }, false);
+      expect(b.type).toBe('manual');
+      expect(b.label).toBe('Manual');
+    });
+
+    it('10. estado Fixado gera badge correto', () => {
+      const b = getBadgeForAttraction({ ...rec1, manualMetadata: { source: 'manual', locked: true } }, false);
+      expect(b.type).toBe('fixed');
+      expect(b.label).toBe('Fixado');
+    });
+
+    it('11. outro dia não envolvido permanece intacto', () => {
+      const it: ItineraryDay[] = [
+        { dayNumber: 1, attractions: [exp1], recommendations: [{ ...rec1 }] },
+        { dayNumber: 2, attractions: [exp2], recommendations: [{ ...rec2 }] },
+        { dayNumber: 3, attractions: [exp3], recommendations: [{ ...rec3 }] },
+      ];
+      const r1 = it[0].recommendations![0].experience.id;
+      const res = moveAttractionToPosition(it, mockProfile, 1, r1, 2);
+      
+      expect(res[2]).toEqual(it[2]); // Dia 3 remains intact!
+    });
   });
 });

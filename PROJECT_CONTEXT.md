@@ -36,8 +36,9 @@ Este documento representa o estado atual do projeto, suas regras arquiteturais e
 
 ## 3. Funcionalidades Concluídas
 - **O que já está implementado:**
-  - **Consumer App:** Landing Page, Onboarding customizado (perfil, bolso, interesses), Dashboard de Roteiro ("Meu Roteiro"), Catálogo interativo de atrações e estimativa de gastos (Wallet). **Redesenhado em Fase 7 com estética Bento Box** (Urbanist, neon-lime `#E2F18A`, cards `rounded-[24-28px]`, canvas `#F0F2F5`). Shared `AppNav` com pills de navegação. Hero card de orçamento com gradiente lime. Listagem de atrações em grid com cards flutuantes.
-  - **Lógica e Dados:** `ExperienceMatchingEngine` (com suporte avançado para afinidades por tag e *boosts* dinâmicos).
+  - **Consumer App:** Landing Page, Onboarding customizado (perfil, bolso, interesses), Dashboard de Roteiro ("Meu Roteiro"), Catálogo interativo de atrações e estimativa de gastos (Wallet). **Redesenhado em Fase 7 com estética Bento Box** (Urbanist, neon-lime `#E2F18A`, cards `rounded-[24-28px]`, canvas `#F0F2F5`). Shared `AppNav` com pills de navegação.
+  - **EI-9 (Concluída):** Edição manual com StopEditMetadata, preservação inteligente e substituição focal com validação estrita.
+  - **EI-10 (Concluída - Validada):** Experiência Visual do Roteiro. Implementado Drag and Drop nativo HTML5 para desktop (com setas acessíveis para mobile). Modal de substituição com a11y completo (role dialog, trap escape/cliques fora, restore focus). Identidade visual ajustada para lime/mint/slate (sem dourado).
   - **Infraestrutura e Repositório:** Conexão com Supabase via `ExperienceRepository`, orquestração de cache e desacoplamento completo da UI.
   - **Funcionalidades de Negócio:** Suporte ao botão "Coringa" (`is_must_see`) para dar bypass parcial nos filtros rigorosos da Engine e garantir que atrações icônicas sejam recomendadas.
   - **Localização:** Coordenadas exatas (`location_lat`, `location_lng`), bairro, endereço. Gerenciadas via mapas interativos (Google Maps) no Admin.
