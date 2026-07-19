@@ -12,6 +12,9 @@ Este documento representa o estado atual do projeto, suas regras arquiteturais e
 ---
 
 ## 2. Arquitetura Atual
+- **Ambiente Banco de Dados:** Remote Database (Projeto: `idcucjpanzufkipvfmse.supabase.co`), com migrations totalmente sincronizadas. Histórico reparado para a UI (006, 007, 008) e estruturais pendentes aplicadas (001 a 005, e 20260718200000 - Políticas e Acessibilidade). Ação preservou os 107 registros existentes intactos.
+- **Status da CLI:** Ativamente vinculada e sincronizada, protegida de resets.
+- **Mapas Oficiais (Map Engine):** MapLibre GL JS + OpenFreeMap. (Nota Histórica: Google Maps e Google Places constam como legado descontinuado devido a custos e lock-in no escopo deste produto, mantendo-se apenas menção em variáveis residuais de migração antiga).
 - **Tecnologias utilizadas:** React (Vite), TypeScript, TailwindCSS, Lucide Icons, React Router.
 - **Estrutura do frontend:** SPA (Single Page Application) modularizada. Segue uma separação rígida de camadas em `/src`:
   - `pages/` e `components/`: UI pura (Apresentação).

@@ -171,7 +171,17 @@ export function buildExperiencePayload(form: FormState): ExperienceInsert {
     base_cost: form.base_cost,
     booking_url: form.booking_url,
     media_urls: form.media_urls,
-    intelligence_metadata: intelligenceValue
+    intelligence_metadata: intelligenceValue,
+    min_age: form.min_age !== undefined ? form.min_age : null,
+    adult_only: form.adult_only !== undefined ? form.adult_only : null,
+    family_with_children_allowed: form.family_with_children_allowed !== undefined ? form.family_with_children_allowed : null,
+    requires_companion: form.requires_companion !== undefined ? form.requires_companion : null,
+    minimum_group_size: form.minimum_group_size !== undefined ? form.minimum_group_size : null,
+    maximum_group_size: form.maximum_group_size !== undefined ? form.maximum_group_size : null,
+    wheelchair_accessible: form.wheelchair_accessible !== undefined ? form.wheelchair_accessible : null,
+    stairs_required: form.stairs_required !== undefined ? form.stairs_required : null,
+    accessibility_notes: form.accessibility_notes !== undefined ? form.accessibility_notes : null,
+    restrictions_provenance: form.restrictions_provenance !== undefined ? form.restrictions_provenance : null
   };
 
   if (form.partner_id && String(form.partner_id).trim() !== "") {

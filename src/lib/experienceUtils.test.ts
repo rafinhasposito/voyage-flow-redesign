@@ -16,7 +16,7 @@ describe('experienceUtils (EI-6C)', () => {
     expect(mapped.minimum_group_size).toBe(null); // not 0
   });
 
-  it('payload atual não envia colunas de políticas antes da migration aplicada', () => {
+  it('payload envia colunas de políticas com a migration aplicada', () => {
     const form = {
       ...defaultForm,
       min_age: 18,
@@ -25,10 +25,10 @@ describe('experienceUtils (EI-6C)', () => {
     };
     const payload = buildExperiencePayload(form as any);
 
-    // As per requirement, these shouldn't be in the payload yet
-    expect((payload as any).min_age).toBeUndefined();
-    expect((payload as any).adult_only).toBeUndefined();
-    expect((payload as any).wheelchair_accessible).toBeUndefined();
+    // As per requirement EI-6D, these should be in the payload now
+    expect((payload as any).min_age).toBe(18);
+    expect((payload as any).adult_only).toBe(true);
+    expect((payload as any).wheelchair_accessible).toBe(true);
   });
 
   describe('sanitizeRestrictionsProvenance', () => {

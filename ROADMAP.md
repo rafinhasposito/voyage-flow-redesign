@@ -108,3 +108,8 @@ Este documento acompanha as fases do projeto de forma macro, definindo o que já
 - [ ] Funcionalidades Multi-player (compartilhar roteiro de casal/amigos).
 
 
+### Fase EI-6: Especialização de Acessibilidade e Políticas (Admin CMS) [Concluída]
+- [x] **EI-6A:** Auditoria e Limpeza de Migrations.
+- [x] **EI-6B:** Refatoração de Tipos para novos campos (min_age, adult_only, wheelchair_accessible).
+- [x] **EI-6C:** Preparação do UI do Admin CMS (Editor) e da Lógica de Restrições na Inteligência. 176 testes passando. Commit `ec1efe0`.
+- [x] **EI-6D:** Persistência Controlada — Repair seletivo executado (006, 007, 008); db push aplicado (001–005 e 20260718200000). `buildExperiencePayload` corrigido para os 10 novos campos. `supabase.types.ts` regenerado do schema remoto. 176 testes passando. Build aprovado. Teste ponta a ponta realizado pelo Admin: criação, preenchimento dos campos de políticas, salvamento, recarregamento (valores persistidos), Consumer carregando, exclusão via interface. 107 registros pré-existentes preservados intactos. MapLibre + OpenFreeMap como solução oficial; Google Maps e Places como legado descontinuado.
