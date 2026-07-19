@@ -197,7 +197,15 @@ export default function Dashboard() {
                                 justification={rec.explanation.humanJustification}
                                 reasons={rec.explanation.reasons}
                               />
-                              <ExperienceWarning warnings={rec.explanation.warnings} isBlocker={rec.restrictions?.allowed === false} />
+                              <ExperienceWarning 
+                                warnings={[
+                                  ...rec.explanation.warnings,
+                                  ...(attr.logisticsEvaluation?.warnings?.map(w => w.message) || []),
+                                  ...(attr.logisticsEvaluation?.blockers?.map(b => b.message) || []),
+                                  ...(attr.logisticsEvaluation?.suggestedAdjustment ? [`Sugestão: ${attr.logisticsEvaluation.suggestedAdjustment.reason}`] : [])
+                                ]} 
+                                isBlocker={rec.restrictions?.allowed === false || attr.logisticsEvaluation?.feasible === false} 
+                              />
                             </>
                           )}
 
@@ -208,7 +216,10 @@ export default function Dashboard() {
                             </span>
                             <span className="flex items-center gap-1">
                               <Clock className="h-3.5 w-3.5 text-slate-300" />
-                              {attr.durationHours}h · {attr.bestTime}
+                              {attr.plannedStartTime && attr.plannedEndTime 
+                                ? <span className="font-medium text-slate-700">{attr.plannedStartTime} - {attr.plannedEndTime}</span>
+                                : <span>{attr.durationHours}h · {attr.bestTime}</span>
+                              }
                             </span>
                             <span className="flex items-center gap-0.5 font-medium text-slate-600">
                               Custo: {attr.costUSD === 0 ? "Grátis" : `U$ ${attr.costUSD}`}

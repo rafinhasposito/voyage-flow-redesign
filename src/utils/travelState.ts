@@ -1,4 +1,5 @@
 "use client";
+import { LogisticsEngine } from "../lib/intelligence/logistics";
 
 export interface TravelExperience {
   id: string;
@@ -36,6 +37,19 @@ export interface TravelExperience {
   stairs_required?: boolean | null;
   accessibility_notes?: string | null;
   restrictions_provenance?: any | null;
+  operating_hours?: {
+    day_of_week: number;
+    opens_at: string | null;
+    closes_at: string | null;
+    is_closed: boolean;
+    is_24_hours: boolean;
+  }[];
+  operating_hour_exceptions?: {
+    exception_date: string;
+    is_closed: boolean;
+    opens_at: string | null;
+    closes_at: string | null;
+  }[];
   rating?: number;
   affiliateLink?: string;
   provider?: string;
@@ -53,6 +67,10 @@ export interface TravelExperience {
     family: number;
     friends: number;
   };
+  plannedStartTime?: string;
+  plannedEndTime?: string;
+  transit_options_origin?: any[]; // Array of transit_options starting from this experience
+  logisticsEvaluation?: import("../lib/intelligence/logistics").LogisticsEvaluation;
 }
 
 // Para manter compatibilidade com o código atual
@@ -1383,6 +1401,13 @@ export class ExperienceMatchingEngine {
     };
   }
 
+  static generateHumanJustification(reasons: string[], warnings: string[], score: number): string {
+    if (score >= 9000) return "Esta experiência foi selecionada e favoritada por você.";
+    if (score <= -9000) return "Experiência removida do seu roteiro por decisão manual.";
+    if (reasons.length > 0) return `Escolhemos esta experiência porque: ${reasons.join(", ")}.`;
+    return "Recomendamos esta experiência por possuir boa sinergia de localização e custo-benefício.";
+  }
+
   static rankExperiences(
     experiences: TravelExperience[],
     context: RecommendationContext
@@ -1583,42 +1608,168 @@ export function generateSmartItinerary(profile: UserProfile): ItineraryDay[] {
   console.log(`================================================================`);
 
   const itinerary: ItineraryDay[] = [];
-  let rankedIndex = 0;
+  
+  // Clone array to modify and schedule
+  const unassigned = [...availableRanked];
 
   for (let d = 1; d <= profile.days; d++) {
     const dayRecommendations: RecommendedExperience[] = [];
     const dayAttractionsLegacy: TravelExperience[] = [];
+    
+    const dayDate = new Date(new Date(profile.startDate || new Date()).getTime() + (d - 1) * 24 * 60 * 60 * 1000).toISOString().split("T")[0];
+    
+    let currentDayMinutes = 9 * 60; // Start at 09:00 AM
+    const maxMinutesPerDay = 22 * 60; // End at 22:00 (10 PM)
+    
+    let previousExp: TravelExperience | null = null;
+    let previousEndTime: string | null = null;
 
-    for (let i = 0; i < 3; i++) {
-      if (rankedIndex < availableRanked.length) {
-        const exp = availableRanked[rankedIndex];
-        const eTime = exp.experience.durationHours * 60;
-        if (currentDayTime + eTime <= maxMinutesPerDay) {
+    // We aim for 3 experiences per day
+    while (dayRecommendations.length < 3 && unassigned.length > 0 && currentDayMinutes < maxMinutesPerDay) {
+      
+      let selectedIndex = -1;
+      let logisticsRes: import("../lib/intelligence/logistics").LogisticsEvaluation | null = null;
+      let proposedStart = "";
+      let durationHours = 0;
+      
+      // Look for the highest ranked experience that fits logistically
+      for (let i = 0; i < unassigned.length; i++) {
+        const candidate = unassigned[i];
+        durationHours = candidate.experience.durationHours || 2;
         
-          dayRecommendations.push(exp);
-          dayAttractionsLegacy.push(exp.experience);
-          rankedIndex++;
-        }
-      } else {
-        // Fallback determinístico para preencher dias extras (viagens longas ou catálogo curto):
-        // Reinicia o ponteiro circulando pelas experiências recomendadas do usuário,
-        // garantindo que não duplicamos a mesma experiência NO MESMO DIA.
-        let fallbackFound = false;
-        for (let attempt = 0; attempt < availableRanked.length; attempt++) {
-          const fallbackRec = availableRanked[attempt % availableRanked.length];
-          if (!dayRecommendations.some(r => r.experience.id === fallbackRec.experience.id)) {
-            dayRecommendations.push(fallbackRec);
-            dayAttractionsLegacy.push(fallbackRec.experience);
-            fallbackFound = true;
-            break;
+        let transitMins: number | null = null;
+        if (previousExp) {
+          if (previousExp.transit_options_origin && previousExp.transit_options_origin.length > 0) {
+            const option = previousExp.transit_options_origin.find(o => o.destination_experience_id === candidate.experience.id);
+            if (option && option.duration_minutes !== undefined && option.duration_minutes !== null) {
+              transitMins = option.duration_minutes;
+            }
           }
         }
-        // No pior cenário teórico onde o total de recomendados é menor que as atrações do dia,
-        // permitimos duplicidade para não quebrar a integridade do loop.
-        if (!fallbackFound && availableRanked.length > 0) {
-          const fallbackRec = availableRanked[0];
-          dayRecommendations.push(fallbackRec);
-          dayAttractionsLegacy.push(fallbackRec.experience);
+        const effectiveTransitMins = transitMins ?? 0; // Para calcular arrivalMins usamos 0 se desconhecido, mas avaliamos como nulo
+        const arrivalMins = currentDayMinutes + effectiveTransitMins;
+        
+        proposedStart = `${String(Math.floor(arrivalMins / 60)).padStart(2, '0')}:${String(arrivalMins % 60).padStart(2, '0')}`;
+        const windowEnd = `${String(Math.floor(maxMinutesPerDay / 60)).padStart(2, '0')}:${String(maxMinutesPerDay % 60).padStart(2, '0')}`;
+        
+        const evalRes = LogisticsEngine.evaluateFeasibility(
+          dayDate,
+          proposedStart,
+          durationHours,
+          candidate.experience.operating_hours,
+          candidate.experience.operating_hour_exceptions,
+          previousExp ? transitMins : null,
+          windowEnd,
+          previousEndTime
+        );
+        
+        if (evalRes.feasible) {
+           selectedIndex = i;
+           logisticsRes = evalRes;
+           break;
+        }
+      }
+      
+      if (selectedIndex !== -1 && logisticsRes) {
+        const selected = unassigned.splice(selectedIndex, 1)[0];
+        
+        let transitMins: number | null = null;
+        if (previousExp) {
+          if (previousExp.transit_options_origin && previousExp.transit_options_origin.length > 0) {
+            const option = previousExp.transit_options_origin.find(o => o.destination_experience_id === selected.experience.id);
+            if (option && option.duration_minutes !== undefined && option.duration_minutes !== null) {
+              transitMins = option.duration_minutes;
+            }
+          }
+        }
+        const effectiveTransitMins = transitMins ?? 0;
+        const arrivalMins = currentDayMinutes + effectiveTransitMins;
+        const endMins = arrivalMins + (durationHours * 60);
+        
+        const plannedEndTime = `${String(Math.floor(endMins / 60)).padStart(2, '0')}:${String(endMins % 60).padStart(2, '0')}`;
+        
+        selected.experience = {
+          ...selected.experience,
+          plannedStartTime: proposedStart,
+          plannedEndTime: plannedEndTime,
+          logisticsEvaluation: logisticsRes
+        };
+        
+        dayRecommendations.push(selected);
+        dayAttractionsLegacy.push(selected.experience);
+        
+        currentDayMinutes = endMins;
+        previousExp = selected.experience;
+        previousEndTime = plannedEndTime;
+      } else {
+        // No feasible experience found for the rest of this day's time window, break out to next day
+        break;
+      }
+    }
+    
+
+    // Fallback determinístico para preencher dias extras (viagens longas ou catálogo curto):
+    // Reinicia o ponteiro circulando pelas experiências recomendadas do usuário,
+    // garantindo que não duplicamos a mesma experiência NO MESMO DIA.
+    if (dayRecommendations.length < 3 && availableRanked.length > 0) {
+      let fallbackIndex = 0;
+      while (dayRecommendations.length < 3 && currentDayMinutes < maxMinutesPerDay) {
+        const fallbackRec = availableRanked[fallbackIndex % availableRanked.length];
+        fallbackIndex++;
+        
+        if (fallbackIndex > availableRanked.length * 2) {
+          break;
+        }
+        
+        if (!dayRecommendations.some(r => r.experience.id === fallbackRec.experience.id)) {
+          const durationHours = fallbackRec.experience.durationHours || 2;
+          let transitMins: number | null = null;
+          if (previousExp) {
+            if (previousExp.transit_options_origin && previousExp.transit_options_origin.length > 0) {
+              const option = previousExp.transit_options_origin.find(o => o.destination_experience_id === fallbackRec.experience.id);
+              if (option && option.duration_minutes !== undefined && option.duration_minutes !== null) {
+                transitMins = option.duration_minutes;
+              }
+            }
+          }
+          const effectiveTransitMins = transitMins ?? 0;
+          const arrivalMins = currentDayMinutes + effectiveTransitMins;
+          const windowEnd = `${String(Math.floor(maxMinutesPerDay / 60)).padStart(2, '0')}:${String(maxMinutesPerDay % 60).padStart(2, '0')}`;
+          
+          const proposedStart = `${String(Math.floor(arrivalMins / 60)).padStart(2, '0')}:${String(arrivalMins % 60).padStart(2, '0')}`;
+          
+          const evalRes = LogisticsEngine.evaluateFeasibility(
+            dayDate,
+            proposedStart,
+            durationHours,
+            fallbackRec.experience.operating_hours,
+            fallbackRec.experience.operating_hour_exceptions,
+            previousExp ? transitMins : null,
+            windowEnd,
+            previousEndTime
+          );
+          
+          if (!evalRes.feasible) {
+            continue;
+          }
+          
+          const endMins = arrivalMins + (durationHours * 60);
+          const plannedEndTime = `${String(Math.floor(endMins / 60)).padStart(2, '0')}:${String(endMins % 60).padStart(2, '0')}`;
+
+          const clonedRec = { ...fallbackRec };
+          clonedRec.experience = {
+            ...clonedRec.experience,
+            plannedStartTime: proposedStart,
+            plannedEndTime: plannedEndTime,
+            logisticsEvaluation: evalRes
+          };
+
+          dayRecommendations.push(clonedRec);
+          dayAttractionsLegacy.push(clonedRec.experience);
+          
+          currentDayMinutes = endMins;
+          previousExp = clonedRec.experience;
+          previousEndTime = plannedEndTime;
         }
       }
     }

@@ -120,3 +120,11 @@ Este documento acompanha as fases do projeto de forma macro, definindo o que já
 - [x] **ETAPA 3:** Consumer: itens bloqueados impedem adição manual (botão desabilitado com "Restrito pelo Perfil") e não são inclusos automaticamente no Roteiro Gerado. Atualização do componente `ExperienceWarning` (cores diferenciadas para bloqueios e alertas).
 - [x] **ETAPA 4:** Suíte de 15 testes de restrições implementada e validada. Total 191/191 testes passando.
 - [x] **ETAPA 5 & 6:** Build ok. Documentação atualizada (ROADMAP, PROJECT_CONTEXT, DECISIONS).
+
+### Fase EI-8: Viabilidade Logística do Roteiro [Concluída]
+- [x] Engine logística para avaliar: fechamento no dia, fechamento no horário, deslocamento real via `transit_options`.
+- [x] Integração da logística no `generateSmartItinerary` com priorização após restrições factuais.
+- [x] Ajuste automático de horários para a janela disponível (9:00 - 22:00) respeitando conflitos.
+- [x] **Ressalvas/Pendências**: Preservação e edição manual real do roteiro serão refinadas na EI-9 (atualmente os testes apenas simulam forçando scores altos). Quando o deslocamento é desconhecido (`TRANSIT_TIME_UNKNOWN`), o horário apresentado no roteiro é aproximado (estimado) e não representa um deslocamento real confirmado.
+
+### Fase EI-9: Refinamento de UX, Edição Manual e Roteiro Consumer [Próxima]

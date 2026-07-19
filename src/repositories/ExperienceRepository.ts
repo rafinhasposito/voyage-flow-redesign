@@ -5,7 +5,11 @@ import { TravelExperience } from "@/utils/travelState";
 import { FALLBACK_ATTRACTIONS } from "@/data/fallbackData";
 import { parseExperienceMetadataValue } from "@/domain/experienceMetadata";
 
-export type ExperienceRow = Database["public"]["Tables"]["experiences"]["Row"];
+export type ExperienceRow = Database["public"]["Tables"]["experiences"]["Row"] & {
+  operating_hours?: Database["public"]["Tables"]["operating_hours"]["Row"][];
+  operating_hour_exceptions?: Database["public"]["Tables"]["operating_hour_exceptions"]["Row"][];
+  transit_options_origin?: Database["public"]["Tables"]["transit_options"]["Row"][];
+};
 
 const CACHE_KEY = "experiences";
 const CACHE_VERSION = 1;
@@ -36,7 +40,7 @@ export class ExperienceRepository {
       async () => {
         const { data, error } = await supabase
           .from("experiences")
-          .select("*")
+          .select("*, operating_hours(*), operating_hour_exceptions(*), transit_options_origin:transit_options!transit_options_origin_experience_id_fkey(*)")
           .eq("status", "published");
         
         if (error) {
@@ -99,7 +103,7 @@ export class ExperienceRepository {
     }
     const { data, error } = await supabase
       .from("experiences")
-      .select("*")
+      .select("*, operating_hours(*), operating_hour_exceptions(*), transit_options_origin:transit_options!transit_options_origin_experience_id_fkey(*)")
       .eq("status", "published");
       
     if (error) {
@@ -211,6 +215,9 @@ export class ExperienceRepository {
       companionshipCompatibility: (row.intelligence_metadata != null && ai.companionshipCompatibility) ? normalizeComp(ai.companionshipCompatibility) : undefined,
       recommendedSeasons: (row.intelligence_metadata != null) ? ai.recommendedSeasons as ("winter" | "spring" | "summer" | "autumn" | "all")[] : undefined,
       weatherCompatibility: (row.intelligence_metadata != null) ? ai.weatherCompatibility as ("rain" | "snow" | "heat" | "all")[] : undefined,
+      operating_hours: row.operating_hours,
+      operating_hour_exceptions: row.operating_hour_exceptions,
+      transit_options_origin: row.transit_options_origin,
     } as TravelExperience;
   }
 
@@ -251,7 +258,7 @@ export class ExperienceRepository {
   public static async search(query: string): Promise<TravelExperience[]> {
     const { data, error } = await supabase
       .from("experiences")
-      .select("*")
+      .select("*, operating_hours(*), operating_hour_exceptions(*), transit_options_origin:transit_options!transit_options_origin_experience_id_fkey(*)")
       .eq("status", "published")
       .ilike("title", `%${query}%`);
       
@@ -262,7 +269,7 @@ export class ExperienceRepository {
   public static async getById(id: string): Promise<TravelExperience | null> {
     const { data, error } = await supabase
       .from("experiences")
-      .select("*")
+      .select("*, operating_hours(*), operating_hour_exceptions(*), transit_options_origin:transit_options!transit_options_origin_experience_id_fkey(*)")
       .eq("id", id)
       .single();
       

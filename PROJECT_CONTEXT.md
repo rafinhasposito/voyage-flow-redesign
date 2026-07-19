@@ -92,3 +92,10 @@ Para manter este documento enxuto, todo o histórico de decisões técnicas, gov
 ## 6. Roadmap
 
 Para o acompanhamento detalhado das fases concluídas, em andamento e futuras, consulte o arquivo [ROADMAP.md](./ROADMAP.md).
+
+## Viabilidade Logística (EI-8)
+O motor foi expandido para calcular tempos (duração + deslocamento base de 30min) e impedir sobreposições ou agendamentos em horários de fechamento. Experiências são agendadas cronologicamente num dia entre 09:00 e 22:00. Campos `operating_hours` e `operating_hour_exceptions` foram mapeados localmente no `TravelExperience`.
+
+## Pendências de UX / Logística (EI-8 para EI-9)
+- **Edição Manual Real**: O orquestrador autogerado integra a logística, mas a feature de preservar de fato o drag & drop ou exclusões manuais feitas pelo usuário está catalogada para a fase EI-9, com refinamento de UI.
+- **Trânsito Desconhecido**: Ausência de trânsito emite alerta e não bloqueia. A UI deve refletir, no Consumer, que esse trajeto possui horário aproximado e não confirmado (aviso visual de `TRANSIT_TIME_UNKNOWN`).

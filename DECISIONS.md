@@ -167,3 +167,13 @@ O atual `ExperienceRepository` (que puxa do Supabase e faz cache SWR) evoluirá 
 3. Alertas menos críticos (`warnings` ou `information`) usam um banner âmbar.
 4. Nenhuma modificação no banco foi feita. Toda a validação ocorre estritamente na Engine Frontend em memória.
 5. Cobertura de 15 testes de unidade garantindo o comportamento lógico exato de bloqueio/alerta.
+
+### 18. Viabilidade Logística (EI-8)
+**Data:** 2026-07-19
+**Decisão:** Adicionada validação de horários de funcionamento e deslocamento (`LogisticsEngine`) antes de adicionar experiências ao roteiro, impedindo que o motor sugira atrações fechadas no dia ou no horário, com fallback para ajustes de horário quando viável. Tudo na memória, usando as estruturas de schemas já existentes no DB (sem SQL run).
+**Impacto:** Roteiros não contêm mais atrações temporalmente inviáveis ou fora de expediente.
+
+## 2026-07-19: Viabilidade Logística (EI-8) e Ressalvas
+- A Engine Logística (LogisticsEngine) avalia dias da semana, exceções e tempos de deslocamento (transit_options_origin).
+- **Ressalva de UX para Trânsito**: Quando o deslocamento não existe na base (nulo), emitimos `TRANSIT_TIME_UNKNOWN`. Nesses casos, o horário no Roteiro é uma **estimativa aproximada** e não uma confirmação de viabilidade.
+- **Ressalva de Edição Manual**: A EI-8 integra a logística no orquestrador `generateSmartItinerary`, porém a **preservação real da edição manual de roteiro pelo usuário** ainda não está completa. Testes atuais provaram a lógica apenas simulando um score alto via Mock. O refinamento absoluto da edição manual foi registrado como pendência para a próxima fase (EI-9).
