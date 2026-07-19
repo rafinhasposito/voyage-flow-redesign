@@ -110,7 +110,17 @@ function RowMenu({ exp, onDuplicate, onToggleStatus }: { exp: ExperienceRow; onD
   );
 }
 
-export default function ExperiencesList() {
+export default function ExperiencesList({ 
+  fixedType, 
+  fixedTitle, 
+  fixedIcon, 
+  fixedDescription 
+}: { 
+  fixedType?: string; 
+  fixedTitle?: string; 
+  fixedIcon?: React.ReactNode; 
+  fixedDescription?: string;
+} = {}) {
   const navigate = useNavigate();
   const [experiences, setExperiences] = useState<ExperienceRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -123,7 +133,7 @@ export default function ExperiencesList() {
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [categoryFilter, setCategoryFilter] = useState<string>("all");
-  const [typeFilter, setTypeFilter] = useState<string>("all");
+  const [typeFilter, setTypeFilter] = useState<string>(fixedType || "all");
 
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 20;
@@ -330,11 +340,11 @@ export default function ExperiencesList() {
           <div className="relative z-10 flex flex-col md:flex-row md:items-end justify-between gap-6">
             <div>
               <div className="inline-flex items-center gap-2 px-3 py-1 bg-white/40 backdrop-blur-md rounded-full text-[11px] font-black uppercase tracking-widest text-[#171717]/80 mb-4 shadow-sm border border-white/40">
-                <Library className="w-3.5 h-3.5" /> Centro Operacional
+                {fixedIcon || <Library className="w-3.5 h-3.5" />} Centro Operacional
               </div>
-              <h1 className="text-5xl font-black text-[#171717] tracking-tight leading-none mb-4">Catálogo Mestre</h1>
+              <h1 className="text-5xl font-black text-[#171717] tracking-tight leading-none mb-4">{fixedTitle || 'Catálogo Mestre'}</h1>
               <p className="text-[#171717]/70 font-medium text-lg max-w-xl leading-relaxed">
-                Gerencie o inventário global, corrija anomalias e controle o status de publicação.
+                {fixedDescription || 'Gerencie o inventário global, corrija anomalias e controle o status de publicação.'}
               </p>
             </div>
 
@@ -392,19 +402,23 @@ export default function ExperiencesList() {
                  <option value="draft">Rascunho</option>
                  <option value="archived">Lixeira</option>
                </select>
-               <div className="w-px h-5 bg-[#171717]/10" />
-               <select 
-                value={typeFilter} onChange={(e) => setTypeFilter(e.target.value)}
-                className="bg-transparent border-0 h-10 px-3 text-[13px] font-bold text-[#171717] outline-none cursor-pointer"
-               >
-                 <option value="all">Tipo Técnico: Todos</option>
-                 {technicalTypes.map(t => <option key={t as string} value={t as string}>{translateTerm(t as string)}</option>)}
-               </select>
+               {!fixedType && (
+                 <>
+                   <div className="w-px h-5 bg-[#171717]/10" />
+                   <select 
+                    value={typeFilter} onChange={(e) => setTypeFilter(e.target.value)}
+                    className="bg-transparent border-0 h-10 px-3 text-[13px] font-bold text-[#171717] outline-none cursor-pointer"
+                   >
+                     <option value="all">Tipo Técnico: Todos</option>
+                     {technicalTypes.map(t => <option key={t as string} value={t as string}>{translateTerm(t as string)}</option>)}
+                   </select>
+                 </>
+               )}
             </div>
 
-            {(searchQuery || statusFilter !== 'all' || categoryFilter !== 'all' || typeFilter !== 'all') && (
+            {(searchQuery || statusFilter !== 'all' || categoryFilter !== 'all' || (typeFilter !== 'all' && !fixedType)) && (
               <button 
-                onClick={() => { setSearchQuery(""); setStatusFilter("all"); setCategoryFilter("all"); setTypeFilter("all"); }}
+                onClick={() => { setSearchQuery(""); setStatusFilter("all"); setCategoryFilter("all"); if(!fixedType) setTypeFilter("all"); }}
                 className="h-10 px-4 flex items-center gap-2 text-[12px] font-black uppercase tracking-wider text-rose-500 hover:bg-rose-50 rounded-xl transition-colors"
               >
                 Limpar

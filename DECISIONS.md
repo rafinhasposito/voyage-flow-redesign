@@ -190,3 +190,9 @@ O atual `ExperienceRepository` (que puxa do Supabase e faz cache SWR) evoluirá 
 - Foi introduzido o conceito de `StopEditMetadata` no state do usuário, contendo flags como `locked`, `source` ("engine" ou "manual"), e `conflict`.
 - Em vez de reescrever o roteiro inteiro via `generateSmartItinerary` em alterações manuais, foi criado um módulo `recalculateItinerary` que recalcula APENAS os conflitos de logística e restrições.
 - Alterações manuais geram histórico local `itineraryHistory` no `TravelState` para viabilizar o botão "Desfazer".
+
+## [ADMIN-1] Zero "Em Breve"
+**Data:** Jul 19, 2026
+**Contexto:** O Admin continha páginas sinalizadas como "Em breve", mockadas e com comportamento incerto. 
+**Decisão:** Eliminar 100% de mocks destrutivos ou falsas funcionalidades no Admin. Páginas apoiadas em backend inexistente (Parceiros, Vendas, B2C Users, Analytics) deixam de exibir botões interativos e passam a exibir um alerta documentado com as lacunas exigidas. Páginas suportadas (Hospedagens, Eventos, Destinos, Tags, Personas, Regras) derivam seus estados do catálogo central. `ComingSoon.tsx` removido globalmente.
+

@@ -140,3 +140,10 @@ Este documento acompanha as fases do projeto de forma macro, definindo o que já
 - [x] **EI-10B:** Indicadores visuais de edição ("IA", "Fixado", "Manual").
 - [x] **EI-10C:** Modal flutuante para substituição local.
 - [x] **EI-10D:** Refinamento A11y e padronização das paletas.
+
+### Fase ADMIN-1: Zero "Em Breve" (Refatoração Limpa) [Concluída]
+- [x] O Admin foi inteiramente validado, sem componentes "Em breve" residuais.
+- [x] Criação das views operacionais e conectadas ao Catálogo Central (Hospedagens, Eventos, Restaurantes, Destinos, Tags, Personas e Regras do Motor).
+- [x] Criação das views descritivas apontando lacunas de backend para áreas sem suporte (Vendas, Parceiros, B2C Users, Analytics).
+- [x] Adoção rigorosa do princípio de honestidade estrutural na Interface.
+

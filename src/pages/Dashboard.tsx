@@ -312,8 +312,8 @@ export default function Dashboard() {
 
   const currentDayData = state.itinerary.find(d => d.dayNumber === activeDay) || state.itinerary[0];
   const totalCost = state.itinerary.reduce((acc, day) => {
-    return acc + day.attractions.reduce((sum, attr) => sum + attr.costUSD, 0);
-  }, 0) + state.customExpenses.reduce((sum, exp) => sum + exp.amountUSD, 0);
+    return acc + (day.attractions || []).reduce((sum, attr) => sum + attr.costUSD, 0);
+  }, 0) + (state.customExpenses || []).reduce((sum, exp) => sum + exp.amountUSD, 0);
 
   return (
     <div className="min-h-screen bg-[#FAF8F5] text-[#1C1E21] flex flex-col">
@@ -646,12 +646,12 @@ export default function Dashboard() {
                 <h3 className="font-serif text-lg font-medium text-[#0D0E10]">Preparativos</h3>
               </div>
               <span className="text-xs text-slate-400">
-                {state.checklist.filter(i => i.done).length} de {state.checklist.length} concluídos
+                {(state.checklist || []).filter(i => i.done).length} de {(state.checklist || []).length} concluídos
               </span>
             </div>
 
             <div className="space-y-3">
-              {state.checklist.map((item) => (
+              {(state.checklist || []).map((item) => (
                 <button
                   key={item.id}
                   onClick={() => handleToggleChecklist(item.id)}

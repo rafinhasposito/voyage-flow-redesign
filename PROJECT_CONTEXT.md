@@ -104,3 +104,10 @@ O motor foi expandido para calcular tempos (duração + deslocamento base de 30m
 ## Preservação de Escopo Manual (EI-9)
 - Ao interagir com o Dashboard, a intenção do usuário sobre o roteiro gerado possui prioridade estrutural (`locked: true`).
 - Em caso de infrações lógicas (ex: fechado no dia, restrição de perfil), a atração **não é apagada**. Ela exibe a tag `conflict` e sinaliza os erros visualmente, permitindo ao viajante decidir.
+
+## Fase ADMIN-1 (Zero "Em Breve")
+Concluída. A interface administrativa (B2B) passou por uma refatoração completa, erradicando mocks silenciosos, componentes `ComingSoon` e rotas quebradas. A matriz de páginas reflete com honestidade o suporte atual da arquitetura:
+- Módulos operacionais: Catálogo, Hospedagens, Restaurantes, Eventos, Destinos, Importador (IA), Qualidade, Tags, Personas, Regras do Motor.
+- Módulos parciais ou dependentes de backend documentados: IA Concierge (parcial), Afiliados (parcial), Usuários (B2C dependente de Auth), Parceiros, Vendas e Analytics.
+Relatório gerado na raiz: `ADMIN_ZERO_EM_BREVE_REPORT.md`
+

@@ -27,16 +27,16 @@ const navigation: NavSection[] = [
     label: 'Geral',
     items: [
       { name: 'Dashboard',     href: '/admin/dashboard',      icon: LayoutDashboard },
-      { name: 'Analytics',     href: '/admin/analytics',      icon: BarChart2,  soon: true },
+      { name: 'Analytics',     href: '/admin/analytics',      icon: BarChart2 },
     ]
   },
   {
     label: 'Conteúdo',
     items: [
       { name: 'Catálogo',      href: '/admin/experiences',             icon: Library },
-      { name: 'Hospedagens',   href: '/admin/experiences?type=lodging',  icon: Hotel },
-      { name: 'Restaurantes',  href: '/admin/experiences?type=dining', icon: Utensils },
-      { name: 'Eventos',       href: '/admin/experiences?type=events',  icon: Calendar },
+      { name: 'Hospedagens',   href: '/admin/lodgings',                icon: Hotel },
+      { name: 'Restaurantes',  href: '/admin/restaurants',             icon: Utensils },
+      { name: 'Eventos',       href: '/admin/events',                  icon: Calendar },
       { name: 'Destinos',      href: '/admin/destinations',            icon: Globe },
       { name: 'Importar URL',  href: '/admin/import',                  icon: UploadCloud },
     ]
@@ -45,25 +45,25 @@ const navigation: NavSection[] = [
     label: 'Inteligência',
     items: [
       { name: 'Qualidade',     href: '/admin/quality',        icon: Activity },
-      { name: 'IA Concierge',  href: '/admin/ia',             icon: Brain,      soon: true },
-      { name: 'Tags',          href: '/admin/tags',           icon: Tag,        soon: true },
-      { name: 'Personas',      href: '/admin/personas',       icon: Users,      soon: true },
-      { name: 'Regras do Motor',href: '/admin/rules',         icon: Settings,   soon: true },
+      { name: 'IA Concierge',  href: '/admin/ia',             icon: Brain },
+      { name: 'Tags',          href: '/admin/tags',           icon: Tag },
+      { name: 'Personas',      href: '/admin/personas',       icon: Users },
+      { name: 'Regras do Motor',href: '/admin/rules',         icon: Settings },
     ]
   },
   {
     label: 'Receita',
     items: [
-      { name: 'Parceiros',     href: '/admin/partners',       icon: Link2,      soon: true },
-      { name: 'Afiliados',     href: '/admin/affiliates',     icon: DollarSign, soon: true },
-      { name: 'Vendas',        href: '/admin/sales',          icon: Star,       soon: true },
+      { name: 'Parceiros',     href: '/admin/partners',       icon: Briefcase },
+      { name: 'Afiliados',     href: '/admin/pricing',        icon: Percent },
+      { name: 'Vendas',        href: '/admin/sales',          icon: CreditCard },
     ]
   },
   {
     label: 'Controle',
     items: [
       { name: 'Usuários',      href: '/admin/users',          icon: Users },
-      { name: 'Configurações', href: '/admin/settings',       icon: Settings,   soon: true },
+      { name: 'Configurações', href: '/admin/settings',       icon: Settings },
     ]
   },
 ];
@@ -155,14 +155,6 @@ export default function AdminLayout() {
                       <item.icon className="w-4 h-4 flex-shrink-0" strokeWidth={active ? 2.5 : 2} />
                       {!collapsed && (
                         <span className="flex-1 truncate">{item.name}</span>
-                      )}
-                      {!collapsed && item.soon && (
-                        <span className="text-[9px] font-bold bg-[#171717]/5 text-[#171717]/50 px-1.5 py-0.5 rounded-md">
-                          EM BREVE
-                        </span>
-                      )}
-                      {collapsed && item.soon && (
-                        <span className="absolute -top-1 -right-1 w-2 h-2 bg-[#171717]/20 rounded-full" />
                       )}
                     </NavLink>
                   );

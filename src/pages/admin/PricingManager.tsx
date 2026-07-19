@@ -88,6 +88,16 @@ export default function PricingManager() {
           
           {/* ── Left Column: Configuração de Markup ── */}
           <div className="lg:col-span-4 space-y-6">
+
+            <div className="bg-amber-50 text-amber-800 p-4 rounded-xl border border-amber-200">
+              <h3 className="font-bold text-[13px] flex items-center gap-2 mb-1">
+                <AlertCircle className="w-4 h-4" /> Configuração Local
+              </h3>
+              <p className="text-[11px] opacity-80 leading-relaxed">
+                As métricas de cobertura de links são <strong>reais</strong> (buscadas do Supabase). 
+                As configurações de markup abaixo são <strong>simuladas</strong> no momento, aguardando integração com API de pagamentos (Vendas).
+              </p>
+            </div>
             
             <div className="bg-white rounded-xl border border-vf-border shadow-vf-sm p-6 space-y-5">
               <div className="flex items-center gap-2 pb-3 border-b border-vf-border/50">

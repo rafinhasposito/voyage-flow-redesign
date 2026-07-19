@@ -24,26 +24,19 @@ import Import from "./pages/admin/Import";
 import UsersList from "./pages/admin/UsersList";
 import PricingManager from "./pages/admin/PricingManager";
 import FeaturedDashboard from "./pages/admin/FeaturedDashboard";
+import Tags from "./pages/admin/Tags";
+import Personas from "./pages/admin/Personas";
+import EngineRules from "./pages/admin/EngineRules";
+import IAConcierge from "./pages/admin/IAConcierge";
+import Partners from "./pages/admin/Partners";
+import Sales from "./pages/admin/Sales";
+import Settings from "./pages/admin/Settings";
+import Analytics from "./pages/admin/Analytics";
 
 import React, { useEffect } from "react";
 import { ExperienceRepository } from "@/repositories";
 
-// ── Coming Soon placeholder ───────────────────────────────────────────────────
-function ComingSoon({ title, desc, icon }: { title: string; desc: string; icon: string }) {
-  return (
-    <div className="flex flex-col items-center justify-center h-full min-h-[60vh] text-center p-8">
-      <div className="text-5xl mb-4">{icon}</div>
-      <div className="rounded-[28px] p-8 max-w-md"
-        style={{ background: '#fff', boxShadow: '0 1px 3px rgba(0,0,0,0.07)' }}>
-        <div className="inline-flex items-center gap-1.5 bg-[#E2F18A] px-3 py-1 rounded-full mb-4">
-          <span className="text-[10px] font-black uppercase tracking-widest text-black/60">Em breve</span>
-        </div>
-        <h2 className="text-xl font-black text-[#0F1117] tracking-tight">{title}</h2>
-        <p className="text-sm text-slate-500 mt-2 leading-relaxed">{desc}</p>
-      </div>
-    </div>
-  );
-}
+
 
 const queryClient = new QueryClient();
 
@@ -94,12 +87,18 @@ const App = () => {
                 <Route path="pricing" element={<PricingManager />} />
                 <Route path="featured" element={<FeaturedDashboard />} />
 
-                {/* Modules in development */}
-                <Route path="restaurants" element={<ComingSoon title="Restaurantes" desc="Módulo dedicado para gerenciar restaurantes com campos específicos: culinária, faixa de preço, reserva e links de afiliado." icon="🍽" />} />
-                <Route path="events" element={<ComingSoon title="Eventos" desc="Gerenciamento de eventos sazonais, shows, exposições e experiências temporárias com datas e disponibilidade." icon="🎉" />} />
-                <Route path="tags" element={<ComingSoon title="Taxonomia de Tags" desc="Biblioteca de tags usadas pelo engine de IA para fazer matching entre experiências e perfis de viajantes." icon="🏷" />} />
-                <Route path="personas" element={<ComingSoon title="Personas" desc="Perfis psicográficos dos viajantes (Explorador Visual, Curador, Slow Traveler...) que direcionam o matching da IA." icon="🧐" />} />
-                <Route path="analytics" element={<ComingSoon title="Analytics" desc="Insights de uso, cliques em links de afiliados, conversões e performance por experiência e destino." icon="📊" />} />
+                <Route path="lodgings" element={<ExperiencesList fixedType="hotel" fixedTitle="Hospedagens" fixedDescription="Gerencie o inventário de hotéis e basecamps." fixedIcon={<span className="text-sm">🏨</span>} />} />
+                <Route path="restaurants" element={<ExperiencesList fixedType="restaurant" fixedTitle="Restaurantes" fixedDescription="Gerencie o inventário de restaurantes, culinária e reservas." fixedIcon={<span className="text-sm">🍽</span>} />} />
+                <Route path="events" element={<ExperiencesList fixedType="event" fixedTitle="Eventos" fixedDescription="Gerencie o inventário de eventos sazonais, shows e experiências temporárias." fixedIcon={<span className="text-sm">🎉</span>} />} />
+                <Route path="tags" element={<Tags />} />
+                <Route path="personas" element={<Personas />} />
+                <Route path="rules" element={<EngineRules />} />
+                <Route path="ia" element={<IAConcierge />} />
+                <Route path="partners" element={<Partners />} />
+                <Route path="sales" element={<Sales />} />
+                <Route path="users" element={<UsersList />} />
+                <Route path="settings" element={<Settings />} />
+                <Route path="analytics" element={<Analytics />} />
               </Route>
             </Route>
           </Route>
