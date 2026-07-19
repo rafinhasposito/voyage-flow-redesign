@@ -197,7 +197,7 @@ export default function Dashboard() {
                                 justification={rec.explanation.humanJustification}
                                 reasons={rec.explanation.reasons}
                               />
-                              <ExperienceWarning warnings={rec.explanation.warnings} />
+                              <ExperienceWarning warnings={rec.explanation.warnings} isBlocker={rec.restrictions?.allowed === false} />
                             </>
                           )}
 

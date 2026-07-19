@@ -233,16 +233,18 @@ export default function Catalog() {
                     </div>
 
                     {rec.explanation.warnings.length > 0 && (
-                      <ExperienceWarning warnings={rec.explanation.warnings} />
+                      <ExperienceWarning warnings={rec.explanation.warnings} isBlocker={rec.restrictions?.allowed === false} />
                     )}
 
                     {/* Add Button */}
                     <button
                       onClick={() => handleAddAttraction(attr)}
-                      disabled={isAdded}
+                      disabled={isAdded || rec.restrictions?.allowed === false}
                       className={`w-full inline-flex items-center justify-center gap-2 rounded-2xl py-3 text-xs font-medium transition-all ${
                         isAdded
                           ? "bg-[#F3EFEA] text-slate-400 cursor-not-allowed"
+                          : rec.restrictions?.allowed === false
+                          ? "bg-red-50 text-red-400 cursor-not-allowed border border-red-100"
                           : "bg-[#0D0E10] text-white hover:bg-slate-800 shadow-md"
                       }`}
                     >
@@ -254,7 +256,7 @@ export default function Catalog() {
                       ) : (
                         <>
                           <Plus className="h-4 w-4" />
-                          Adicionar ao Dia {selectedDay}
+                          {rec.restrictions?.allowed === false ? "Restrito pelo Perfil" : "Adicionar ao Roteiro"}
                         </>
                       )}
                     </button>

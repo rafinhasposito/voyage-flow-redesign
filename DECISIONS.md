@@ -157,3 +157,13 @@ O atual `ExperienceRepository` (que puxa do Supabase e faz cache SWR) evoluirá 
 **Contexto:** Na finalização da Fase EI-6D, identificamos divergência entre o histórico local de migrations e os objetos já existentes em produção (tabelas e RLS criadas via Dashboard GUI nas fases EI-2 e EI-3).
 **Executado:** Repair seletivo (`supabase migration repair --status applied`) foi efetivamente executado para as migrations 006, 007 e 008, registrando-as como aplicadas no histórico remoto sem reexecutar o SQL. Em seguida, `supabase db push --linked --include-all` foi executado aplicando as migrations 001 a 005 e a nova 20260718200000 (Políticas e Acessibilidade) — todas validadas previamente com `--dry-run`. Google Maps e Places foram formalmente registrados como legado descontinuado, e MapLibre + OpenFreeMap como solução oficial.
 **Resultado:** As 107 experiências foram preservadas intactas. Todas as 9 migrations estão sincronizadas. Os 10 novos campos de políticas e acessibilidade existem na tabela `experiences`. A leitura no frontend continua normalizada sem interrupções.
+
+### 2026-07-18: Fase EI-7 – Restrições aplicadas ao Roteiro e ao Consumer
+**Contexto:** Com as 10 novas colunas de acessibilidade e políticas (ex: `min_age`, `wheelchair_accessible`, `adult_only`) inseridas na Fase EI-6, foi necessário forçar a Engine a interpretá-las objetivamente, evitando que a recomendação por afinidade ignorasse bloqueios vitais (ex: sugerir uma experiência `adult_only` para famílias).
+**Decisão:** Uma nova etapa pura e determinística foi adicionada ao `ExperienceMatchingEngine.calculateScore`, baseada na função `evaluateRestrictions`. Esta avaliação categoriza cada restrição estrutural em `blockers`, `warnings` ou `information`, baseando-se no perfil expandido do usuário (`UserProfile` agora comporta idade, crianças, tamanho do grupo e uso de cadeira de rodas).
+**Resultado:** 
+1. Itens avaliados com `blockers` não podem mais ser adicionados ao Roteiro automaticamente.
+2. Na UI do Catálogo, esses itens exibem o botão de "Adicionar" travado, com um banner vermelho "Restrito pelo Perfil".
+3. Alertas menos críticos (`warnings` ou `information`) usam um banner âmbar.
+4. Nenhuma modificação no banco foi feita. Toda a validação ocorre estritamente na Engine Frontend em memória.
+5. Cobertura de 15 testes de unidade garantindo o comportamento lógico exato de bloqueio/alerta.

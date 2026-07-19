@@ -112,4 +112,11 @@ Este documento acompanha as fases do projeto de forma macro, definindo o que já
 - [x] **EI-6A:** Auditoria e Limpeza de Migrations.
 - [x] **EI-6B:** Refatoração de Tipos para novos campos (min_age, adult_only, wheelchair_accessible).
 - [x] **EI-6C:** Preparação do UI do Admin CMS (Editor) e da Lógica de Restrições na Inteligência. 176 testes passando. Commit `ec1efe0`.
-- [x] **EI-6D:** Persistência Controlada — Repair seletivo executado (006, 007, 008); db push aplicado (001–005 e 20260718200000). `buildExperiencePayload` corrigido para os 10 novos campos. `supabase.types.ts` regenerado do schema remoto. 176 testes passando. Build aprovado. Teste ponta a ponta realizado pelo Admin: criação, preenchimento dos campos de políticas, salvamento, recarregamento (valores persistidos), Consumer carregando, exclusão via interface. 107 registros pré-existentes preservados intactos. MapLibre + OpenFreeMap como solução oficial; Google Maps e Places como legado descontinuado.
+- [x] **EI-6D:** Persistência Controlada — Repair seletivo executado (006, 007, 008); db push aplicado (001–005 e 20260718200000).
+
+### Fase EI-7: Restrições aplicadas ao Roteiro e ao Consumer [Concluída]
+- [x] **ETAPA 1:** Auditoria curta do Engine e fluxos.
+- [x] **ETAPA 2:** Implementação do `evaluateRestrictions` na `ExperienceMatchingEngine` com classificação de bloqueios, avisos e informações, baseados em campos do `UserProfile`.
+- [x] **ETAPA 3:** Consumer: itens bloqueados impedem adição manual (botão desabilitado com "Restrito pelo Perfil") e não são inclusos automaticamente no Roteiro Gerado. Atualização do componente `ExperienceWarning` (cores diferenciadas para bloqueios e alertas).
+- [x] **ETAPA 4:** Suíte de 15 testes de restrições implementada e validada. Total 191/191 testes passando.
+- [x] **ETAPA 5 & 6:** Build ok. Documentação atualizada (ROADMAP, PROJECT_CONTEXT, DECISIONS).

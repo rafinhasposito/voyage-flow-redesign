@@ -26,6 +26,16 @@ export interface TravelExperience {
   reservationRequired?: boolean;
   availability?: string;
   accessibility?: ("wheelchair" | "stroller" | "none")[];
+  min_age?: number | null;
+  adult_only?: boolean | null;
+  family_with_children_allowed?: boolean | null;
+  requires_companion?: boolean | null;
+  minimum_group_size?: number | null;
+  maximum_group_size?: number | null;
+  wheelchair_accessible?: boolean | null;
+  stairs_required?: boolean | null;
+  accessibility_notes?: string | null;
+  restrictions_provenance?: any | null;
   rating?: number;
   affiliateLink?: string;
   provider?: string;
@@ -90,11 +100,24 @@ export interface MatchExplanation {
   humanJustification: string;
 }
 
+export type RestrictionReason = {
+  code: string;
+  message: string;
+};
+
+export type RestrictionEvaluation = {
+  allowed: boolean;
+  blockers: RestrictionReason[];
+  warnings: RestrictionReason[];
+  information: RestrictionReason[];
+};
+
 export interface RecommendedExperience {
   experience: TravelExperience;
   finalScore: number;
   confidence: number;
   explanation: MatchExplanation;
+  restrictions?: RestrictionEvaluation;
 }
 
 export type TravelerPersona = 
@@ -194,6 +217,11 @@ export interface UserProfile {
   startDate: string;
 
   passengerName: string;
+  passengerAge?: number;
+  hasChildren?: boolean;
+  groupSize?: number;
+  wheelchairRequired?: boolean;
+  
   personaAffinity: PersonaAffinity;
   tagAffinity: TagAffinity;
   pace: TravelPace;
@@ -1050,6 +1078,112 @@ export function saveTravelState(state: TravelState) {
 // EXPERIENCE MATCHING ENGINE (PURE DOMAIN)
 // ==========================================
 export class ExperienceMatchingEngine {
+  static evaluateRestrictions(
+    experience: TravelExperience,
+    profile: UserProfile
+  ): RestrictionEvaluation {
+    const blockers: RestrictionReason[] = [];
+    const warnings: RestrictionReason[] = [];
+    const information: RestrictionReason[] = [];
+
+    const age = profile.passengerAge;
+    const hasChildren = profile.hasChildren; // undefined se não preenchido
+    const groupSize = profile.groupSize; // undefined se não preenchido
+    const wheelchair = profile.wheelchairRequired; // undefined se não preenchido
+
+    // 1. Min Age
+    if (experience.min_age !== undefined && experience.min_age !== null) {
+      if (age !== undefined && age < experience.min_age) {
+        blockers.push({ code: "BELOW_MINIMUM_AGE", message: `Idade mínima exigida é ${experience.min_age} anos.` });
+      } else if (age === undefined) {
+        information.push({ code: "AGE_UNKNOWN", message: `Experiência exige idade mínima de ${experience.min_age} anos.` });
+      }
+    }
+
+    // 2. Adult Only
+    if (experience.adult_only === true) {
+      if (hasChildren === true) {
+        blockers.push({ code: "ADULT_ONLY", message: "Experiência exclusiva para adultos, incompatível com viagem com crianças." });
+      } else if (hasChildren === undefined) {
+        information.push({ code: "CHILDREN_UNKNOWN", message: "Experiência exclusiva para adultos. Confirme se há crianças no grupo." });
+      }
+    }
+
+    // 3. Family with children allowed
+    if (experience.family_with_children_allowed === false) {
+      if (hasChildren === true) {
+        blockers.push({ code: "CHILDREN_NOT_ALLOWED", message: "Crianças não são permitidas nesta experiência." });
+      } else if (hasChildren === undefined) {
+        information.push({ code: "CHILDREN_UNKNOWN", message: "Crianças não são permitidas. Confirme se há crianças no grupo." });
+      }
+    }
+
+    // 4. Companion Required
+    if (experience.requires_companion === true) {
+      if (groupSize === 1) {
+        blockers.push({ code: "COMPANION_REQUIRED", message: "Esta experiência exige pelo menos um acompanhante." });
+      } else if (groupSize === undefined && profile.style === "solo") {
+        warnings.push({ code: "COMPANION_REQUIRED_WARN", message: "Esta experiência exige acompanhante. Você informou viagem solo, mas não definiu o tamanho do grupo." });
+      }
+    }
+
+    // 5. Minimum Group Size
+    if (experience.minimum_group_size !== undefined && experience.minimum_group_size !== null) {
+      if (groupSize !== undefined && groupSize < experience.minimum_group_size) {
+        blockers.push({ code: "GROUP_TOO_SMALL", message: `Tamanho mínimo do grupo é de ${experience.minimum_group_size} pessoas.` });
+      } else if (groupSize === undefined) {
+        information.push({ code: "GROUP_SIZE_UNKNOWN", message: `Tamanho mínimo do grupo é de ${experience.minimum_group_size} pessoas.` });
+      }
+    }
+
+    // 6. Maximum Group Size
+    if (experience.maximum_group_size !== undefined && experience.maximum_group_size !== null) {
+      if (groupSize !== undefined && groupSize > experience.maximum_group_size) {
+        blockers.push({ code: "GROUP_TOO_LARGE", message: `Tamanho máximo do grupo é de ${experience.maximum_group_size} pessoas.` });
+      }
+    }
+
+    // 7. Wheelchair Accessible
+    if (wheelchair === true) {
+      if (experience.wheelchair_accessible === false) {
+        blockers.push({ code: "NOT_WHEELCHAIR_ACCESSIBLE", message: "Local não possui acessibilidade para cadeira de rodas." });
+      } else if (experience.wheelchair_accessible === null || experience.wheelchair_accessible === undefined) {
+        warnings.push({ code: "WHEELCHAIR_ACCESS_UNKNOWN", message: "Não há confirmação se o local possui acessibilidade para cadeira de rodas." });
+      }
+    }
+
+    // 8. Stairs Required
+    if (experience.stairs_required === true) {
+      const msg = "O percurso exige uso de escadas.";
+      if (wheelchair === true) blockers.push({ code: "STAIRS_REQUIRED_BLOCK", message: msg });
+      else warnings.push({ code: "STAIRS_REQUIRED", message: msg });
+    }
+
+    // 9. Accessibility Notes
+    if (experience.accessibility_notes) {
+      information.push({ code: "ACCESSIBILITY_NOTE", message: experience.accessibility_notes });
+    }
+
+    // 10. Provenance checks
+    if (experience.restrictions_provenance) {
+      let isVerified = false;
+      const prov: any = experience.restrictions_provenance;
+      Object.values(prov).forEach((entry: any) => {
+         if (entry?.verified_by) isVerified = true;
+      });
+      if (!isVerified) {
+        information.push({ code: "UNVERIFIED_RESTRICTIONS", message: "As restrições de acessibilidade baseiam-se em informações não oficiais." });
+      }
+    }
+
+    return {
+      allowed: blockers.length === 0,
+      blockers,
+      warnings,
+      information
+    };
+  }
+
   static calculateScore(
     experience: TravelExperience,
     context: RecommendationContext
@@ -1224,15 +1358,28 @@ export class ExperienceMatchingEngine {
       }
     }
 
+    // Aplicação das Restrições e Bloqueios
+    const restrictions = ExperienceMatchingEngine.evaluateRestrictions(experience, profile);
+    
+    // Se não for permitido (blocker), o match score cai para 0 e a experiência não é recomendada
+    if (!restrictions.allowed) {
+      finalScore = 0;
+      restrictions.blockers.forEach(b => warnings.push(b.message));
+    } else {
+      restrictions.warnings.forEach(w => warnings.push(w.message));
+      restrictions.information.forEach(i => warnings.push(i.message));
+    }
+
     return {
       experience,
-      finalScore,
-      confidence,
+      finalScore: Math.round(finalScore * 100),
+      confidence: Math.round(confidence * 100),
       explanation: {
         reasons,
         warnings,
-        humanJustification
-      }
+        humanJustification: ExperienceMatchingEngine.generateHumanJustification(reasons, warnings, Math.round(finalScore * 100))
+      },
+      restrictions
     };
   }
 
@@ -1421,8 +1568,8 @@ export function generateSmartItinerary(profile: UserProfile): ItineraryDay[] {
   // 2. Classifica e ordena todas as experiências disponíveis no catálogo
   const rankedResults = ExperienceMatchingEngine.rankExperiences(experiences, context);
 
-  // Filtra as experiências ativas (não rejeitadas por swipe left)
-  const availableRanked = rankedResults.filter(r => r.finalScore > -9000);
+  // Filtra as experiências ativas (não rejeitadas por swipe left) e não bloqueadas por restrições
+  const availableRanked = rankedResults.filter(r => r.finalScore > -9000 && r.restrictions?.allowed !== false);
 
   // 3. Auditoria de Log Temporário para calibração fina da inteligência
   console.log(`=== [AUDITORIA] GERAÇÃO DE ROTEIRO PARA: ${profile.passengerName} ===`);
@@ -1444,10 +1591,14 @@ export function generateSmartItinerary(profile: UserProfile): ItineraryDay[] {
 
     for (let i = 0; i < 3; i++) {
       if (rankedIndex < availableRanked.length) {
-        const rec = availableRanked[rankedIndex];
-        dayRecommendations.push(rec);
-        dayAttractionsLegacy.push(rec.experience);
-        rankedIndex++;
+        const exp = availableRanked[rankedIndex];
+        const eTime = exp.experience.durationHours * 60;
+        if (currentDayTime + eTime <= maxMinutesPerDay) {
+        
+          dayRecommendations.push(exp);
+          dayAttractionsLegacy.push(exp.experience);
+          rankedIndex++;
+        }
       } else {
         // Fallback determinístico para preencher dias extras (viagens longas ou catálogo curto):
         // Reinicia o ponteiro circulando pelas experiências recomendadas do usuário,

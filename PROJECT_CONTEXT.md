@@ -6,6 +6,8 @@ Este documento representa o estado atual do projeto, suas regras arquiteturais e
 
 ## 1. Visão do Produto
 - **Objetivo do projeto:** Facilitar e elevar o planejamento de viagens através de roteiros hiper-personalizados baseados em Inteligência Artificial. O sistema realiza um *matching* inteligente entre o perfil do usuário, seus interesses, restrições orçamentárias e o catálogo de atrações do destino.
+- **Inteligência Artificial (Motor de Recomendação):** Puramente client-side, utilizando regras matemáticas de afinidade (Tinder-like swipe, personas, acompanhante, orçamento) no `ExperienceMatchingEngine` (via `travelState.ts`). 
+- **Restrições Factuais:** A partir da fase EI-7, o motor suporta regras determinísticas absolutas (ex: proibição de crianças em eventos para adultos ou barreira arquitetônica para cadeirantes) através da função `evaluateRestrictions`, combinando bloqueios "hard" que invalidam o Roteiro, com alertas ("warnings") visuais na interface do Consumer (`ExperienceWarning`).
 - **Público-alvo:** Viajantes de diversos perfis (solos, casais, famílias, grupos de amigos) que valorizam roteiros bem curados e fogem do esforço manual de pesquisa.
 - **Modelo de negócio:** Atração e captação de leads via criação de roteiros de forma totalmente gratuita e sem atritos (sem login inicial). A monetização futura virá, primariamente, através de links de afiliados (como GetYourGuide) integrados de forma nativa e útil nas recomendações.
 

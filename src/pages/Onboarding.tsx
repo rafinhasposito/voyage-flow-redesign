@@ -105,7 +105,7 @@ export default function Onboarding() {
             </span>
           </div>
           <div className="text-xs font-medium uppercase tracking-[0.2em] text-slate-400">
-            Passo {step} de 4
+            Passo {step} de 5
           </div>
         </div>
       </header>
@@ -114,7 +114,7 @@ export default function Onboarding() {
       <div className="w-full bg-[#EAE6DF] h-1">
         <div 
           className="bg-[#C5A85C] h-1 transition-all duration-500" 
-          style={{ width: `${(step / 4) * 100}%` }}
+          style={{ width: `${(step / 5) * 100}%` }}
         />
       </div>
 
@@ -163,8 +163,108 @@ export default function Onboarding() {
             </div>
           )}
 
-          {/* STEP 2: Interesses */}
+          {/* STEP 2: Detalhes do Grupo */}
           {step === 2 && (
+            <div className="space-y-8">
+              <div className="space-y-3">
+                <p className="text-xs font-semibold uppercase tracking-[0.25em] text-[#C5A85C]">Perfil dos Viajantes</p>
+                <h2 className="font-serif text-3xl md:text-4xl font-light text-[#0D0E10] leading-tight">
+                  Como é o seu <span className="italic">grupo</span>?
+                </h2>
+                <p className="text-sm text-slate-500">Isso nos ajuda a garantir que os passeios sejam adequados e seguros para todos (opcional).</p>
+              </div>
+
+              <div className="space-y-6">
+                {/* Quantidade de Pessoas */}
+                <div className="space-y-3">
+                  <label className="text-xs font-semibold uppercase tracking-wider text-slate-400">Tamanho do Grupo</label>
+                  <div className="flex items-center justify-between bg-[#FAF8F5] border border-[#EAE6DF] rounded-2xl p-4">
+                    <button 
+                      onClick={() => setProfile({ ...profile, groupSize: Math.max(1, (profile.groupSize || 1) - 1) })}
+                      className="h-10 w-10 rounded-xl bg-white border border-[#EAE6DF] flex items-center justify-center font-bold text-lg hover:bg-slate-50"
+                    >
+                      -
+                    </button>
+                    <div className="text-center">
+                      <span className="font-serif text-3xl font-light text-[#0D0E10]">{profile.groupSize || 1}</span>
+                      <span className="text-sm text-slate-500 ml-2">{(profile.groupSize || 1) === 1 ? "pessoa" : "pessoas"}</span>
+                    </div>
+                    <button 
+                      onClick={() => setProfile({ ...profile, groupSize: (profile.groupSize || 1) + 1 })}
+                      className="h-10 w-10 rounded-xl bg-white border border-[#EAE6DF] flex items-center justify-center font-bold text-lg hover:bg-slate-50"
+                    >
+                      +
+                    </button>
+                  </div>
+                </div>
+
+                <div className="grid gap-4 sm:grid-cols-2">
+                  {/* Presença de Crianças */}
+                  <div className="flex flex-col gap-2 p-5 rounded-2xl border border-[#EAE6DF]">
+                    <div>
+                      <p className="font-medium text-[#0D0E10]">Viajando com crianças?</p>
+                      <p className="text-xs text-slate-500 mt-1">Apenas passeios family-friendly</p>
+                    </div>
+                    <div className="flex gap-2 mt-2">
+                      <button 
+                        onClick={() => setProfile({ ...profile, hasChildren: true })}
+                        className={`flex-1 py-1.5 text-xs font-medium rounded-lg border transition-colors ${profile.hasChildren === true ? 'bg-[#C5A85C] text-white border-[#C5A85C]' : 'bg-white text-slate-500 border-slate-200 hover:border-slate-300'}`}
+                      >Sim</button>
+                      <button 
+                        onClick={() => setProfile({ ...profile, hasChildren: undefined })}
+                        className={`flex-1 py-1.5 text-xs font-medium rounded-lg border transition-colors ${profile.hasChildren === undefined ? 'bg-slate-200 text-slate-700 border-slate-300' : 'bg-white text-slate-500 border-slate-200 hover:border-slate-300'}`}
+                      >Não Informar</button>
+                      <button 
+                        onClick={() => setProfile({ ...profile, hasChildren: false })}
+                        className={`flex-1 py-1.5 text-xs font-medium rounded-lg border transition-colors ${profile.hasChildren === false ? 'bg-[#0D0E10] text-white border-[#0D0E10]' : 'bg-white text-slate-500 border-slate-200 hover:border-slate-300'}`}
+                      >Não</button>
+                    </div>
+                  </div>
+
+                  {/* Cadeira de Rodas */}
+                  <div className="flex flex-col gap-2 p-5 rounded-2xl border border-[#EAE6DF]">
+                    <div>
+                      <p className="font-medium text-[#0D0E10]">Acessibilidade</p>
+                      <p className="text-xs text-slate-500 mt-1">Necessita de cadeira de rodas</p>
+                    </div>
+                    <div className="flex gap-2 mt-2">
+                      <button 
+                        onClick={() => setProfile({ ...profile, wheelchairRequired: true })}
+                        className={`flex-1 py-1.5 text-xs font-medium rounded-lg border transition-colors ${profile.wheelchairRequired === true ? 'bg-[#C5A85C] text-white border-[#C5A85C]' : 'bg-white text-slate-500 border-slate-200 hover:border-slate-300'}`}
+                      >Sim</button>
+                      <button 
+                        onClick={() => setProfile({ ...profile, wheelchairRequired: undefined })}
+                        className={`flex-1 py-1.5 text-xs font-medium rounded-lg border transition-colors ${profile.wheelchairRequired === undefined ? 'bg-slate-200 text-slate-700 border-slate-300' : 'bg-white text-slate-500 border-slate-200 hover:border-slate-300'}`}
+                      >Não Informar</button>
+                      <button 
+                        onClick={() => setProfile({ ...profile, wheelchairRequired: false })}
+                        className={`flex-1 py-1.5 text-xs font-medium rounded-lg border transition-colors ${profile.wheelchairRequired === false ? 'bg-[#0D0E10] text-white border-[#0D0E10]' : 'bg-white text-slate-500 border-slate-200 hover:border-slate-300'}`}
+                      >Não</button>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Idade Mínima */}
+                <div className="space-y-3">
+                  <label className="text-xs font-semibold uppercase tracking-wider text-slate-400">Idade do mais jovem (Opcional)</label>
+                  <input 
+                    type="number"
+                    min="0"
+                    max="120"
+                    placeholder="Ex: 12"
+                    value={profile.passengerAge || ""}
+                    onChange={(e) => setProfile({ ...profile, passengerAge: e.target.value ? parseInt(e.target.value) : undefined })}
+                    className="w-full bg-[#FAF8F5] border border-[#EAE6DF] rounded-2xl p-4 text-[#0D0E10] focus:outline-none focus:border-[#C5A85C] focus:ring-1 focus:ring-[#C5A85C]"
+                  />
+                  <p className="text-[10px] text-slate-400">Ajuda a evitar passeios com restrições etárias.</p>
+                </div>
+
+              </div>
+            </div>
+          )}
+
+          {/* STEP 3: Interesses */}
+          {step === 3 && (
             <div className="space-y-8">
               <div className="space-y-3">
                 <p className="text-xs font-semibold uppercase tracking-[0.25em] text-[#C5A85C]">Personalização</p>
@@ -207,8 +307,8 @@ export default function Onboarding() {
             </div>
           )}
 
-          {/* STEP 3: Orçamento */}
-          {step === 3 && (
+          {/* STEP 4: Orçamento */}
+          {step === 4 && (
             <div className="space-y-8">
               <div className="space-y-3">
                 <p className="text-xs font-semibold uppercase tracking-[0.25em] text-[#C5A85C]">Planejamento Financeiro</p>
@@ -247,8 +347,8 @@ export default function Onboarding() {
             </div>
           )}
 
-          {/* STEP 4: Duração e Data */}
-          {step === 4 && (
+          {/* STEP 5: Duração e Data */}
+          {step === 5 && (
             <div className="space-y-8">
               <div className="space-y-3">
                 <p className="text-xs font-semibold uppercase tracking-[0.25em] text-[#C5A85C]">Logística</p>
@@ -312,7 +412,7 @@ export default function Onboarding() {
               <div />
             )}
 
-            {step < 4 ? (
+            {step < 5 ? (
               <button
                 onClick={() => setStep(step + 1)}
                 className="inline-flex items-center gap-2 rounded-full bg-[#0D0E10] px-6 py-3 text-sm font-medium text-white hover:bg-slate-800 transition-colors"
