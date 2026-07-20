@@ -1,5 +1,5 @@
 BEGIN;
-SELECT plan(14);
+SELECT plan(16);
 
 -- 1. Criação das colunas de onboarding (Migration 00002)
 SELECT has_column('public', 'trips', 'preferences', 'Trips has preferences JSONB column');
@@ -12,6 +12,15 @@ SELECT has_fk('public', 'trip_reservations', 'trip_reservations has foreign keys
 SELECT has_fk('public', 'trip_documents', 'trip_documents has foreign keys');
 SELECT col_default_is('public', 'trip_reservations', 'purchase_status', 'undecided', 'Default purchase_status is undecided');
 SELECT col_default_is('public', 'trip_documents', 'offline_enabled', false, 'Default offline is false');
+
+SELECT is_empty(
+    $$SELECT 1 FROM information_schema.role_table_grants WHERE grantee = 'authenticated' AND table_name = 'trip_reservations' AND privilege_type = 'TRUNCATE'$$,
+    'TRUNCATE privilege should not be granted on trip_reservations'
+);
+SELECT is_empty(
+    $$SELECT 1 FROM information_schema.role_table_grants WHERE grantee = 'authenticated' AND table_name = 'trip_documents' AND privilege_type = 'TRUNCATE'$$,
+    'TRUNCATE privilege should not be granted on trip_documents'
+);
 
 -- 3. Inserir Mock Users (A e B) para RLS
 INSERT INTO auth.users (id, email) VALUES 

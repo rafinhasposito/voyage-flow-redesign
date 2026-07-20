@@ -163,5 +163,5 @@ USING (
   (storage.foldername(name))[1] = auth.uid()::text
 );
 
-GRANT ALL ON public.trip_reservations TO authenticated;
-GRANT ALL ON public.trip_documents TO authenticated;
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.trip_reservations TO authenticated;
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.trip_documents TO authenticated;

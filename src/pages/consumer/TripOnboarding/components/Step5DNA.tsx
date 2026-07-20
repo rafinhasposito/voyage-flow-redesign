@@ -1,6 +1,6 @@
 import { useNavigate } from 'react-router-dom';
 import { Bot, Map, Calendar, Wallet } from 'lucide-react';
-import { buildTripEngineDTO } from '../../../utils/engineMapper';
+import { buildTripEngineDTO } from '../../../../utils/engineMapper';
 
 export default function Step5DNA({ trip, reservations, documents, onPrev }: any) {
   const navigate = useNavigate();
