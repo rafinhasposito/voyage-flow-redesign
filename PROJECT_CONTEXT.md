@@ -120,10 +120,12 @@ Elaborada proposta de infraestrutura (Edge Functions e SQL migrations locais) pa
 1. ADMIN-1 — Zero Em Breve
 2. ADMIN-2A — Auditoria e proposta segura de backend (Atual)
 3. ADMIN-2B.1A — Validação estática e pacote de homologação concluídos
-4. ADMIN-3 — Conexão das páginas administrativas com dados reais
-5. LEGACY-1 — Remoção consolidada de mocks, previews e código antigo
-6. SYSTEM-QA — Auditoria funcional completa do Admin e Consumer
-7. DESIGN-SYSTEM-1 — Padronização visual global do produto
-8. UX-QA — Responsividade, acessibilidade e revisão textual
-9. BETA-READY — Segurança, performance e preparação para lançamento
+4. ADMIN-2B.1B — Validação física em ambiente isolado pendente
+5. ADMIN-2B.2 — Aplicação controlada no projeto real pendente
+6. ADMIN-3 — Conexão das páginas administrativas com dados reais
+7. LEGACY-1 — Remoção consolidada de mocks, previews e código antigo
+8. SYSTEM-QA — Auditoria funcional completa do Admin e Consumer
+9. DESIGN-SYSTEM-1 — Padronização visual global do produto
+10. UX-QA — Responsividade, acessibilidade e revisão textual
+11. BETA-READY — Segurança, performance e preparação para lançamento
 

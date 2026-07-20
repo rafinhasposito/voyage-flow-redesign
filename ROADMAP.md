@@ -148,13 +148,14 @@ Este documento acompanha as fases do projeto de forma macro, definindo o que já
 - [x] Adoção rigorosa do princípio de honestidade estrutural na Interface.
 
 
-### Fase ADMIN-2: Fundação Real de Backend [Proposta técnica em revisão]
-- [x] Auditoria de esquemas existentes.
-- [x] Criação de migration local de `system_settings`, `partners`, `orders`, `profiles` e `analytics_events`.
+### Fase ADMIN-2: Fundação Real de Backend
+- [x] **ADMIN-2B.1A — Validação estática e pacote de homologação concluídos**
+- [ ] **ADMIN-2B.1B — Validação física em ambiente isolado pendente**
+- [ ] **ADMIN-2B.2 — Aplicação controlada no projeto real pendente**
+- [x] Criação de migration local candidata de `system_settings`, `partners`, `orders`, `profiles` e `analytics_events`.
 - [x] Escopo da Edge Function `admin-list-users` para B2C.
 - [x] Testes puros baseados nos novos contratos de Payload B2C e Cálculo Financeiro.
-- [x] Preparação documental e avaliação de impacto nos 107 registros locais.
-
+- [x] Preparação documental e testes prontos para execução física.
 
 ### Fase DESIGN-SYSTEM-1: Padronização global do Admin e Consumer [Bloqueada]
 - Tokenização de cores e tipografia

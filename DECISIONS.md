@@ -197,10 +197,10 @@ O atual `ExperienceRepository` (que puxa do Supabase e faz cache SWR) evoluirá 
 **Decisão:** Eliminar 100% de mocks destrutivos ou falsas funcionalidades no Admin. Páginas apoiadas em backend inexistente (Parceiros, Vendas, B2C Users, Analytics) deixam de exibir botões interativos e passam a exibir um alerta documentado com as lacunas exigidas. Páginas suportadas (Hospedagens, Eventos, Destinos, Tags, Personas, Regras) derivam seus estados do catálogo central. `ComingSoon.tsx` removido globalmente.
 
 
-## [ADMIN-2] Backend Foundation Plan
-**Data:** Jul 19, 2026
+## [ADMIN-2B.1A] Validação estática e pacote de homologação concluídos
+**Data:** Jul 20, 2026
 **Contexto:** Preparar os módulos "Parciais" (Afiliados, Analytics, Parceiros, Vendas, Usuários) para consumir tabelas reais.
-**Decisão:** Não alterar `experiences`. Criadas tabelas `system_settings`, `partners`, `orders`, `profiles` e `analytics_events`. Edge Function `admin-list-users` criada para acessar de forma segura o `auth.users` B2C para a UI administrativa. Nenhuma migration foi aplicada nesta fase (apenas proposta técnica).
+**Decisão:** Não alterar `experiences`. Criadas tabelas `system_settings`, `partners`, `orders`, `profiles` e `analytics_events`. Edge Function `admin-list-users` criada para acessar de forma segura o `auth.users` B2C para a UI administrativa. A ADMIN-2B.1A isola o pacote físico de homologação em SQL, preparando terreno para ADMIN-2B.1B (Validação física em ambiente isolado pendente) e ADMIN-2B.2 (Aplicação controlada no projeto real pendente).
 
 
 ### Regra Permanente do Projeto
