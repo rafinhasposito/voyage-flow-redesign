@@ -119,7 +119,7 @@ Elaborada proposta de infraestrutura (Edge Functions e SQL migrations locais) pa
 ## Ordem Oficial de Fases (Travada)
 1. ADMIN-1 — Zero Em Breve
 2. ADMIN-2A — Auditoria e proposta segura de backend (Atual)
-3. ADMIN-2B — Aplicação controlada aguardando execução
+3. ADMIN-2B.1A — Validação estática e pacote de homologação concluídos
 4. ADMIN-3 — Conexão das páginas administrativas com dados reais
 5. LEGACY-1 — Remoção consolidada de mocks, previews e código antigo
 6. SYSTEM-QA — Auditoria funcional completa do Admin e Consumer

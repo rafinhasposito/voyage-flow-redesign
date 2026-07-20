@@ -9,10 +9,16 @@ export type CommissionRule = {
 };
 
 export type SystemSetting = {
+  id: string;
+  category: string;
   key: string;
   value: any;
-  is_active: boolean;
+  environment: string;
+  version: number;
   is_public: boolean;
+  is_active: boolean;
+  updated_at: string;
+  updated_by?: string | null;
 };
 
 export type Partner = {
@@ -40,29 +46,42 @@ export type AffiliateLink = {
 
 export type Order = {
   id: string;
+  user_id?: string | null;
   total_gross: number;
   total_discount: number;
   total_net: number;
   currency: string;
   status: 'pending' | 'paid' | 'cancelled' | 'refunded';
+  idempotency_key?: string;
+  origin?: string;
+  created_at: string;
+  updated_at: string;
 };
 
 export type OrderItem = {
   id: string;
   order_id: string;
-  experience_id: string | null;
+  experience_id?: string | null;
+  affiliate_link_id?: string | null;
   gross_price: number;
   commission_expected: number;
   currency: string;
+  status: string;
+  created_at: string;
 };
 
 export type Payment = {
   id: string;
   order_id: string;
-  amount: number;
   provider: string;
+  external_transaction_id?: string;
+  amount: number;
+  currency: string;
   status: 'pending' | 'paid' | 'failed';
+  provider_fee: number;
   idempotency_key?: string;
+  created_at: string;
+  updated_at: string;
 };
 
 export type B2CProfileDTO = {

@@ -69,12 +69,51 @@ A função `admin-list-users` atende aos padrões de produção:
 
 ---
 
-## 6. Ordem de Aplicação Futura (Para ADMIN-2B)
+## 5.1 Estratégia de Criação de Perfis (auth.users -> public.profiles)
+**Opção B Escolhida (Criação pela Aplicação/Edge Function):**
+* O profile será criado durante o onboarding autenticado do aplicativo.
+* A operação será idempotente com `upsert`.
+* O `id` inserido em `public.profiles` deverá ser o exato UUID oriundo do `auth.users`.
+* A ausência temporária do profile **não** bloqueará a autenticação base.
+* Páginas que dependem de profile no Frontend tratarão o estado ausente.
+* Não copiar `user_metadata` integral.
+* Não armazenar tokens ou chaves de autenticação.
+* A Fase ADMIN-3 será a responsável por construir a integração desta entidade no painel B2B.
+* **Decisão:** Não criaremos um Database Trigger (Security Definer) para esta tabela agora.
 
-1. Mover arquivo `supabase/migration_proposals/20260719200000_admin_backend_foundation.sql` de volta para a pasta ativa de `supabase/migrations/`.
-2. Validar integridade local: `npx vitest run` e `npm run build`.
-3. Push da estrutura para a nuvem: `npx supabase db push`.
-4. Deploy da Edge Function de Segurança: `npx supabase functions deploy admin-list-users --no-verify-jwt`.
-5. Acoplar a UI B2B de Parceiros, Vendas e IA aos novos endpoints.
+---
 
-**Status Atual:** ADMIN-2A — Proposta técnica aprovada e versionada. Nenhuma modificação foi executada no banco oficial. Nenhuma UI sofreu alteração visual.
+## 6. Plano Oficial de Execução (Travado)
+
+1. **ADMIN-2B.1A** — Pacote estático e testes preparados.
+2. **ADMIN-2B.1B** — Execução física em homologação.
+3. **ADMIN-2B.2** — Aplicação no projeto Supabase real.
+4. **ADMIN-3** — Conexão das páginas (UI B2B consumindo repositórios).
+5. **LEGACY-1** — Remoção dos legados e mocks.
+6. **SYSTEM-QA** — Auditoria funcional global.
+7. **DESIGN-SYSTEM-1** — Padronização visual global (Atualmente Bloqueada).
+
+* **Gate 1** — Mover candidata para `supabase/migrations` (comando: `mv supabase/migration_candidates/20260720080000_admin_backend_foundation.sql supabase/migrations/20260720080000_admin_backend_foundation.sql`).
+* **Gate 2** — Conferir diff e histórico do Git para garantir pureza da migration.
+* **Gate 3** — Aplicar migration remotamente: `npx supabase db push`.
+* **Gate 4** — Verificar no Dashboard remoto se as tabelas foram criadas, fazer contagens e checar RLS aplicadas.
+* **Gate 5** — Regenerar tipos localmente: `npx supabase gen types typescript --project-id idcucjpanzufkipvfmse > src/types/supabase.types.ts`.
+* **Gate 6** — Testar (build/vitest) e commitar tipos atualizados.
+* **Gate 7** — Configurar variáveis de CORS no Vercel para a Edge Function.
+* **Gate 8** — Deploy da Edge Function: `npx supabase functions deploy admin-list-users --no-verify-jwt`.
+* **Gate 9** — Testar a autenticação da função na prática com a UI.
+* **Gate 10** — Iniciar fase ADMIN-3.
+
+---
+
+## 7. Plano de Rollback 
+
+**Acionamento:** Em caso de quebra estrutural (tabelas parcialmente criadas), falha na Edge Function, RLS conflitando com catálogo existente ou quebra de tipos irrecuperável.
+**Diretriz:** Rollback não destrutivo; jamais usar scripts automáticos que removam dados criados após a migração se os mesmos possuírem lastro financeiro.
+**Ações:**
+1. Desabilitar Edge Function B2C: `supabase functions delete admin-list-users`.
+2. Se a migration falhar na aplicação, restaurar o último backup Snapshot via Dashboard.
+3. Se a interface quebrar por tipagem: Reverter o commit Frontend, recriar os tipos usando a CLI apontando para o status anterior do schema e usar os contratos B2B provisórios.
+4. Caso a RLS vaze permissões, executar script de emergência: `ALTER TABLE public.system_settings DISABLE ROW LEVEL SECURITY;` até a revisão da política.
+
+**Status Atual:** ADMIN-2B.1A — Validação estática e pacote de homologação concluídos. Nenhuma modificação foi executada no banco oficial remoto. Nenhuma UI sofreu alteração visual.
