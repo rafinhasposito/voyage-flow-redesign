@@ -4,7 +4,7 @@ import {
   LayoutDashboard, Library, Hotel, Map, Activity, UploadCloud,
   Users, Tag, Star, Globe, Settings, LogOut,
   Compass, PanelLeftClose, PanelLeftOpen, Utensils, Calendar,
-  BarChart2, Brain, Link2, DollarSign, XCircle
+  BarChart2, Brain, Link2, DollarSign, XCircle, Briefcase, Percent, CreditCard
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAdminAuth } from '@/hooks/useAdminAuth';

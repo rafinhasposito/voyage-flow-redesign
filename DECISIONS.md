@@ -214,3 +214,10 @@ A padronização visual global será feita **somente** depois que estrutura, ban
 - Não redesenhar páginas ou trocar componentes por estética.
 - Corrigir apenas o que impede o uso.
 
+## [BUGFIX-RUNTIME-1] Corrigir tela cinza e integração GYG
+**Data:** Jul 20, 2026
+**Contexto:** O painel administrativo e a tela inicial (`/`) apresentaram um "crash" (tela cinza) logo ao rodar `npm run dev`, e havia um alerta constante do plugin HTML Vite no terminal sobre `VITE_GYG_PARTNER_ID` ausente.
+**Decisão:** Não implementar mock ou contornos baseados em infraestrutura. Foi identificado via Puppeteer (teste headless) que o problema era um `ReferenceError` de ícones do `lucide-react` não importados no `AdminLayout.tsx`. O erro quebrava a renderização global (ausência de Error Boundary). A tag `<script>` fixa do GetYourGuide foi removida do `index.html`, e a lógica de afiliação continua sendo injetada apenas se `VITE_GYG_PARTNER_ID` estiver configurada, sem quebrar os links normais via `ExperienceRepository.buildAffiliateLink`.
+**Consequência:** A renderização foi completamente restaurada, o console ficou limpo. O aplicativo usa perfeitamente a URL do Supabase remoto e o RLS sem tela cinza.
+**Próximo Passo (Registrado):** Inserir um Error Boundary na raiz da aplicação.
+

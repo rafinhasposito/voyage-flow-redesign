@@ -137,9 +137,10 @@ Elaborada proposta de infraestrutura (Edge Functions e SQL migrations locais) pa
 * aplicação real reprovada até existir homologação física.
 
 6. ADMIN-3 — Conexão das páginas administrativas com dados reais
-7. LEGACY-1 — Remoção consolidada de mocks, previews e código antigo
-8. SYSTEM-QA — Auditoria funcional completa do Admin e Consumer
-9. DESIGN-SYSTEM-1 — Padronização visual global do produto
-10. UX-QA — Responsividade, acessibilidade e revisão textual
-11. BETA-READY — Segurança, performance e preparação para lançamento
+7. BUGFIX-RUNTIME-1 — Corrigir tela cinza causada por imports ausentes no AdminLayout e remoção do warning do GYG
+8. LEGACY-1 — Remoção consolidada de mocks, previews e código antigo
+9. SYSTEM-QA — Auditoria funcional completa do Admin e Consumer
+10. DESIGN-SYSTEM-1 — Padronização visual global do produto
+11. UX-QA — Responsividade, acessibilidade e revisão textual
+12. BETA-READY — Segurança, performance e preparação para lançamento
 

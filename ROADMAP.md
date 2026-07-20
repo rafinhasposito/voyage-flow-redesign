@@ -171,6 +171,14 @@ Este documento acompanha as fases do projeto de forma macro, definindo o que já
 - Testar a Edge Function localmente
 - Produzir o relatório físico para liberar a ADMIN-2B.2
 
+### Fase BUGFIX-RUNTIME-1: Corrigir tela cinza causada por imports ausentes no AdminLayout [Concluída]
+- Identificada causa raiz da tela cinza: ReferenceError devido à ausência de imports de ícones (`Briefcase`, `Percent`, `CreditCard`) em `AdminLayout.tsx`.
+- Removido tag global fixa do GYG em `index.html` que causava aviso repetitivo `VITE_GYG_PARTNER_ID is not defined`.
+- Confirmado comportamento robusto da aplicação quando `VITE_GYG_PARTNER_ID` ausente (desabilita afiliação localmente sem quebrar app, tratado em `ExperienceRepository.buildAffiliateLink`).
+- Confirmado conexão direta com Supabase remoto (`idcucjpanzufkipvfmse`) via configurações do Vite/Env sem influências de Docker/Supabase locais.
+- Execução limpa e 272 testes aprovados.
+- **Débito Técnico Cadastrado**: Adicionar Error Boundary global para impedir tela vazia em crashes de renderização.
+
 ### Fase DESIGN-SYSTEM-1: Padronização global do Admin e Consumer [Bloqueada]
 - Tokenização de cores e tipografia
 - Padronização de cabeçalhos, cards, tabelas, filtros e formulários
