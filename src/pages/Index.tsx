@@ -585,7 +585,7 @@ function TripCard({
           Curadoria feita para o seu ritmo
         </p>
         <Link
-          to="/onboarding"
+          to="/minhas-viagens/nova"
           className={
             "inline-flex items-center gap-1 rounded-full px-4 py-2 text-xs font-medium transition-colors " +
             (accent
@@ -626,7 +626,7 @@ function Closing() {
               lembrar do que ele desenhou.
             </p>
             <Link
-              to="/onboarding"
+              to="/minhas-viagens/nova"
               className="group inline-flex items-center gap-2 rounded-full bg-[#C5A85C] px-6 py-3 text-sm font-medium text-white shadow-[0_18px_40px_-16px_rgba(197,168,92,0.55)] transition-transform hover:-translate-y-0.5"
             >
               Planejar minha viagem

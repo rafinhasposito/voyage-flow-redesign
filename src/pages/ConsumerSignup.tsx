@@ -82,7 +82,7 @@ export default function ConsumerSignup() {
           
           {error && <p className="text-red-500 text-sm text-center">{error}</p>}
           
-          <Button type="submit" className="w-full h-12 rounded-xl text-base" disabled={loading}>
+          <Button type="submit" className="w-full h-12 rounded-xl text-base bg-lime-400 hover:bg-lime-500 text-lime-950 font-bold" disabled={loading}>
             {loading ? <Loader2 className="h-5 w-5 animate-spin" /> : "Criar Conta"}
           </Button>
         </form>

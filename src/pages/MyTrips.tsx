@@ -58,7 +58,7 @@ export default function MyTrips() {
       <main className="flex-1 max-w-5xl w-full mx-auto px-6 py-12">
         <div className="flex items-center justify-between mb-8">
           <h1 className="text-3xl font-display font-bold text-slate-900">Minhas Viagens</h1>
-          <Button asChild className="rounded-xl">
+          <Button asChild className="rounded-xl bg-lime-400 hover:bg-lime-500 text-lime-950 font-bold">
             <Link to="/minhas-viagens/nova">
               <Plus className="h-4 w-4 mr-2" /> Nova Viagem
             </Link>
@@ -101,7 +101,7 @@ export default function MyTrips() {
             <p className="text-slate-500 mb-6 max-w-md mx-auto">
               Conte como você quer viajar e o Voyage Flow organiza o restante. Roteiros inteligentes e editáveis em segundos.
             </p>
-            <Button asChild size="lg" className="rounded-xl">
+            <Button asChild size="lg" className="rounded-xl bg-lime-400 hover:bg-lime-500 text-lime-950 font-bold">
               <Link to="/minhas-viagens/nova">Criar minha primeira viagem</Link>
             </Button>
           </div>

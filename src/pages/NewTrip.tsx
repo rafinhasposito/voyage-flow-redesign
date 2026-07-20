@@ -119,7 +119,7 @@ export default function NewTrip() {
             </div>
 
             <div className="pt-4 flex items-center gap-4 border-t border-slate-100">
-              <Button type="submit" disabled={isSaving} className="rounded-xl flex-1 h-12 text-base">
+              <Button type="submit" disabled={isSaving} className="rounded-xl flex-1 h-12 text-base bg-lime-400 hover:bg-lime-500 text-lime-950 font-bold">
                 {isSaving ? <><Loader2 className="mr-2 h-4 w-4 animate-spin"/> Salvando...</> : "Salvar Viagem"}
               </Button>
             </div>
