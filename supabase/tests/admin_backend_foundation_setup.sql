@@ -11,9 +11,14 @@ CREATE SCHEMA IF NOT EXISTS extensions;
 
 -- Mock do `public.admin_users` mínimo
 CREATE TABLE IF NOT EXISTS public.admin_users (
-    id uuid PRIMARY KEY REFERENCES auth.users(id),
-    is_active boolean DEFAULT true,
-    created_at timestamptz DEFAULT now()
+    user_id uuid NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    created_by uuid,
+    is_active boolean DEFAULT true NOT NULL,
+    notes text,
+    CONSTRAINT pk_admin_users PRIMARY KEY (user_id),
+    CONSTRAINT fk_admin_users_created_by FOREIGN KEY (created_by) REFERENCES auth.users(id) ON DELETE SET NULL,
+    CONSTRAINT fk_admin_users_user_id FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE
 );
 
 -- Mock do `public.experiences` mínimo
@@ -51,7 +56,7 @@ DELETE FROM public.experiences;
 -- Inserir usuários fictícios para a homologação
 -- User A (Admin)
 INSERT INTO auth.users (id, email) VALUES ('00000000-0000-0000-0000-000000000001', 'admin@example.com') ON CONFLICT DO NOTHING;
-INSERT INTO public.admin_users (id, is_active) VALUES ('00000000-0000-0000-0000-000000000001', true) ON CONFLICT DO NOTHING;
+INSERT INTO public.admin_users (user_id, is_active) VALUES ('00000000-0000-0000-0000-000000000001', true) ON CONFLICT DO NOTHING;
 
 -- User B (Comum 1)
 INSERT INTO auth.users (id, email) VALUES ('00000000-0000-0000-0000-000000000002', 'user1@example.com') ON CONFLICT DO NOTHING;
@@ -61,7 +66,7 @@ INSERT INTO auth.users (id, email) VALUES ('00000000-0000-0000-0000-000000000003
 
 -- User D (Admin inativo)
 INSERT INTO auth.users (id, email) VALUES ('00000000-0000-0000-0000-000000000004', 'admin-inactive@example.com') ON CONFLICT DO NOTHING;
-INSERT INTO public.admin_users (id, is_active) VALUES ('00000000-0000-0000-0000-000000000004', false) ON CONFLICT DO NOTHING;
+INSERT INTO public.admin_users (user_id, is_active) VALUES ('00000000-0000-0000-0000-000000000004', false) ON CONFLICT DO NOTHING;
 
 -- Mock experience
 INSERT INTO public.experiences (id, title, type) VALUES ('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 'Experience A', 'attraction');

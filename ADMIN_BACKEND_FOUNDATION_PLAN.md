@@ -81,15 +81,18 @@ A função `admin-list-users` atende aos padrões de produção:
 * A Fase ADMIN-3 será a responsável por construir a integração desta entidade no painel B2B.
 * **Decisão:** Não criaremos um Database Trigger (Security Definer) para esta tabela agora.
 
-## Status Oficial e Gates
-* **ADMIN-2A** — Auditoria e proposta segura de backend: **Concluído** (Proposta técnica estruturada e aprovada).
+* **ADMIN-2A** — Auditoria e proposta segura de backend: **Concluído**
 - [x] **ADMIN-2B.1A** — Validação estática e pacote de homologação concluídos
 - [x] **ADMIN-2B.1B** — Validação física de banco e RLS concluída
+- [x] **ADMIN-2B.2A** — Preflight remoto concluído
+- [x] **ADMIN-2B.2A.1** — Compatibilização local e validação física repetida concluída
 - [ ] **ADMIN-2B.2** — Aplicação controlada no projeto real aguardando autorização
 
 **Fatos da Fase ADMIN-2B:**
-* Docker indisponível; PostgreSQL local indisponível; Supabase CLI disponível;
-* 15 assertions SQL preparadas; 0 executadas;
+* Preflight remoto bloqueou a versão anterior (incompatibilidade de schema `user_id` vs `id`).
+* Migration e testes locais reescritos para usar `user_id`.
+* 22 assertions SQL executadas em banco isolado Docker; 22 passaram.
+* 4 testes TypeScript da Edge Function aprovados; 272 globais passaram.
 * 0 testes reais de RLS;
 * 4 testes TypeScript dos helpers aprovados; 272 testes globais aprovados; build aprovado;
 * Aplicação real reprovada até existir homologação física.
@@ -117,4 +120,4 @@ A função `admin-list-users` atende aos padrões de produção:
 3. Se a interface quebrar por tipagem: Reverter o commit Frontend, recriar os tipos usando a CLI apontando para o status anterior do schema e usar os contratos B2B provisórios.
 4. Caso a RLS vaze permissões, executar script de emergência: `ALTER TABLE public.system_settings DISABLE ROW LEVEL SECURITY;` até a revisão da política.
 
-**Status Atual:** ADMIN-2B.1A — Validação estática e pacote de homologação concluídos. Nenhuma modificação foi executada no banco oficial remoto. Nenhuma UI sofreu alteração visual.
+**Status Atual:** ADMIN-2B.2A.1 — Compatibilização local com schema remoto concluída. A migration candidata provou compatibilidade estrutural com `user_id` no ambiente local e passou em todos os testes. Nenhuma alteração aplicada ao banco real ainda.

@@ -50,8 +50,9 @@ serve(async (req) => {
     // 2. Validar Role B2B na tabela `admin_users` (Não confiar em JWT claims do frontend)
     const { data: adminUser, error: adminError } = await supabaseClient
       .from('admin_users')
-      .select('id')
-      .eq('id', user.id)
+      .select('user_id')
+      .eq('user_id', user.id)
+      .eq('is_active', true)
       .single()
 
     if (adminError || !adminUser) {

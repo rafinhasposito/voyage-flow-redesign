@@ -152,14 +152,17 @@ Este documento acompanha as fases do projeto de forma macro, definindo o que já
 - [x] **INFRA-LOCAL-1 — Ambiente Supabase local operacional**
 - [x] **ADMIN-2B.1A — Validação estática e pacote de homologação concluídos**
 - [x] **ADMIN-2B.1B — Validação física de banco e RLS concluída**
+- [x] **ADMIN-2B.2A — Preflight remoto concluído**
+- [x] **ADMIN-2B.2A.1 — Compatibilização local e validação física repetida concluída**
 - [ ] **ADMIN-2B.2 — Aplicação controlada no projeto real aguardando autorização**
 
 **Fatos da Fase ADMIN-2B:**
-* Docker indisponível; PostgreSQL local indisponível; Supabase CLI disponível;
-* 15 assertions SQL preparadas; 0 executadas;
-* 0 testes reais de RLS;
-* 4 testes TypeScript dos helpers aprovados; 272 testes globais aprovados; build aprovado;
-* Aplicação real reprovada até existir homologação física.
+* Docker e PostgreSQL local funcionais;
+* Migration candidata adaptada com sucesso de `id` para `user_id`;
+* 22 assertions SQL preparadas e executadas com êxito (100%);
+* Testes TypeScript globais aprovados (incluindo Edge Function);
+* Homologação física concluída (ADMIN-2B.2A.1);
+* Aplicação controlada no projeto real (ADMIN-2B.2) aguardando autorização.
 
 ### Fase INFRA-LOCAL-1: Preparar ambiente isolado para testes Supabase
 - Instalar ou ativar Docker Desktop manualmente

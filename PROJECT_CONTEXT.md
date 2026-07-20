@@ -125,16 +125,12 @@ Elaborada proposta de infraestrutura (Edge Functions e SQL migrations locais) pa
 6. ADMIN-2B.2 — Aplicação controlada no projeto real aguardando autorização
 
 **Fatos da Fase ADMIN-2B:**
-* Docker indisponível;
-* PostgreSQL local indisponível;
-* Supabase CLI disponível;
-* 15 assertions SQL preparadas;
-* 0 assertions SQL executadas;
-* 0 testes reais de RLS;
-* 4 testes TypeScript dos helpers aprovados;
-* 272 testes globais aprovados;
-* build aprovado;
-* aplicação real reprovada até existir homologação física.
+* Docker e PostgreSQL local funcionais;
+* Migration candidata adaptada com sucesso de `id` para `user_id`;
+* 22 assertions SQL preparadas e executadas com êxito (100%);
+* Testes TypeScript globais aprovados (incluindo Edge Function);
+* Homologação física concluída (ADMIN-2B.2A.1);
+* Aplicação controlada no projeto real (ADMIN-2B.2) aguardando autorização.
 
 6. ADMIN-3 — Conexão das páginas administrativas com dados reais
 7. BUGFIX-RUNTIME-1 — Corrigir tela cinza causada por imports ausentes no AdminLayout e remoção do warning do GYG

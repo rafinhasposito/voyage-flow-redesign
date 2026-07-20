@@ -13,7 +13,7 @@ DECLARE
     user1_id uuid := '00000000-0000-0000-0000-000000000002';
     user2_id uuid := '00000000-0000-0000-0000-000000000003';
     inactive_admin_id uuid := '00000000-0000-0000-0000-000000000004';
-    
+
     val integer;
     v_text text;
     inserted_id uuid;
@@ -74,8 +74,8 @@ BEGIN
 
     -- 7. Exclusão de experiência mantém o item com referência nula
     -- Preparando item associado a uma experiência
-    INSERT INTO public.order_items (order_id, experience_id, gross_price) VALUES 
-        ((SELECT id FROM public.orders WHERE idempotency_key = 'idem_1'), 
+    INSERT INTO public.order_items (order_id, experience_id, gross_price) VALUES
+        ((SELECT id FROM public.orders WHERE idempotency_key = 'idem_1'),
          'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 50);
     DELETE FROM public.experiences WHERE id = 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa';
     SELECT experience_id INTO inserted_id FROM public.order_items WHERE gross_price = 50 LIMIT 1;
@@ -119,7 +119,7 @@ BEGIN
     -- ==========================================
     -- TESTES DE RLS
     -- ==========================================
-    
+
     -- Configs
     INSERT INTO public.system_settings (category, key, value, is_public) VALUES ('general', 'private_key', '"secret"'::jsonb, false);
 
@@ -171,8 +171,8 @@ BEGIN
     -- 16. Usuário comum não altera parceiro
     UPDATE public.partners SET name = 'Hacked' WHERE id = 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb';
     GET DIAGNOSTICS val = ROW_COUNT;
-    IF val > 0 THEN 
-        RAISE EXCEPTION 'Usuário comum alterou parceiro'; 
+    IF val > 0 THEN
+        RAISE EXCEPTION 'Usuário comum alterou parceiro';
     END IF;
     RAISE NOTICE 'Passou: Usuário comum bloqueado em partners (UPDATE 0 rows)';
 
@@ -205,7 +205,25 @@ BEGIN
     IF val = 0 THEN RAISE EXCEPTION 'Admin ativo bloqueado em orders'; END IF;
     RAISE NOTICE 'Passou: Admin ativo tem acesso global as orders';
 
-    RAISE NOTICE '==== TODAS AS 20 ASSERTIONS CONCLUIDAS COM SUCESSO ====';
+    -- 21. Nenhuma policy depende de admin_users.id
+    SELECT count(*) INTO val
+    FROM pg_policies
+    WHERE qual ILIKE '%admin_users WHERE id =%' OR with_check ILIKE '%admin_users WHERE id =%';
+    IF val > 0 THEN RAISE EXCEPTION 'Policy ainda depende de admin_users.id'; END IF;
+    RAISE NOTICE 'Passou: Nenhuma policy depende de admin_users.id';
+
+    -- 22. Nenhuma foreign key aponta para admin_users.id
+    SELECT count(*) INTO val
+    FROM information_schema.key_column_usage kcu
+    JOIN information_schema.table_constraints tc ON kcu.constraint_name = tc.constraint_name
+    JOIN information_schema.constraint_column_usage ccu ON ccu.constraint_name = tc.constraint_name
+    WHERE tc.constraint_type = 'FOREIGN KEY'
+      AND ccu.table_name = 'admin_users'
+      AND ccu.column_name = 'id';
+    IF val > 0 THEN RAISE EXCEPTION 'Foreign key ainda aponta para admin_users.id'; END IF;
+    RAISE NOTICE 'Passou: Nenhuma FK aponta para admin_users.id';
+
+    RAISE NOTICE '==== TODAS AS 22 ASSERTIONS CONCLUIDAS COM SUCESSO ====';
 
 END $$;
 
