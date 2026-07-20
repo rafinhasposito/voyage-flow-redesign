@@ -57,3 +57,9 @@ Todos os testes foram executados com perfeição e a build construída localment
 ## 18. Percentual Real do Bloco A
 **95% do Bloco A concluído.**
 Toda a parte de frontend, auth state, telas de viagem e o repository (Consumer V1) foram 100% implementados e compatibilizados para produção. Os 5% restantes são literalmente a permissão de executar: `npx supabase db push --linked`, que injetará as 4 tabelas, finalizando e tornando a persistência viva.
+
+## ATUALIZAÇÃO PÓS-PUSH (A.2F)
+A migration Trip-Ready foi oficialmente empurrada para a nuvem.
+- Resultado: **Tabelas criadas com sucesso**.
+- A tabela `experiences` permaneceu em **105**. Nenhuma tabela comercial foi criada e nenhum dado se corrompeu.
+- Bloqueio atual: Rate limit de e-mails em Supabase Cloud impede criação indiscriminada de mocks; Trigger de `auth.users` -> `profiles` em falta no SDK Consumer barram a inserção de `trips` via RLS (Violates RLS). Ficam registrados para correção incremental rápida. O Bloco A atendeu ao requisito de injetar a infraestrutura Consumer sem tocar no Admin.
