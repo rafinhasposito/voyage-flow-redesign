@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { supabase } from "@/lib/supabase";
 import { Compass, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -11,7 +11,9 @@ export default function ConsumerSignup() {
   const [fullName, setFullName] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [searchParams] = useSearchParams();
   const navigate = useNavigate();
+  const returnTo = searchParams.get("returnTo") || "/minhas-viagens";
 
   const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -29,7 +31,7 @@ export default function ConsumerSignup() {
       });
       if (error) throw error;
       toast.success("Conta criada! Você já pode entrar.");
-      navigate("/minhas-viagens");
+      navigate(returnTo);
     } catch (err: any) {
       setError(err.message || "Erro ao criar conta.");
     } finally {
@@ -88,7 +90,7 @@ export default function ConsumerSignup() {
         </form>
 
         <p className="mt-6 text-center text-sm text-slate-500">
-          Já tem uma conta? <Link to="/login" className="text-slate-900 font-medium hover:underline">Entrar</Link>
+          Já tem uma conta? <Link to={`/login${searchParams.toString() ? `?${searchParams.toString()}` : ""}`} className="text-slate-900 font-medium hover:underline">Entrar</Link>
         </p>
       </div>
     </div>

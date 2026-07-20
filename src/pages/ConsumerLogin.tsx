@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { supabase } from "@/lib/supabase";
 import { Compass, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -9,7 +9,9 @@ export default function ConsumerLogin() {
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [searchParams] = useSearchParams();
   const navigate = useNavigate();
+  const returnTo = searchParams.get("returnTo") || "/minhas-viagens";
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -18,7 +20,7 @@ export default function ConsumerLogin() {
     try {
       const { error } = await supabase.auth.signInWithPassword({ email, password });
       if (error) throw error;
-      navigate("/minhas-viagens");
+      navigate(returnTo);
     } catch (err: any) {
       setError(err.message || "Erro ao entrar.");
     } finally {
@@ -67,7 +69,7 @@ export default function ConsumerLogin() {
         </form>
 
         <p className="mt-6 text-center text-sm text-slate-500">
-          Ainda não tem conta? <Link to="/cadastro" className="text-slate-900 font-medium hover:underline">Criar agora</Link>
+          Ainda não tem conta? <Link to={`/cadastro${searchParams.toString() ? `?${searchParams.toString()}` : ""}`} className="text-slate-900 font-medium hover:underline">Criar agora</Link>
         </p>
       </div>
     </div>
