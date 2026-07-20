@@ -13,7 +13,11 @@ export default function ConsumerSignup() {
   const [error, setError] = useState<string | null>(null);
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
-  const returnTo = searchParams.get("returnTo") || "/minhas-viagens";
+  
+  const rawReturnTo = searchParams.get("returnTo");
+  const returnTo = (rawReturnTo && rawReturnTo.startsWith("/") && !rawReturnTo.startsWith("//")) 
+    ? rawReturnTo 
+    : "/minhas-viagens";
 
   const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault();

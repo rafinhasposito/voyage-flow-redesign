@@ -11,7 +11,11 @@ export default function ConsumerLogin() {
   const [error, setError] = useState<string | null>(null);
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
-  const returnTo = searchParams.get("returnTo") || "/minhas-viagens";
+  
+  const rawReturnTo = searchParams.get("returnTo");
+  const returnTo = (rawReturnTo && rawReturnTo.startsWith("/") && !rawReturnTo.startsWith("//")) 
+    ? rawReturnTo 
+    : "/minhas-viagens";
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
