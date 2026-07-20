@@ -153,16 +153,19 @@ Este documento acompanha as fases do projeto de forma macro, definindo o que já
 - [x] **ADMIN-2B.1A — Validação estática e pacote de homologação concluídos**
 - [x] **ADMIN-2B.1B — Validação física de banco e RLS concluída**
 - [x] **ADMIN-2B.2A — Preflight remoto concluído**
-- [x] **ADMIN-2B.2A.1 — Compatibilização local e validação física repetida concluída**
-- [ ] **ADMIN-2B.2 — Aplicação controlada no projeto real aguardando autorização**
+- [x] **ADMIN-2B.2A.1 — Compatibilização local concluída**
+- [x] **ADMIN-2B.2B.1 — Backup, migration oficial e dry-run concluídos**
+- [ ] **ADMIN-2B.2B.2 — Aplicação remota aguardando autorização explícita**
 
 **Fatos da Fase ADMIN-2B:**
 * Docker e PostgreSQL local funcionais;
 * Migration candidata adaptada com sucesso de `id` para `user_id`;
 * 22 assertions SQL preparadas e executadas com êxito (100%);
 * Testes TypeScript globais aprovados (incluindo Edge Function);
-* Homologação física concluída (ADMIN-2B.2A.1);
-* Aplicação controlada no projeto real (ADMIN-2B.2) aguardando autorização.
+* ADMIN-2B.2A — Preflight remoto concluído;
+* ADMIN-2B.2A.1 — Compatibilização local concluída;
+* ADMIN-2B.2B.1 — Backup, migration oficial e dry-run concluídos;
+* ADMIN-2B.2B.2 — Aplicação remota aguardando autorização explícita.
 
 ### Fase INFRA-LOCAL-1: Preparar ambiente isolado para testes Supabase
 - Instalar ou ativar Docker Desktop manualmente

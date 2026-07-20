@@ -68,3 +68,9 @@ Para que a migração e a Edge Function possam ser implementadas no projeto real
 ## 9. Recomendação Final
 **NÃO APTA.**
 A migration não deve ser enviada ao servidor real e nem a Edge Function. A divergência do `user_id` em `admin_users` quebraria instantaneamente as transações de deploy local e remoto, evidenciando uma falha grave nos artefatos da versão atual da candidata.
+
+## Status Oficial Atualizado
+- ADMIN-2B.2A — Preflight remoto concluído
+- ADMIN-2B.2A.1 — Compatibilização local concluída
+- ADMIN-2B.2B.1 — Backup, migration oficial e dry-run concluídos
+- ADMIN-2B.2B.2 — Aplicação remota aguardando autorização explícita

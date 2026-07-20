@@ -207,8 +207,9 @@ O atual `ExperienceRepository` (que puxa do Supabase e faz cache SWR) evoluirá 
 * ADMIN-2B.1A — Validação estática e pacote de homologação concluídos
 * ADMIN-2B.1B — Validação física de banco e RLS concluída
 * ADMIN-2B.2A — Preflight remoto concluído
-* ADMIN-2B.2A.1 — Compatibilização local e validação física repetida concluída
-* ADMIN-2B.2 — Aplicação controlada no projeto real aguardando autorização
+* ADMIN-2B.2A.1 — Compatibilização local concluída
+* ADMIN-2B.2B.1 — Backup, migration oficial e dry-run concluídos
+* ADMIN-2B.2B.2 — Aplicação remota aguardando autorização explícita
 
 
 ### Regra Permanente do Projeto

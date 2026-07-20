@@ -129,8 +129,10 @@ Elaborada proposta de infraestrutura (Edge Functions e SQL migrations locais) pa
 * Migration candidata adaptada com sucesso de `id` para `user_id`;
 * 22 assertions SQL preparadas e executadas com êxito (100%);
 * Testes TypeScript globais aprovados (incluindo Edge Function);
-* Homologação física concluída (ADMIN-2B.2A.1);
-* Aplicação controlada no projeto real (ADMIN-2B.2) aguardando autorização.
+* ADMIN-2B.2A — Preflight remoto concluído;
+* ADMIN-2B.2A.1 — Compatibilização local concluída;
+* ADMIN-2B.2B.1 — Backup, migration oficial e dry-run concluídos;
+* ADMIN-2B.2B.2 — Aplicação remota aguardando autorização explícita.
 
 6. ADMIN-3 — Conexão das páginas administrativas com dados reais
 7. BUGFIX-RUNTIME-1 — Corrigir tela cinza causada por imports ausentes no AdminLayout e remoção do warning do GYG
