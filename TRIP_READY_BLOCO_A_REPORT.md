@@ -70,3 +70,9 @@ O TypeScript, Vitest e Build rodaram com sucesso absoluto.
 - **Percentual do Bloco A:** 80% (concluída interface; falta persistência na fase 2).
 
 > A base para testar na viagem "Trip Ready" foi consolidada de forma segura e sem regressões técnicas no sistema principal. Aguardando aprovação para proceder ao **commit controlado** da fundação B2C (Bloco A.1).
+
+## Status Atual: Bloco A.2 (Preparação)
+- Bloco A.1 — Home, Auth e Minhas Viagens concluídos localmente
+- Bloco A.2 — Backup e dry-run da fundação Consumer
+- Aplicação remota — Aguardando autorização explícita
+- Backend comercial — Congelado

@@ -29,6 +29,11 @@ Este documento acompanha as fases do projeto de forma macro, definindo o que já
 
 ### Fase 5: Integração com Supabase (Supabase Official)
 
+- [ ] **Fase 6.2 - Bloco A.2 (Persistência e Workflow)**
+  - Ativar migration `Trip-Ready` no ambiente remoto.
+  - Conectar `/minhas-viagens/nova` para salvar diretamente em `public.trips`.
+  - Desenvolver lógica de renderização/edição baseada nos registros salvos de `public.itinerary_days` e `public.trip_experiences`.
+
 - [x] **Fase 5.1 - Refatoração do Admin CMS & Teste E2E (Concluída)**
   - O painel `/admin` foi refatorado para utilizar o `ExperienceRepository`.
   - Abstração dos serviços auxiliares em `StorageService` e `ExperienceService`.

@@ -142,3 +142,9 @@ Elaborada proposta de infraestrutura (Edge Functions e SQL migrations locais) pa
 7. ADMIN-2B.2B — Congelada temporariamente
 8. ADMIN-3 — Congelada temporariamente
 9. DESIGN-SYSTEM-1 — Pós-viagem
+
+## Status Executivo Atual (Bloco A.2 - Preparação)
+Bloco A.1 — Home, Auth e Minhas Viagens concluídos localmente
+Bloco A.2 — Backup e dry-run da fundação Consumer
+Aplicação remota — Aguardando autorização explícita
+Backend comercial — Congelado

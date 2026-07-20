@@ -229,3 +229,9 @@ A padronização visual global será feita **somente** depois que estrutura, ban
 - **Decisão:** Haverá apenas uma tabela `public.profiles`. Ela usa `id` vinculado a `auth.users.id`. A migration B2C `20260721000000_trip_ready_foundation.sql` define essa tabela com suporte tanto a campos administrativos quanto a propriedades de consumidor (`first_name`, `last_name`, `full_name`, `status`, `preferences`).
 - **Motivo:** Simplificar o mapeamento `ON CONFLICT` de upserts nas Edge Functions de Auth, e evitar conflitos de escopo RLS no front-end Consumer e Admin.
 - **Risco:** Reduzido. A tabela única substitui sem quebras o uso de `admin_users` para identificação de perfil.
+
+## Status Executivo Atual (Bloco A.2 - Preparação)
+Bloco A.1 — Home, Auth e Minhas Viagens concluídos localmente
+Bloco A.2 — Backup e dry-run da fundação Consumer
+Aplicação remota — Aguardando autorização explícita
+Backend comercial — Congelado
