@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
-import { ExperienceRepository } from '../../../repositories';
-import { TripWalletRepository } from '../../../repositories/TripWalletRepository';
+import { ExperienceRepository } from '../../../../repositories';
+import { TripWalletRepository } from '../../../../repositories/TripWalletRepository';
 import { Loader2, Heart, X, CheckCircle, HelpCircle } from 'lucide-react';
 
 export default function Step4StyleTinder({ trip, onSave, onNext, onPrev }: any) {

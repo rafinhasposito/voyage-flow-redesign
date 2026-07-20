@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { TripWalletRepository, TripReservation } from '../../../repositories/TripWalletRepository';
+import { TripWalletRepository, TripReservation } from '../../../../repositories/TripWalletRepository';
 import { Loader2 } from 'lucide-react';
 
 const RESERVATION_TYPES = [

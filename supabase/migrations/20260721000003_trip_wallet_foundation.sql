@@ -162,3 +162,6 @@ USING (
   bucket_id = 'trip-documents' AND
   (storage.foldername(name))[1] = auth.uid()::text
 );
+
+GRANT ALL ON public.trip_reservations TO authenticated;
+GRANT ALL ON public.trip_documents TO authenticated;

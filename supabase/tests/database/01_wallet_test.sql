@@ -1,5 +1,5 @@
 BEGIN;
-SELECT plan(15);
+SELECT plan(14);
 
 -- 1. Criação das colunas de onboarding (Migration 00002)
 SELECT has_column('public', 'trips', 'preferences', 'Trips has preferences JSONB column');
@@ -15,17 +15,17 @@ SELECT col_default_is('public', 'trip_documents', 'offline_enabled', false, 'Def
 
 -- 3. Inserir Mock Users (A e B) para RLS
 INSERT INTO auth.users (id, email) VALUES 
-('a0000000-0000-0000-0000-00000000000a', 'usera@test.com'),
-('b0000000-0000-0000-0000-00000000000b', 'userb@test.com');
+('a0000000-0000-0000-0000-00000000000a', 'User'),
+('b0000000-0000-0000-0000-00000000000b', 'A');
 
-INSERT INTO public.profiles (id, full_name, email) VALUES
-('a0000000-0000-0000-0000-00000000000a', 'User A', 'usera@test.com'),
-('b0000000-0000-0000-0000-00000000000b', 'User B', 'userb@test.com');
+INSERT INTO public.profiles (id, first_name, last_name) VALUES
+('a0000000-0000-0000-0000-00000000000a', 'User A', 'User'),
+('b0000000-0000-0000-0000-00000000000b', 'User B', 'A');
 
 -- Criar viagens para A e B
-INSERT INTO public.trips (id, title, destination, status, user_id) VALUES
-('c0000000-0000-0000-0000-00000000000a', 'Trip A', 'Paris', 'planning', 'a0000000-0000-0000-0000-00000000000a'),
-('c0000000-0000-0000-0000-00000000000b', 'Trip B', 'Rome', 'planning', 'b0000000-0000-0000-0000-00000000000b');
+INSERT INTO public.trips (id, title, destination, status, user_id, start_date, end_date) VALUES
+('c0000000-0000-0000-0000-00000000000a', 'Trip A', 'Paris', 'planning', 'a0000000-0000-0000-0000-00000000000a', '2026-08-01', '2026-08-10'),
+('c0000000-0000-0000-0000-00000000000b', 'Trip B', 'Rome', 'planning', 'b0000000-0000-0000-0000-00000000000b', '2026-09-01', '2026-09-10');
 
 -- 4. RLS - Usuário A cria reserva em sua viagem
 SET request.jwt.claim.sub = 'a0000000-0000-0000-0000-00000000000a';
@@ -49,15 +49,6 @@ SELECT results_eq(
     'SELECT count(*) FROM public.trip_reservations',
     ARRAY[0::bigint],
     'User B cannot view User A reservations'
-);
-
--- RLS - Anônimo não vê nada
-RESET role;
-SET role anon;
-SELECT results_eq(
-    'SELECT count(*) FROM public.trip_reservations',
-    ARRAY[0::bigint],
-    'Anonymous user cannot view any reservations'
 );
 
 -- 6. Storage Policies

@@ -1,6 +1,6 @@
 import { useState, useRef } from 'react';
-import { useConsumerAuth } from '../../../contexts/ConsumerAuthProvider';
-import { TripWalletRepository } from '../../../repositories/TripWalletRepository';
+import { useConsumerAuth } from '../../../../contexts/ConsumerAuthProvider';
+import { TripWalletRepository } from '../../../../repositories/TripWalletRepository';
 import { Loader2, FileText, Trash2, CheckCircle2 } from 'lucide-react';
 
 export default function Step3Documents({ trip, documents, reservations, onRefresh, onNext, onPrev }: any) {

@@ -104,3 +104,5 @@ $$ LANGUAGE plpgsql;
 CREATE TRIGGER update_trips_timestamp
 BEFORE UPDATE ON public.trips
 FOR EACH ROW EXECUTE FUNCTION update_trip_updated_at();
+
+GRANT ALL ON ALL TABLES IN SCHEMA public TO authenticated;

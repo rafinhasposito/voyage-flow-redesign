@@ -1,5 +1,6 @@
 import { useNavigate } from 'react-router-dom';
 import { Bot, Map, Calendar, Wallet } from 'lucide-react';
+import { buildTripEngineDTO } from '../../../utils/engineMapper';
 
 export default function Step5DNA({ trip, reservations, documents, onPrev }: any) {
   const navigate = useNavigate();
@@ -67,7 +68,11 @@ export default function Step5DNA({ trip, reservations, documents, onPrev }: any)
             O restante dos dias será preenchido pelo Concierge usando seus votos.
          </p>
          <button 
-           onClick={() => alert("Bloco C - Criação do Roteiro IA")} 
+           onClick={() => {
+             const dto = buildTripEngineDTO(trip, reservations);
+             alert("DTO GERADO:\n" + JSON.stringify(dto, null, 2));
+             // navigate('/viagens/' + trip.id + '/roteiro'); 
+           }} 
            className="bg-lime-400 hover:bg-lime-500 text-lime-950 font-bold py-4 px-8 rounded-full transition-colors w-full md:w-auto"
          >
            Criar meu Roteiro
