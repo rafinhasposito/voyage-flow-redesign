@@ -1,5 +1,3 @@
-SELECT 'Backend comercial congelado (Admin B2B)' as status;
-/*
 -- Testes Locais para ADMIN-2B
 -- Objetivo: Garantir comportamento RLS e integridade estrutural
 
@@ -230,5 +228,3 @@ BEGIN
 END $$;
 
 ROLLBACK;
-
-*/
