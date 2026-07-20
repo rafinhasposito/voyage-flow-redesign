@@ -15,6 +15,8 @@ import ConsumerLogin from "./pages/ConsumerLogin";
 import ConsumerSignup from "./pages/ConsumerSignup";
 import MyTrips from "./pages/MyTrips";
 import NewTrip from "./pages/NewTrip";
+import TripOnboardingContainer from "./pages/consumer/TripOnboarding/TripOnboardingContainer";
+import TripWallet from "./pages/consumer/TripWallet/TripWallet";
 
 import { AdminAuthProvider } from "./contexts/AdminAuthProvider";
 import ProtectedAdminRoute from "./components/admin/ProtectedAdminRoute";
@@ -81,6 +83,16 @@ const App = () => {
           <Route path="/minhas-viagens/nova" element={
             <ConsumerAuthProvider>
               <NewTrip />
+            </ConsumerAuthProvider>
+          } />
+          <Route path="/viagens/:tripId/onboarding" element={
+            <ConsumerAuthProvider>
+              <TripOnboardingContainer />
+            </ConsumerAuthProvider>
+          } />
+          <Route path="/viagens/:tripId/carteira" element={
+            <ConsumerAuthProvider>
+              <TripWallet />
             </ConsumerAuthProvider>
           } />
           

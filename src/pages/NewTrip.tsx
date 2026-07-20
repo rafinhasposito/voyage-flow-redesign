@@ -38,7 +38,7 @@ export default function NewTrip() {
     setError("");
     setIsSaving(true);
     try {
-      await TripRepository.createTrip({
+      const trip = await TripRepository.createTrip({
         title: `Viagem para ${destination}`,
         destination,
         start_date: startDate,
@@ -46,7 +46,7 @@ export default function NewTrip() {
         hotel_name: hotelName,
         status: 'planning'
       });
-      navigate("/minhas-viagens?saved=true");
+      navigate(`/viagens/${trip.id}/onboarding`);
     } catch (err: any) {
       console.error(err);
       setError("Não foi possível salvar a viagem. A tabela pode não existir no banco de dados.");
