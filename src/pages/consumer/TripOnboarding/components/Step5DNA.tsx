@@ -69,10 +69,8 @@ export default function Step5DNA({ trip, reservations, documents, onPrev }: any)
          </p>
          <button 
            onClick={() => {
-             const dto = buildTripEngineDTO(trip, reservations);
-             alert("DTO GERADO:\n" + JSON.stringify(dto, null, 2));
-             // navigate('/viagens/' + trip.id + '/roteiro'); 
-           }} 
+            navigate('/viagens/' + trip.id + '/roteiro');
+          }} 
            className="bg-lime-400 hover:bg-lime-500 text-lime-950 font-bold py-4 px-8 rounded-full transition-colors w-full md:w-auto"
          >
            Criar meu Roteiro

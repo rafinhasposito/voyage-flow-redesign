@@ -87,7 +87,7 @@ export default function MyTrips() {
                   <span>{new Date(trip.start_date).toLocaleDateString()} a {new Date(trip.end_date).toLocaleDateString()}</span>
                 </div>
                 <Button variant="outline" className="w-full rounded-xl" asChild>
-                  <Link to={`/viagens/${trip.id}`}>Abrir Roteiro</Link>
+                  <Link to={`/viagens/${trip.id}/roteiro`}>Abrir Roteiro</Link>
                 </Button>
               </div>
             ))}

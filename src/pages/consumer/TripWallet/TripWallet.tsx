@@ -85,7 +85,7 @@ export default function TripWallet() {
     <div className="min-h-screen bg-[#F0F2F5] text-slate-900 font-urbanist p-8">
       <header className="flex justify-between items-center mb-8 max-w-4xl mx-auto">
          <h1 className="text-3xl font-bold">Carteira da Viagem</h1>
-         <button className="bg-white border border-slate-200 px-4 py-2 rounded-full font-medium text-sm hover:bg-slate-50" onClick={() => navigate(`/viagens/${tripId}/onboarding?step=5`)}>← Voltar pro Onboarding</button>
+         <button className="bg-white border border-slate-200 px-4 py-2 rounded-full font-medium text-sm hover:bg-slate-50" onClick={() => navigate(`/viagens/${tripId}/roteiro`)}>← Voltar pro Roteiro</button>
       </header>
 
       <div className="max-w-4xl mx-auto">

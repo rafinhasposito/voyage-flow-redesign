@@ -1591,8 +1591,8 @@ export class ExperienceMatchingEngine {
 // ==========================================
 // ROTEIRO INTELIGENTE (INTEGRADO À ENGINE)
 // ==========================================
-export function generateSmartItinerary(profile: UserProfile): ItineraryDay[] {
-  const experiences = getStoredAttractions();
+export function generateSmartItinerary(profile: UserProfile, catalog?: TravelExperience[]): ItineraryDay[] {
+  const experiences = catalog || getStoredAttractions();
 
   // 1. Constrói o contexto dinâmico da viagem a partir do perfil do viajante
   const trip = migrateTrip(profile);
