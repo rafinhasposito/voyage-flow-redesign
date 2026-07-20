@@ -1,5 +1,6 @@
 import { supabase } from '../lib/supabase';
-import type { TripRow, ExperienceRow } from '../lib/adminContracts'; // Vou criar DTO ou aproveitar
+import type { TripRow, ExperienceRow } from '../lib/adminContracts';
+import { ProfileRepository } from './ProfileRepository';
 
 export interface CreateTripDTO {
     title: string;
@@ -28,7 +29,7 @@ export class TripRepository {
 
         if (error) {
             console.error("Erro ao buscar viagens", error);
-            throw error; // Vai estourar PGRST205 se a tabela não existir, que é a verdade atual
+            throw error; 
         }
         return data || [];
     }
@@ -46,6 +47,9 @@ export class TripRepository {
     static async createTrip(payload: CreateTripDTO) {
         const { data: { user } } = await supabase.auth.getUser();
         if (!user) throw new Error("Usuário não autenticado");
+
+        // Garante que o profile existe antes de tentar inserir na tabela que tem FK/RLS para profile
+        await ProfileRepository.ensureCurrentUserProfile(user);
 
         const { data, error } = await supabase
             .from('trips')

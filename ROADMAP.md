@@ -32,7 +32,13 @@ Este documento acompanha as fases do projeto de forma macro, definindo o que já
 - [x] **Fase 6.2 - Bloco A.2 (Persistência e Workflow) [Trip Ready V1 - Aprovado]**
   - Migration oficial `Trip-Ready` (B2C) aplicada com sucesso no Supabase Remoto sem corromper catálogo (105 experiências mantidas).
   - Funcionalidade básica de Frontend `/minhas-viagens/nova` e Auth State conectados com a cloud.
-  - Pendente para hotfix (ou Bloco C): E2E de Trip Creation via UI requer adequação de RLS e/ou trigger do SDK (Rate Limit de E-mail acionado).
+  - Profile Consumer — Funcional
+  - Criação de viagem — Funcional
+  - Minhas Viagens — Conectada
+  - Logout e novo login — Validados
+  - Recuperação da viagem — Validada
+  - Isolamento remoto com segunda conta — Pendente (Rate limit)
+  - Bloco A — Concluído (Geração automatizada / RLS Upsert A.2G aplicada).
 
 - [x] **Fase 5.1 - Refatoração do Admin CMS & Teste E2E (Concluída)**
   - O painel `/admin` foi refatorado para utilizar o `ExperienceRepository`.
