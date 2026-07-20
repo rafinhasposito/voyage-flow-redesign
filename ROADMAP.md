@@ -147,3 +147,18 @@ Este documento acompanha as fases do projeto de forma macro, definindo o que já
 - [x] Criação das views descritivas apontando lacunas de backend para áreas sem suporte (Vendas, Parceiros, B2C Users, Analytics).
 - [x] Adoção rigorosa do princípio de honestidade estrutural na Interface.
 
+
+### Fase ADMIN-2: Fundação Real de Backend [Proposta técnica em revisão]
+- [x] Auditoria de esquemas existentes.
+- [x] Criação de migration local de `system_settings`, `partners`, `orders`, `profiles` e `analytics_events`.
+- [x] Escopo da Edge Function `admin-list-users` para B2C.
+- [x] Testes puros baseados nos novos contratos de Payload B2C e Cálculo Financeiro.
+- [x] Preparação documental e avaliação de impacto nos 107 registros locais.
+
+
+### Fase DESIGN-SYSTEM-1: Padronização global do Admin e Consumer [Bloqueada]
+- Tokenização de cores e tipografia
+- Padronização de cabeçalhos, cards, tabelas, filtros e formulários
+- Revisão de estados vazios
+- Responsividade e Acessibilidade (B2B e B2C)
+

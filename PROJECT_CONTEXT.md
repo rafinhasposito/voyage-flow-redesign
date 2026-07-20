@@ -111,3 +111,19 @@ Concluída. A interface administrativa (B2B) passou por uma refatoração comple
 - Módulos parciais ou dependentes de backend documentados: IA Concierge (parcial), Afiliados (parcial), Usuários (B2C dependente de Auth), Parceiros, Vendas e Analytics.
 Relatório gerado na raiz: `ADMIN_ZERO_EM_BREVE_REPORT.md`
 
+
+## Fase ADMIN-2 (Backend Foundation)
+Elaborada proposta de infraestrutura (Edge Functions e SQL migrations locais) para habilitar as páginas administrativas de Analytics, Usuários (B2C), Parceiros, Afiliados, Vendas e IA Concierge, protegendo a tabela raiz do catálogo. Estruturas prontas para aprovação.
+
+
+## Ordem Oficial de Fases (Travada)
+1. ADMIN-1 — Zero Em Breve
+2. ADMIN-2A — Auditoria e proposta segura de backend (Atual)
+3. ADMIN-2B — Aplicação controlada aguardando execução
+4. ADMIN-3 — Conexão das páginas administrativas com dados reais
+5. LEGACY-1 — Remoção consolidada de mocks, previews e código antigo
+6. SYSTEM-QA — Auditoria funcional completa do Admin e Consumer
+7. DESIGN-SYSTEM-1 — Padronização visual global do produto
+8. UX-QA — Responsividade, acessibilidade e revisão textual
+9. BETA-READY — Segurança, performance e preparação para lançamento
+
