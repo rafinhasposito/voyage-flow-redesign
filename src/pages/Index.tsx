@@ -388,7 +388,7 @@ export default function Index() {
 
                <div className="p-6 bg-black/40 backdrop-blur-sm border-t border-white/10 flex items-center justify-between relative z-10 mx-4 mb-4 rounded-[20px]">
                   <span className="text-[10px] uppercase tracking-widest text-white/80 font-bold hidden sm:block">Curadoria para seu ritmo</span>
-                  <Link to="/minhas-viagens/nova" className="bg-lime-400 hover:bg-lime-500 text-lime-950 px-6 py-3 rounded-full text-sm font-bold transition-colors inline-flex items-center gap-1.5 focus:outline-none focus:ring-4 focus:ring-lime-400/50">
+                  <Link to={user ? "/minhas-viagens/nova" : "/login?returnTo=/minhas-viagens/nova"} className="bg-lime-400 hover:bg-lime-500 text-lime-950 px-6 py-3 rounded-full text-sm font-bold transition-colors inline-flex items-center gap-1.5 focus:outline-none focus:ring-4 focus:ring-lime-400/50">
                      Ver no Roteiro <ArrowRight className="w-4 h-4" />
                   </Link>
                </div>
@@ -431,7 +431,7 @@ export default function Index() {
 
                <div className="p-6 bg-black/40 backdrop-blur-sm border-t border-white/10 flex items-center justify-between relative z-10 mx-4 mb-4 rounded-[20px]">
                   <span className="text-[10px] uppercase tracking-widest text-white/80 font-bold hidden sm:block">Curadoria para seu ritmo</span>
-                  <Link to="/minhas-viagens/nova" className="bg-pink-400 hover:bg-pink-500 text-pink-950 px-6 py-3 rounded-full text-sm font-bold transition-colors inline-flex items-center gap-1.5 focus:outline-none focus:ring-4 focus:ring-pink-400/50">
+                  <Link to={user ? "/minhas-viagens/nova" : "/login?returnTo=/minhas-viagens/nova"} className="bg-pink-400 hover:bg-pink-500 text-pink-950 px-6 py-3 rounded-full text-sm font-bold transition-colors inline-flex items-center gap-1.5 focus:outline-none focus:ring-4 focus:ring-pink-400/50">
                      Ver no Roteiro <ArrowRight className="w-4 h-4" />
                   </Link>
                </div>
@@ -461,7 +461,7 @@ export default function Index() {
               Alguns minutos para montar seu roteiro. Uma vida inteira para lembrar do que ele desenhou.
             </p>
             <Link
-              to="/minhas-viagens/nova"
+              to={user ? "/minhas-viagens/nova" : "/login?returnTo=/minhas-viagens/nova"}
               className="inline-flex items-center gap-2 rounded-full bg-lime-400 px-8 py-4 text-base font-bold text-lime-950 shadow-md transition-transform hover:scale-105 focus:outline-none focus:ring-4 focus:ring-lime-400/50"
             >
               Planejar minha viagem
@@ -535,7 +535,7 @@ function SiteNav({ user, signOut }: { user: any, signOut: () => void }) {
                   Entrar
                 </Link>
                 <Link
-                  to="/minhas-viagens/nova"
+                  to="/login?returnTo=/minhas-viagens/nova"
                   className="inline-flex items-center gap-1.5 rounded-full bg-lime-400 px-5 sm:px-6 py-2 sm:py-2.5 text-[13px] sm:text-sm font-bold text-lime-950 transition-transform hover:scale-105 shadow-sm focus:outline-none focus:ring-4 focus:ring-lime-400/50"
                 >
                   Criar minha viagem <ArrowRight className="w-3.5 h-3.5"/>
@@ -570,7 +570,7 @@ function Hero({ user }: { user: any }) {
           </p>
           <div className="flex flex-col sm:flex-row gap-4">
             <Link
-              to="/minhas-viagens/nova"
+              to={user ? "/minhas-viagens/nova" : "/login?returnTo=/minhas-viagens/nova"}
               className="inline-flex items-center justify-center gap-2 rounded-full bg-lime-400 px-6 sm:px-8 py-3.5 sm:py-4 text-sm sm:text-base font-bold text-lime-950 transition-transform hover:scale-105 shadow-sm focus:outline-none focus:ring-4 focus:ring-lime-400/50"
             >
               Criar minha viagem
