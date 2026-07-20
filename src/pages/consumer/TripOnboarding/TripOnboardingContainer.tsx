@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { useAuth } from '../../../contexts/ConsumerAuthProvider';
+import { useConsumerAuth } from '../../../contexts/ConsumerAuthProvider';
 import { TripRepository } from '../../../repositories/TripRepository';
+import { TripWalletRepository, TripReservation, TripDocument } from '../../../repositories/TripWalletRepository';
 import Step1TripMeta from './components/Step1TripMeta';
 import Step2WalletReservations from './components/Step2WalletReservations';
 import Step3Documents from './components/Step3Documents';
@@ -11,40 +12,48 @@ import Step5DNA from './components/Step5DNA';
 export default function TripOnboardingContainer() {
   const { tripId } = useParams();
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const { user } = useConsumerAuth();
   
   const [currentStep, setCurrentStep] = useState(1);
   const [trip, setTrip] = useState<any>(null);
+  const [reservations, setReservations] = useState<TripReservation[]>([]);
+  const [documents, setDocuments] = useState<TripDocument[]>([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    async function load() {
-      if (!tripId || !user) return;
-      try {
-        const data = await TripRepository.getMyTrips();
-        const found = data.find(t => t.id === tripId);
-        if (found) {
-          setTrip(found);
-        } else {
-          navigate('/minhas-viagens');
-        }
-      } catch (err) {
-        console.error(err);
-      } finally {
-        setLoading(false);
+  const loadAll = async () => {
+    if (!tripId || !user) return;
+    try {
+      setLoading(true);
+      const data = await TripRepository.getTripById(tripId);
+      if (data && data.user_id === user.id) {
+        setTrip(data);
+        const res = await TripWalletRepository.getReservations(tripId);
+        setReservations(res);
+        const docs = await TripWalletRepository.getDocuments(tripId);
+        setDocuments(docs);
+      } else {
+        navigate('/minhas-viagens');
       }
+    } catch (err) {
+      console.error(err);
+      navigate('/minhas-viagens');
+    } finally {
+      setLoading(false);
     }
-    load();
+  };
+
+  useEffect(() => {
+    loadAll();
   }, [tripId, user, navigate]);
 
-  const handleSavePartial = async (updates: any) => {
+  const handleUpdateTrip = async (patch: any) => {
     try {
-      // Stub para update de partial trips (será implementado no TripRepository completo)
-      const updated = { ...trip, ...updates };
-      setTrip(updated);
-      // await TripRepository.updateTrip(trip.id, updates);
+      await TripRepository.updateTripOnboarding(trip.id, patch);
+      await loadAll();
     } catch (err) {
-      console.error("Falha ao salvar rascunho", err);
+      console.error("Falha ao salvar", err);
+      alert("Falha ao salvar. Tente novamente.");
+      throw err;
     }
   };
 
@@ -66,21 +75,34 @@ export default function TripOnboardingContainer() {
         </div>
       </header>
       
-      <main className="max-w-3xl mx-auto py-12 px-4">
+      <main className="max-w-4xl mx-auto py-12 px-4">
         {currentStep === 1 && (
-          <Step1TripMeta trip={trip} onSave={handleSavePartial} onNext={nextStep} />
+          <Step1TripMeta trip={trip} onSave={handleUpdateTrip} onNext={nextStep} />
         )}
         {currentStep === 2 && (
-          <Step2WalletReservations trip={trip} onSave={handleSavePartial} onNext={nextStep} onPrev={prevStep} />
+          <Step2WalletReservations 
+            trip={trip} 
+            reservations={reservations} 
+            onRefresh={loadAll}
+            onNext={nextStep} 
+            onPrev={prevStep} 
+          />
         )}
         {currentStep === 3 && (
-          <Step3Documents trip={trip} onNext={nextStep} onPrev={prevStep} />
+          <Step3Documents 
+            trip={trip} 
+            documents={documents}
+            reservations={reservations}
+            onRefresh={loadAll}
+            onNext={nextStep} 
+            onPrev={prevStep} 
+          />
         )}
         {currentStep === 4 && (
-          <Step4StyleTinder trip={trip} onSave={handleSavePartial} onNext={nextStep} onPrev={prevStep} />
+          <Step4StyleTinder trip={trip} onSave={handleUpdateTrip} onNext={nextStep} onPrev={prevStep} />
         )}
         {currentStep === 5 && (
-          <Step5DNA trip={trip} onPrev={prevStep} onFinish={() => navigate(`/viagens/${tripId}/carteira`)} />
+          <Step5DNA trip={trip} reservations={reservations} documents={documents} onPrev={prevStep} onFinish={() => navigate(`/viagens/${tripId}/carteira`)} />
         )}
       </main>
     </div>

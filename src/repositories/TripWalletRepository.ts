@@ -98,4 +98,49 @@ export class TripWalletRepository {
     if (dbError) throw dbError;
     return data;
   }
+
+  static async getDocuments(tripId: string): Promise<TripDocument[]> {
+    const { data, error } = await supabase
+      .from('trip_documents')
+      .select('*')
+      .eq('trip_id', tripId)
+      .order('created_at', { ascending: false });
+
+    if (error) throw error;
+    return data || [];
+  }
+
+  static async deleteReservation(id: string): Promise<void> {
+    const { error } = await supabase
+      .from('trip_reservations')
+      .delete()
+      .eq('id', id);
+    if (error) throw error;
+  }
+
+  static async deleteDocument(doc: TripDocument): Promise<void> {
+    // 1. Remove from DB
+    const { error: dbError } = await supabase
+      .from('trip_documents')
+      .delete()
+      .eq('id', doc.id);
+    
+    if (dbError) throw dbError;
+
+    // 2. Remove from Storage
+    if (doc.storage_path) {
+      await supabase.storage
+        .from('trip-documents')
+        .remove([doc.storage_path]);
+    }
+  }
+
+  static async getDocumentSignedUrl(doc: TripDocument): Promise<string> {
+    const { data, error } = await supabase.storage
+      .from('trip-documents')
+      .createSignedUrl(doc.storage_path, 3600); // 1 hour
+
+    if (error) throw error;
+    return data.signedUrl;
+  }
 }

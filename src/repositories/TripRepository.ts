@@ -48,7 +48,6 @@ export class TripRepository {
         const { data: { user } } = await supabase.auth.getUser();
         if (!user) throw new Error("Usuário não autenticado");
 
-        // Garante que o profile existe antes de tentar inserir na tabela que tem FK/RLS para profile
         await ProfileRepository.ensureCurrentUserProfile(user);
 
         const { data, error } = await supabase
@@ -57,6 +56,28 @@ export class TripRepository {
             .select()
             .single();
 
+        if (error) throw error;
+        return data;
+    }
+
+    static async updateTripOnboarding(tripId: string, patch: any) {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) throw new Error("Usuário não autenticado");
+
+        // Merge preferences if present
+        if (patch.preferences) {
+            const current = await this.getTripById(tripId);
+            patch.preferences = { ...(current.preferences || {}), ...patch.preferences };
+        }
+
+        const { data, error } = await supabase
+            .from('trips')
+            .update(patch)
+            .eq('id', tripId)
+            .eq('user_id', user.id)
+            .select()
+            .single();
+            
         if (error) throw error;
         return data;
     }

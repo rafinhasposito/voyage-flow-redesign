@@ -36,7 +36,13 @@ Este documento representa o estado atual do projeto, suas regras arquiteturais e
 
 ## 3. Funcionalidades Concluídas
 - **O que já está implementado:**
-  - **Consumer App:** Landing Page, Onboarding customizado (perfil, bolso, interesses), Dashboard de Roteiro ("Meu Roteiro"), Catálogo interativo de atrações e estimativa de gastos (Wallet). **Redesenhado em Fase 7 com estética Bento Box** (Urbanist, neon-lime `#E2F18A`, cards `rounded-[24-28px]`, canvas `#F0F2F5`). Shared `AppNav` com pills de navegação.
+  - **Consumer App:** Landing Page, Onboarding customizado (perfil, bolso, interesses), Dashboard de Roteiro ("Meu Roteiro"), Catálogo interativo de atrações e estimativa de gastos (Wallet). **Redesenhado em Fase 7 com estética Bento Box** (Urbanist, neon-lime `#E2F18A`, cards `rounded-[24-28px]`, canvas `#F0F2F5`). Shared `AppNav` com pílulas de navegação.
+  
+  **Blocos de Execução (Trip Ready V1):**
+  *   **Bloco A (Concluído)**: Auth, Persistência Local e RLS. 
+  *   **Bloco B (Em andamento)**: Onboarding "Wallet-First" & Carteira da Viagem. Captura de 5 etapas (Certezas da Viagem, Importação de Passagens, Tinder, Documentos e DNA). Inclui módulo visual de Boarding Passes e uploads de reservas e restrições.
+  *   **Bloco C (Aguardando)**: Inteligência do Roteiro e Workspace.
+  *   **Bloco D (Aguardando)**: Mobile Offline Mode.
   - **EI-9 (Concluída):** Edição manual com StopEditMetadata, preservação inteligente e substituição focal com validação estrita.
   - **EI-10 (Concluída - Validada):** Experiência Visual do Roteiro. Implementado Drag and Drop nativo HTML5 para desktop (com setas acessíveis para mobile). Modal de substituição com a11y completo (role dialog, trap escape/cliques fora, restore focus). Identidade visual ajustada para lime/mint/slate (sem dourado).
   - **Infraestrutura e Repositório:** Conexão com Supabase via `ExperienceRepository`, orquestração de cache e desacoplamento completo da UI.

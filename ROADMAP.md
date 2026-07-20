@@ -29,20 +29,24 @@ Este documento acompanha as fases do projeto de forma macro, definindo o que já
 
 ### Fase 5: Integração com Supabase (Supabase Official)
 
-- [x] **Fase 6.2 - Bloco A.2 (Persistência e Workflow) [Trip Ready V1 - Aprovado]**
-  - Migration oficial `Trip-Ready` (B2C) aplicada com sucesso no Supabase Remoto sem corromper catálogo (105 experiências mantidas).
-  - Funcionalidade básica de Frontend `/minhas-viagens/nova` e Auth State conectados com a cloud.
-  - Profile Consumer — Funcional
-  - Criação de viagem — Funcional
-  - Minhas Viagens — Conectada
-  - Logout e novo login — Validados
-  - Recuperação da viagem — Validada
-  - Isolamento remoto com segunda conta — Pendente (Rate limit)
-  - Bloco A — Concluído (Geração automatizada / RLS Upsert A.2G aplicada).
+### Fase 6: Integração com Supabase (Supabase Official)
 
-- [x] **Fase 5.1 - Refatoração do Admin CMS & Teste E2E (Concluída)**
-  - O painel `/admin` foi refatorado para utilizar o `ExperienceRepository`.
-  - Abstração dos serviços auxiliares em `StorageService` e `ExperienceService`.
+- [x] **Fase 6.1 - Bloco A (Fundação Consumer)**
+  - Auth, Profile Idempotente e Trips conectados na base. (Validado remotamente).
+
+- [ ] **Fase 6.2 - Bloco B (Onboarding Concierge & Carteira da Viagem) [Em Andamento]**
+  - **Revisão Arquitetural**: Mudança de fluxo para o modelo "Wallet-First" (Começar pelo que o viajante já reservou).
+  - Desenvolver 5 etapas: (1) Meta da Viagem, (2) Reservas (Voo/Hotel/Docs), (3) Documentos e Wallet, (4) Estilo e Tinder de Atrações, (5) DNA.
+  - Implementar Abstrações: `FlightDataProvider` e Upload V1 local.
+  - Cartões Virtuais: `Flight Pass`, `Hotel Pass`, etc.
+  - **Schema:** Planejadas tabelas relativas de persistência (Reservations e Documents).
+  - Estado local reativo salvo no Supabase passo a passo.
+
+- [ ] **Fase 6.3 - Bloco C (Workspace e Roteiro) [Aguardando]**
+  - Geração e edição final do Itinerário gerado por IA amarrado aos *Fixed Commitments* do Bloco B.
+
+- [ ] **Fase 6.4 - Bloco D (Modo Viagem Mobile)**
+  - Acesso aos Passes Offline e mapas básicos. serviços auxiliares em `StorageService` e `ExperienceService`.
   - Bug do SWR (Retorno do cache vazio com Fallback) corrigido: SWR bloqueia renderização com await se o cache está invalidado.
   - Teste manual E2E de criação e edição aprovado.
 

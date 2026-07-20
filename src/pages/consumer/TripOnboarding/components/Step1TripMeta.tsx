@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Loader2 } from 'lucide-react';
 
 export default function Step1TripMeta({ trip, onSave, onNext }: any) {
   const [formData, setFormData] = useState({
@@ -7,21 +8,42 @@ export default function Step1TripMeta({ trip, onSave, onNext }: any) {
     end_date: trip.end_date || '',
     companionship: trip.companionship || 'couple',
     budget_level: trip.budget_level || 'medium',
+    trip_reason: trip.preferences?.trip_reason || '',
+    currency: trip.preferences?.currency || 'BRL'
   });
+  
+  const [saving, setSaving] = useState(false);
 
   const handleChange = (field: string, val: string) => {
     setFormData(prev => ({ ...prev, [field]: val }));
   };
 
-  const handleNext = () => {
-    onSave(formData);
-    onNext();
+  const handleNext = async () => {
+    setSaving(true);
+    try {
+      await onSave({
+        destination: formData.destination,
+        start_date: formData.start_date,
+        end_date: formData.end_date,
+        companionship: formData.companionship,
+        budget_level: formData.budget_level,
+        preferences: {
+          trip_reason: formData.trip_reason,
+          currency: formData.currency
+        }
+      });
+      onNext();
+    } catch (err) {
+      // Error handled by parent
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
-    <div className="bg-white p-8 rounded-[24px] shadow-sm">
+    <div className="bg-white p-8 rounded-[24px] shadow-sm border border-slate-200">
       <h2 className="text-3xl font-bold mb-2">Sua viagem</h2>
-      <p className="text-slate-500 mb-8">Vamos confirmar as informações essenciais.</p>
+      <p className="text-slate-500 mb-8">Confirme as informações base da sua viagem antes de começarmos a moldar seu roteiro.</p>
 
       <div className="space-y-6">
         <div>
@@ -55,7 +77,7 @@ export default function Step1TripMeta({ trip, onSave, onNext }: any) {
           </div>
         </div>
 
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
            <div>
             <label className="block text-sm font-semibold mb-2">Companhia</label>
             <select 
@@ -82,13 +104,40 @@ export default function Step1TripMeta({ trip, onSave, onNext }: any) {
             </select>
           </div>
         </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
+            <label className="block text-sm font-semibold mb-2">Motivo principal</label>
+            <input 
+              type="text" 
+              placeholder="Ex: Lua de mel, descanso..."
+              value={formData.trip_reason} 
+              onChange={(e) => handleChange('trip_reason', e.target.value)}
+              className="w-full p-4 border border-slate-200 rounded-[16px] focus:outline-none focus:border-lime-500"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-semibold mb-2">Moeda de referência</label>
+            <select 
+              value={formData.currency} 
+              onChange={(e) => handleChange('currency', e.target.value)}
+              className="w-full p-4 border border-slate-200 rounded-[16px] bg-white focus:outline-none"
+            >
+              <option value="BRL">Real (R$)</option>
+              <option value="USD">Dólar (US$)</option>
+              <option value="EUR">Euro (€)</option>
+            </select>
+          </div>
+        </div>
       </div>
 
       <div className="mt-10 flex justify-end">
         <button 
           onClick={handleNext}
-          className="bg-lime-400 hover:bg-lime-500 text-slate-900 font-bold py-4 px-8 rounded-full transition-colors"
+          disabled={saving}
+          className="bg-lime-400 hover:bg-lime-500 disabled:opacity-50 text-slate-900 font-bold py-4 px-8 rounded-full transition-colors flex items-center"
         >
+          {saving && <Loader2 className="mr-2 h-5 w-5 animate-spin"/>}
           Salvar e Continuar
         </button>
       </div>
