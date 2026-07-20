@@ -155,17 +155,19 @@ Este documento acompanha as fases do projeto de forma macro, definindo o que já
 - [x] **ADMIN-2B.2A — Preflight remoto concluído**
 - [x] **ADMIN-2B.2A.1 — Compatibilização local concluída**
 - [x] **ADMIN-2B.2B.1 — Backup, migration oficial e dry-run concluídos**
-- [ ] **ADMIN-2B.2B.2 — Aplicação remota aguardando autorização explícita**
 
-**Fatos da Fase ADMIN-2B:**
-* Docker e PostgreSQL local funcionais;
-* Migration candidata adaptada com sucesso de `id` para `user_id`;
-* 22 assertions SQL preparadas e executadas com êxito (100%);
-* Testes TypeScript globais aprovados (incluindo Edge Function);
-* ADMIN-2B.2A — Preflight remoto concluído;
-* ADMIN-2B.2A.1 — Compatibilização local concluída;
-* ADMIN-2B.2B.1 — Backup, migration oficial e dry-run concluídos;
-* ADMIN-2B.2B.2 — Aplicação remota aguardando autorização explícita.
+### Fase TRIP-READY-1: Jornada funcional do viajante
+**PRIORIDADE MÁXIMA ATÉ A VIAGEM**
+- [ ] Auditoria funcional rápida e mapeamento.
+- [ ] Rota de teste completa (Inicio -> Onboarding -> Itinerário).
+- [ ] Modificar Engine para usar `ExperienceRepository` (dados reais) em vez de Mocks.
+- [ ] Criar interface simples para configuração real da viagem (destino, datas, hotel, reservas).
+- [ ] Refinar mapa visual no Dashboard.
+
+**Fases Congeladas Temporariamente:**
+- ADMIN-2B.2B — Aplicação remota e pós-validação
+- ADMIN-3 — Conexão das páginas administrativas
+- DESIGN-SYSTEM-1 — Pós-viagem
 
 ### Fase INFRA-LOCAL-1: Preparar ambiente isolado para testes Supabase
 - Instalar ou ativar Docker Desktop manualmente

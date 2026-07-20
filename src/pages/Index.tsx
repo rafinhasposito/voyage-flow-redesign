@@ -20,7 +20,9 @@ import {
   Wallet,
   type LucideIcon,
 } from "lucide-react";
-import { getStoredAttractions, Attraction } from "@/utils/travelState";
+import { Attraction } from "@/utils/travelState";
+import { ExperienceRepository } from "@/repositories";
+import { useConsumerAuth } from "@/contexts/ConsumerAuthProvider";
 
 const HERO_IMAGE = "/hero-ny.webp";
 
@@ -56,11 +58,67 @@ const PILLARS = [
 
 export default function Index() {
   const [attractions, setAttractions] = useState<Attraction[]>([]);
-  const [activeCategory, setActiveCategory] = useState<string>("all");
+  const [selectedCategory, setSelectedCategory] = useState("all");
   const [favorites, setFavorites] = useState<Set<string>>(new Set());
+  const [isLoading, setIsLoading] = useState(true);
+  const [hasError, setHasError] = useState(false);
+  const { user, signOut } = useConsumerAuth();
+
+  const loadExperiences = async () => {
+    setIsLoading(true);
+    setHasError(false);
+    try {
+      const data = await ExperienceRepository.getAll();
+      const published = data.filter(r => r.status === 'published' && r.media_urls?.length);
+      const mapped = published.map(row => ({
+        ...row,
+        id: row.id,
+        name: row.title,
+        category: row.category,
+        categoryLabel: row.category,
+        description: row.description,
+        emotionalDescription: row.short_description || row.description,
+        image: row.media_urls && row.media_urls.length > 0 ? row.media_urls[0] : "",
+        images: row.media_urls || [],
+        costLevel: row.base_cost > 100 ? "$$$" : row.base_cost > 30 ? "$$" : "$",
+        costUSD: row.base_cost,
+        neighborhood: row.neighborhood || "Desconhecido",
+        coordinates: { lat: row.location_lat || 0, lng: row.location_lng || 0 },
+        matchScore: 90,
+        durationHours: row.duration_minutes ? row.duration_minutes / 60 : 2,
+        bestTime: "Qualquer horário",
+        bestTimeOfDay: ["morning", "afternoon", "evening"],
+        recommendedSeasons: ["all"],
+        isIndoor: row.indoor_outdoor === "indoor",
+        weatherCompatibility: ["all"],
+        physicalEnergyRequired: row.energy_level || "low",
+        exclusivityLevel: row.exclusivity_level || "accessible",
+        dressCode: row.dress_code || "casual",
+        reservationRequired: row.reservation_required || false,
+        availability: "Disponível",
+        accessibility: row.wheelchair_accessible ? ["wheelchair"] : [],
+        rating: row.rating || 4.5,
+        affiliateLink: row.booking_url,
+        provider: "Provider",
+        tags: row.tags || [],
+        personaWeights: typeof row.intelligence_metadata === 'object' && row.intelligence_metadata && 'personaWeights' in row.intelligence_metadata 
+          ? row.intelligence_metadata.personaWeights 
+          : { explorador_visual: 0.5, curador_experiencias: 0.5, descobridor: 0.5, aproveitador: 0.5, slow_traveler: 0.5 },
+        companionshipCompatibility: typeof row.intelligence_metadata === 'object' && row.intelligence_metadata && 'companionshipCompatibility' in row.intelligence_metadata 
+          ? row.intelligence_metadata.companionshipCompatibility 
+          : { solo: 0.5, couple: 0.5, family: 0.5, friends: 0.5 }
+      }));
+      setAttractions(mapped as unknown as Attraction[]);
+    } catch (err) {
+      console.error("Failed to load real catalog on Index:", err);
+      setHasError(true);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   useEffect(() => {
-    setAttractions(getStoredAttractions());
+    loadExperiences();
   }, []);
 
   const toggleFav = (id: string) => {
@@ -72,9 +130,11 @@ export default function Index() {
     });
   };
 
-  const visibleAttractions = activeCategory === "all" 
-    ? attractions 
-    : attractions.filter(a => a.category === activeCategory);
+  const filtered = selectedCategory === "all"
+    ? attractions
+    : attractions.filter((a) => a.category === selectedCategory);
+  
+  const visibleAttractions = filtered.slice(0, 6);
 
   return (
     <div className="min-h-screen bg-[#FAF8F5] text-[#1C1E21] flex flex-col">
@@ -103,9 +163,9 @@ export default function Index() {
         <div className="mt-8 -mx-6 overflow-x-auto px-6 md:mx-0 md:px-0">
           <div className="flex min-w-max items-center gap-2">
             <button
-              onClick={() => setActiveCategory("all")}
+              onClick={() => setSelectedCategory("all")}
               className={`inline-flex items-center gap-2 rounded-full border px-4 py-2 text-xs font-medium transition-all ${
-                activeCategory === "all"
+                selectedCategory === "all"
                   ? "border-[#0D0E10] bg-[#0D0E10] text-white shadow-md"
                   : "border-[#EAE6DF] bg-white/70 text-slate-600 hover:border-slate-400 hover:bg-white"
               }`}
@@ -115,11 +175,11 @@ export default function Index() {
             </button>
             {Object.entries(CATEGORY_ICONS).map(([key, val]) => {
               const Icon = val.icon;
-              const isSelected = activeCategory === key;
+              const isSelected = selectedCategory === key;
               return (
                 <button
                   key={key}
-                  onClick={() => setActiveCategory(key)}
+                  onClick={() => setSelectedCategory(key)}
                   className={`inline-flex items-center gap-2 rounded-full border px-4 py-2 text-xs font-medium transition-all ${
                     isSelected
                       ? "border-[#0D0E10] bg-[#0D0E10] text-white shadow-md"
@@ -139,9 +199,27 @@ export default function Index() {
           </div>
         </div>
 
-        {/* Attractions Grid */}
-        <div className="mt-10 grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-          {visibleAttractions.map((place) => {
+        {isLoading ? (
+          <div className="mt-10 flex flex-col items-center justify-center py-20 text-slate-500">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-slate-900 mb-4"></div>
+            <p>Carregando experiências incríveis...</p>
+          </div>
+        ) : hasError ? (
+          <div className="mt-10 flex flex-col items-center justify-center py-20 bg-red-50 rounded-3xl border border-red-100 text-red-600">
+            <Compass className="h-12 w-12 mb-4 opacity-50" />
+            <p className="font-medium text-lg">Não foi possível carregar as experiências.</p>
+            <button onClick={loadExperiences} className="mt-4 px-6 py-2 bg-red-100 rounded-full font-medium hover:bg-red-200 transition-colors">
+              Tentar novamente
+            </button>
+          </div>
+        ) : visibleAttractions.length === 0 ? (
+          <div className="mt-10 flex flex-col items-center justify-center py-20 bg-slate-100 rounded-3xl border border-slate-200 text-slate-500">
+            <Compass className="h-12 w-12 mb-4 opacity-30" />
+            <p className="font-medium text-lg">Nenhuma experiência encontrada nesta categoria.</p>
+          </div>
+        ) : (
+          <div className="mt-10 grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
+            {visibleAttractions.map((place) => {
             const catInfo = CATEGORY_ICONS[place.category] || { icon: Compass, color: "#C5A85C" };
             const Icon = catInfo.icon;
             const favorited = favorites.has(place.id);
@@ -212,7 +290,8 @@ export default function Index() {
               </article>
             );
           })}
-        </div>
+          </div>
+        )}
       </section>
 
       <Feeling />
@@ -225,105 +304,86 @@ export default function Index() {
 }
 
 function SiteNav() {
+  const { user, signOut } = useConsumerAuth();
   return (
     <header className="absolute inset-x-0 top-0 z-30">
       <div className="mx-auto flex max-w-[1240px] items-center justify-between px-6 py-6 md:px-10">
-        <Link to="/" className="flex items-center gap-2 text-[#0D0E10]">
-          <span className="grid h-8 w-8 place-items-center rounded-md bg-white/80 backdrop-blur shadow-sm">
-            <Compass className="h-4 w-4 text-[#C5A85C]" strokeWidth={2} />
-          </span>
-          <span className="font-serif text-lg font-medium tracking-tight">
-            Viagem dos Sonhos
+        <Link to="/" className="flex items-center gap-2">
+          <Compass className="h-6 w-6 text-[#0D0E10]" />
+          <span className="font-display text-xl font-bold tracking-tight text-[#0D0E10]">
+            Voyage Flow
           </span>
         </Link>
-        <nav className="hidden items-center gap-8 text-sm font-medium text-slate-600 md:flex">
-          <a href="#descobrir" className="hover:text-[#0D0E10] transition-colors">
-            Descobrir
-          </a>
-          <a href="#pilares" className="hover:text-[#0D0E10] transition-colors">
-            Como funciona
-          </a>
-          <Link
-            to="/onboarding"
-            className="inline-flex items-center gap-1 rounded-full bg-[#0D0E10] px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-slate-800"
-          >
-            Planejar minha viagem
-            <ArrowRight className="h-3.5 w-3.5" strokeWidth={2} />
-          </Link>
-        </nav>
-        <Link
-          to="/onboarding"
-          className="rounded-full bg-[#0D0E10] px-4 py-2 text-sm font-medium text-white md:hidden"
-        >
-          Planejar
-        </Link>
+        <div className="flex items-center gap-3 md:gap-5">
+          {user ? (
+            <>
+              <Link
+                to="/minhas-viagens"
+                className="text-sm font-medium tracking-wide text-slate-600 transition-colors hover:text-[#0D0E10]"
+              >
+                Minhas Viagens
+              </Link>
+              <Link
+                to="/minhas-viagens/nova"
+                className="hidden md:inline-flex items-center justify-center rounded-full bg-[#0D0E10] px-5 py-2.5 text-sm font-semibold tracking-wide text-white transition-all hover:bg-slate-800"
+              >
+                Criar nova viagem
+              </Link>
+              <button onClick={signOut} className="text-sm font-medium text-slate-500 hover:text-red-500 transition-colors">
+                Sair
+              </button>
+            </>
+          ) : (
+            <>
+              <Link
+                to="/login"
+                className="hidden text-sm font-medium tracking-wide text-slate-600 transition-colors hover:text-[#0D0E10] md:block"
+              >
+                Entrar
+              </Link>
+              <Link
+                to="/cadastro"
+                className="inline-flex items-center justify-center rounded-full bg-[#0D0E10] px-5 py-2.5 text-sm font-semibold tracking-wide text-white transition-all hover:bg-slate-800"
+              >
+                Criar minha viagem
+              </Link>
+            </>
+          )}
+        </div>
       </div>
     </header>
   );
 }
 
 function Hero() {
+  const { user } = useConsumerAuth();
   return (
-    <section className="relative overflow-hidden pb-16 pt-32 md:pb-24 md:pt-40">
-      <div className="mx-auto grid max-w-[1240px] gap-12 px-6 md:grid-cols-[minmax(0,1.05fr)_minmax(0,1fr)] md:items-center md:gap-16 md:px-10">
-        <div className="relative">
-          <p className="text-[11px] font-semibold uppercase tracking-[0.32em] text-slate-400">
-            <span className="text-[#C5A85C]">✦</span> Viagem dos Sonhos · Nova York
-          </p>
-          <h1 className="mt-6 font-serif text-5xl font-light leading-[1.05] tracking-tight text-[#0D0E10] md:text-7xl">
-            Sua Viagem
-            <br />
-            dos sonhos,
-            <br />
-            <span className="italic text-slate-700">com roteiro inteligente.</span>
-          </h1>
-          <p className="mt-8 max-w-lg text-base leading-relaxed text-slate-600 md:text-lg">
-            Nossa IA analisa seu perfil, seus interesses e seu orçamento para
-            desenhar um roteiro sob medida em Nova York. Ela escolhe as
-            atrações imperdíveis, organizes a melhor rota para cada dia e ajuda
-            você a economizar tempo e dinheiro — como ter um concierge cinco
-            estrelas ao seu lado o tempo todo.
-          </p>
-          <div className="mt-10 flex flex-wrap items-center gap-4">
+    <section className="relative overflow-hidden bg-[#0D0E10] px-6 py-32 md:py-40">
+      <div className="mx-auto max-w-4xl text-center">
+        <h1 className="font-display text-5xl font-bold leading-[1.1] tracking-tight text-white md:text-7xl">
+          Sua viagem organizada do seu jeito.
+        </h1>
+        <p className="mx-auto mt-6 max-w-2xl text-lg text-white/90 md:text-xl font-light">
+          Conte seus planos, preferências e reservas. O Voyage Flow cria um roteiro inteligente, editável e pronto para acompanhar você durante a viagem.
+        </p>
+        <div className="mt-10 flex flex-col items-center justify-center gap-4 sm:flex-row">
+          {user ? (
             <Link
-              to="/onboarding"
-              className="group inline-flex items-center gap-2 rounded-full bg-[#C5A85C] px-6 py-3 text-sm font-medium text-white shadow-[0_18px_40px_-16px_rgba(197,168,92,0.55)] transition-transform hover:-translate-y-0.5"
+              to="/minhas-viagens/nova"
+              className="group flex h-14 items-center justify-center gap-2 rounded-full bg-white px-8 font-semibold text-[#0D0E10] transition-all hover:scale-105 hover:bg-slate-50"
             >
-              Planejar minha viagem
-              <ArrowRight
-                className="h-4 w-4 transition-transform group-hover:translate-x-0.5"
-                strokeWidth={2}
-              />
+              Criar minha viagem
+              <ArrowRight className="h-5 w-5 transition-transform group-hover:translate-x-1" />
             </Link>
-          </div>
-        </div>
-
-        <div className="relative mx-auto w-full max-w-[520px]">
-          <div className="relative aspect-[4/5] overflow-hidden rounded-3xl bg-[#F3EFEA] shadow-[0_40px_80px_-40px_rgba(13,13,13,0.2)]">
-            <img
-              src={HERO_IMAGE}
-              alt="Vista aérea de Manhattan ao entardecer"
-              className="h-full w-full object-cover"
-            />
-            <div
-              aria-hidden
-              className="pointer-events-none absolute inset-0"
-              style={{
-                background:
-                  "linear-gradient(to top, rgba(13,13,13,0.35), transparent 45%)",
-              }}
-            />
-            <div className="absolute bottom-5 left-5 right-5 flex items-end justify-between text-white">
-              <div>
-                <p className="text-[10.5px] font-medium uppercase tracking-[0.24em] opacity-80">
-                  Curadoria
-                </p>
-                <p className="mt-1 font-serif text-2xl font-light leading-none">
-                  Nova York
-                </p>
-              </div>
-            </div>
-          </div>
+          ) : (
+            <Link
+              to="/cadastro"
+              className="group flex h-14 items-center justify-center gap-2 rounded-full bg-white px-8 font-semibold text-[#0D0E10] transition-all hover:scale-105 hover:bg-slate-50"
+            >
+              Criar minha viagem
+              <ArrowRight className="h-5 w-5 transition-transform group-hover:translate-x-1" />
+            </Link>
+          )}
         </div>
       </div>
     </section>

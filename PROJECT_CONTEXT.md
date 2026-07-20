@@ -132,13 +132,13 @@ Elaborada proposta de infraestrutura (Edge Functions e SQL migrations locais) pa
 * ADMIN-2B.2A — Preflight remoto concluído;
 * ADMIN-2B.2A.1 — Compatibilização local concluída;
 * ADMIN-2B.2B.1 — Backup, migration oficial e dry-run concluídos;
-* ADMIN-2B.2B.2 — Aplicação remota aguardando autorização explícita.
+* ADMIN-2B.2B.2 — Aplicação remota (Congelada temporariamente).
 
-6. ADMIN-3 — Conexão das páginas administrativas com dados reais
-7. BUGFIX-RUNTIME-1 — Corrigir tela cinza causada por imports ausentes no AdminLayout e remoção do warning do GYG
-8. LEGACY-1 — Remoção consolidada de mocks, previews e código antigo
-9. SYSTEM-QA — Auditoria funcional completa do Admin e Consumer
-10. DESIGN-SYSTEM-1 — Padronização visual global do produto
-11. UX-QA — Responsividade, acessibilidade e revisão textual
-12. BETA-READY — Segurança, performance e preparação para lançamento
+**Fatos da Fase TRIP-READY V1:**
+* MUDANÇA DE PRIORIDADE URGENTE: O admin foi congelado. Foco 100% na jornada do viajante.
+* Objetivo: Ter o app funcional em 13 dias para viagem real do criador.
 
+6. TRIP-READY-1 — Jornada funcional do viajante (Prioridade Máxima)
+7. ADMIN-2B.2B — Congelada temporariamente
+8. ADMIN-3 — Congelada temporariamente
+9. DESIGN-SYSTEM-1 — Pós-viagem

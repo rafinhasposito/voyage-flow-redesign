@@ -10,6 +10,12 @@ import Catalog from "./pages/Catalog";
 import Wallet from "./pages/Wallet";
 import NotFound from "./pages/NotFound";
 
+import { ConsumerAuthProvider } from "./contexts/ConsumerAuthProvider";
+import ConsumerLogin from "./pages/ConsumerLogin";
+import ConsumerSignup from "./pages/ConsumerSignup";
+import MyTrips from "./pages/MyTrips";
+import NewTrip from "./pages/NewTrip";
+
 import { AdminAuthProvider } from "./contexts/AdminAuthProvider";
 import ProtectedAdminRoute from "./components/admin/ProtectedAdminRoute";
 import AdminLogin from "./pages/admin/AdminLogin";
@@ -52,11 +58,31 @@ const App = () => {
       <Sonner />
       <BrowserRouter>
         <Routes>
-          <Route path="/" element={<Index />} />
+          <Route path="/" element={
+            <ConsumerAuthProvider>
+              <Index />
+            </ConsumerAuthProvider>
+          } />
           <Route path="/onboarding" element={<Onboarding />} />
           <Route path="/app/board" element={<Dashboard />} />
           <Route path="/app/catalog" element={<Catalog />} />
           <Route path="/app/wallet" element={<Wallet />} />
+          
+          {/* Consumer Auth Routes */}
+          <Route path="/login" element={<ConsumerLogin />} />
+          <Route path="/cadastro" element={<ConsumerSignup />} />
+
+          {/* Protected Consumer Routes (Minhas Viagens) */}
+          <Route path="/minhas-viagens" element={
+            <ConsumerAuthProvider>
+              <MyTrips />
+            </ConsumerAuthProvider>
+          } />
+          <Route path="/minhas-viagens/nova" element={
+            <ConsumerAuthProvider>
+              <NewTrip />
+            </ConsumerAuthProvider>
+          } />
           
           {/* Admin Routes with Auth Context Wrapper */}
           <Route path="/admin" element={
