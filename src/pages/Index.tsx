@@ -101,6 +101,9 @@ export default function Index() {
 
   return (
     <div className="min-h-screen bg-[#FAF8F5] text-slate-900 font-sans selection:bg-lime-200 selection:text-lime-950 overflow-x-hidden">
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400..900;1,400..900&display=swap');
+      `}</style>
       <SiteNav user={user} signOut={signOut} />
       <Hero user={user} />
 
@@ -189,11 +192,13 @@ export default function Index() {
               const catInfo = CATEGORY_ICONS[normCat] || { icon: Compass, color: "#C5A85C", label: place.category };
               const Icon = catInfo.icon;
               const favorited = favorites.has(place.id);
-
-              const badgeContent = user ? (
+              
+              const hasRealMatch = user && place.matchScore && place.matchScore > 0;
+              
+              const badgeContent = hasRealMatch ? (
                 <>
                   <span className="text-[9px] font-bold uppercase tracking-wider opacity-80 mb-0.5 text-lime-950">Match</span>
-                  <span className="text-[13px] font-black text-lime-950">{place.matchScore || "90"}%</span>
+                  <span className="text-[13px] font-black text-lime-950">{place.matchScore}%</span>
                 </>
               ) : (
                 <>
