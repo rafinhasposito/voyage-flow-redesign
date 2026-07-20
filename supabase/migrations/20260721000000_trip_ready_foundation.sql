@@ -51,7 +51,7 @@ ALTER TABLE public.itinerary_days ENABLE ROW LEVEL SECURITY;
 CREATE TABLE IF NOT EXISTS public.trip_experiences (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     day_id UUID NOT NULL REFERENCES public.itinerary_days(id) ON DELETE CASCADE,
-    experience_id TEXT NOT NULL REFERENCES public.experiences(id) ON DELETE RESTRICT,
+    experience_id UUID NOT NULL REFERENCES public.experiences(id) ON DELETE RESTRICT,
     order_index INTEGER NOT NULL,
     start_time TIME,
     end_time TIME,
