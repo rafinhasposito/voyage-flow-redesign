@@ -119,9 +119,10 @@ Elaborada proposta de infraestrutura (Edge Functions e SQL migrations locais) pa
 ## Ordem Oficial de Fases (Travada)
 1. ADMIN-1 — Zero Em Breve
 2. ADMIN-2A — Auditoria e proposta segura de backend (Atual)
-3. ADMIN-2B.1A — Validação estática e pacote de homologação concluídos
-4. ADMIN-2B.1B — Bloqueada por ausência de ambiente PostgreSQL isolado
-5. ADMIN-2B.2 — Aplicação controlada no projeto real bloqueada
+3. INFRA-LOCAL-1 — Ambiente Supabase local operacional
+4. ADMIN-2B.1A — Validação estática e pacote de homologação concluídos
+5. ADMIN-2B.1B — Validação física de banco e RLS concluída
+6. ADMIN-2B.2 — Aplicação controlada no projeto real aguardando autorização
 
 **Fatos da Fase ADMIN-2B:**
 * Docker indisponível;

@@ -149,9 +149,10 @@ Este documento acompanha as fases do projeto de forma macro, definindo o que já
 
 
 ### Fase ADMIN-2: Fundação Real de Backend
+- [x] **INFRA-LOCAL-1 — Ambiente Supabase local operacional**
 - [x] **ADMIN-2B.1A — Validação estática e pacote de homologação concluídos**
-- [ ] **ADMIN-2B.1B — Bloqueada por ausência de ambiente PostgreSQL isolado**
-- [ ] **ADMIN-2B.2 — Aplicação controlada no projeto real bloqueada**
+- [x] **ADMIN-2B.1B — Validação física de banco e RLS concluída**
+- [ ] **ADMIN-2B.2 — Aplicação controlada no projeto real aguardando autorização**
 
 **Fatos da Fase ADMIN-2B:**
 * Docker indisponível; PostgreSQL local indisponível; Supabase CLI disponível;

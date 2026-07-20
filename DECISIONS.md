@@ -203,9 +203,10 @@ O atual `ExperienceRepository` (que puxa do Supabase e faz cache SWR) evoluirá 
 **Decisão:** Não alterar `experiences`. Criadas tabelas `system_settings`, `partners`, `orders`, `profiles` e `analytics_events`. Edge Function `admin-list-users` criada para acessar de forma segura o `auth.users` B2C para a UI administrativa. A ADMIN-2B.1A isola o pacote físico de homologação em SQL.
 **Fatos Atuais**: Docker e PostgreSQL locais estão indisponíveis, impossibilitando a 2B.1B.
 **Status Oficial**:
+* INFRA-LOCAL-1 — Ambiente Supabase local operacional
 * ADMIN-2B.1A — Validação estática e pacote de homologação concluídos
-* ADMIN-2B.1B — Bloqueada por ausência de ambiente PostgreSQL isolado
-* ADMIN-2B.2 — Aplicação controlada no projeto real bloqueada
+* ADMIN-2B.1B — Validação física de banco e RLS concluída
+* ADMIN-2B.2 — Aplicação controlada no projeto real aguardando autorização
 
 
 ### Regra Permanente do Projeto

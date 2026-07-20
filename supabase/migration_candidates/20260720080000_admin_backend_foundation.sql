@@ -27,13 +27,13 @@ CREATE POLICY "system_settings_read_public" ON public.system_settings
 DROP POLICY IF EXISTS "system_settings_read_admin" ON public.system_settings;
 CREATE POLICY "system_settings_read_admin" ON public.system_settings
   FOR SELECT TO authenticated USING (
-    EXISTS (SELECT 1 FROM public.admin_users WHERE id = auth.uid())
+    EXISTS (SELECT 1 FROM public.admin_users WHERE id = auth.uid() AND is_active = true)
   );
 
 DROP POLICY IF EXISTS "system_settings_write_admin" ON public.system_settings;
 CREATE POLICY "system_settings_write_admin" ON public.system_settings
   FOR ALL TO authenticated USING (
-    EXISTS (SELECT 1 FROM public.admin_users WHERE id = auth.uid())
+    EXISTS (SELECT 1 FROM public.admin_users WHERE id = auth.uid() AND is_active = true)
   );
 
 -- =========================================================================
@@ -75,7 +75,7 @@ CREATE TABLE IF NOT EXISTS public.affiliate_links (
   experience_id uuid REFERENCES public.experiences(id) ON DELETE CASCADE NOT NULL,
   partner_id uuid REFERENCES public.partners(id) ON DELETE CASCADE NOT NULL,
   original_url text NOT NULL,
-  affiliate_url text NOT NULL,
+  tracked_url text NOT NULL CHECK (tracked_url LIKE 'http%'),
   status text DEFAULT 'active',
   priority integer DEFAULT 1,
   data_source text DEFAULT 'manual',
@@ -89,18 +89,18 @@ ALTER TABLE public.affiliate_links ENABLE ROW LEVEL SECURITY;
 
 -- Apenas admins podem ler/escrever contratos e afiliados B2B. O consumer lê via edge function ou RLS restrito.
 DROP POLICY IF EXISTS "partners_read_admin" ON public.partners;
-CREATE POLICY "partners_read_admin" ON public.partners FOR SELECT TO authenticated USING (EXISTS (SELECT 1 FROM public.admin_users WHERE id = auth.uid()));
+CREATE POLICY "partners_read_admin" ON public.partners FOR SELECT TO authenticated USING (EXISTS (SELECT 1 FROM public.admin_users WHERE id = auth.uid() AND is_active = true));
 DROP POLICY IF EXISTS "partners_write_admin" ON public.partners;
-CREATE POLICY "partners_write_admin" ON public.partners FOR ALL TO authenticated USING (EXISTS (SELECT 1 FROM public.admin_users WHERE id = auth.uid()));
+CREATE POLICY "partners_write_admin" ON public.partners FOR ALL TO authenticated USING (EXISTS (SELECT 1 FROM public.admin_users WHERE id = auth.uid() AND is_active = true));
 DROP POLICY IF EXISTS "affiliate_programs_read_admin" ON public.affiliate_programs;
-CREATE POLICY "affiliate_programs_read_admin" ON public.affiliate_programs FOR SELECT TO authenticated USING (EXISTS (SELECT 1 FROM public.admin_users WHERE id = auth.uid()));
+CREATE POLICY "affiliate_programs_read_admin" ON public.affiliate_programs FOR SELECT TO authenticated USING (EXISTS (SELECT 1 FROM public.admin_users WHERE id = auth.uid() AND is_active = true));
 DROP POLICY IF EXISTS "affiliate_programs_write_admin" ON public.affiliate_programs;
-CREATE POLICY "affiliate_programs_write_admin" ON public.affiliate_programs FOR ALL TO authenticated USING (EXISTS (SELECT 1 FROM public.admin_users WHERE id = auth.uid()));
+CREATE POLICY "affiliate_programs_write_admin" ON public.affiliate_programs FOR ALL TO authenticated USING (EXISTS (SELECT 1 FROM public.admin_users WHERE id = auth.uid() AND is_active = true));
 -- Link é público para montar roteiros
 DROP POLICY IF EXISTS "affiliate_links_read_all" ON public.affiliate_links;
 CREATE POLICY "affiliate_links_read_all" ON public.affiliate_links FOR SELECT TO authenticated, anon USING (status = 'active');
 DROP POLICY IF EXISTS "affiliate_links_write_admin" ON public.affiliate_links;
-CREATE POLICY "affiliate_links_write_admin" ON public.affiliate_links FOR ALL TO authenticated USING (EXISTS (SELECT 1 FROM public.admin_users WHERE id = auth.uid()));
+CREATE POLICY "affiliate_links_write_admin" ON public.affiliate_links FOR ALL TO authenticated USING (EXISTS (SELECT 1 FROM public.admin_users WHERE id = auth.uid() AND is_active = true));
 
 -- =========================================================================
 -- 3. PERFIS B2C (Bloco 5)
@@ -122,7 +122,7 @@ CREATE POLICY "profiles_read_self" ON public.profiles FOR SELECT TO authenticate
 DROP POLICY IF EXISTS "profiles_update_self" ON public.profiles;
 CREATE POLICY "profiles_update_self" ON public.profiles FOR UPDATE TO authenticated USING (auth.uid() = id);
 DROP POLICY IF EXISTS "profiles_read_admin" ON public.profiles;
-CREATE POLICY "profiles_read_admin" ON public.profiles FOR SELECT TO authenticated USING (EXISTS (SELECT 1 FROM public.admin_users WHERE id = auth.uid()));
+CREATE POLICY "profiles_read_admin" ON public.profiles FOR SELECT TO authenticated USING (EXISTS (SELECT 1 FROM public.admin_users WHERE id = auth.uid() AND is_active = true));
 
 -- =========================================================================
 -- 4. VENDAS, PEDIDOS E RECEITA (Bloco 3)
@@ -130,10 +130,10 @@ CREATE POLICY "profiles_read_admin" ON public.profiles FOR SELECT TO authenticat
 CREATE TABLE IF NOT EXISTS public.orders (
   id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
   user_id uuid REFERENCES public.profiles(id) ON DELETE SET NULL, -- Nullable para checkout guest
-  total_gross numeric(10, 2) NOT NULL,
-  total_discount numeric(10, 2) DEFAULT 0.00,
-  total_net numeric(10, 2) NOT NULL,
-  currency text DEFAULT 'USD',
+  total_gross numeric(10, 2) NOT NULL CHECK (total_gross >= 0),
+  total_discount numeric(10, 2) DEFAULT 0.00 CHECK (total_discount >= 0),
+  total_net numeric(10, 2) NOT NULL CHECK (total_net >= 0),
+  currency text DEFAULT 'USD' CHECK (length(currency) = 3),
   status text DEFAULT 'pending', -- 'pending', 'paid', 'cancelled', 'refunded'
   idempotency_key text UNIQUE,
   origin text, -- 'web', 'app', 'referral'
@@ -172,11 +172,11 @@ ALTER TABLE public.payments ENABLE ROW LEVEL SECURITY;
 
 -- Admins leem tudo
 DROP POLICY IF EXISTS "orders_read_admin" ON public.orders;
-CREATE POLICY "orders_read_admin" ON public.orders FOR SELECT TO authenticated USING (EXISTS (SELECT 1 FROM public.admin_users WHERE id = auth.uid()));
+CREATE POLICY "orders_read_admin" ON public.orders FOR SELECT TO authenticated USING (EXISTS (SELECT 1 FROM public.admin_users WHERE id = auth.uid() AND is_active = true));
 DROP POLICY IF EXISTS "order_items_read_admin" ON public.order_items;
-CREATE POLICY "order_items_read_admin" ON public.order_items FOR SELECT TO authenticated USING (EXISTS (SELECT 1 FROM public.admin_users WHERE id = auth.uid()));
+CREATE POLICY "order_items_read_admin" ON public.order_items FOR SELECT TO authenticated USING (EXISTS (SELECT 1 FROM public.admin_users WHERE id = auth.uid() AND is_active = true));
 DROP POLICY IF EXISTS "payments_read_admin" ON public.payments;
-CREATE POLICY "payments_read_admin" ON public.payments FOR SELECT TO authenticated USING (EXISTS (SELECT 1 FROM public.admin_users WHERE id = auth.uid()));
+CREATE POLICY "payments_read_admin" ON public.payments FOR SELECT TO authenticated USING (EXISTS (SELECT 1 FROM public.admin_users WHERE id = auth.uid() AND is_active = true));
 -- Consumers leem o proprio
 DROP POLICY IF EXISTS "orders_read_self" ON public.orders;
 CREATE POLICY "orders_read_self" ON public.orders FOR SELECT TO authenticated USING (user_id = auth.uid());
@@ -203,4 +203,4 @@ ALTER TABLE public.analytics_events ENABLE ROW LEVEL SECURITY;
 -- Escrita de eventos B2C ocorrerá via Edge Function para evitar SPAM anônimo.
 -- O Admin tem acesso total via RLS.
 DROP POLICY IF EXISTS "analytics_read_admin" ON public.analytics_events;
-CREATE POLICY "analytics_read_admin" ON public.analytics_events FOR SELECT TO authenticated USING (EXISTS (SELECT 1 FROM public.admin_users WHERE id = auth.uid()));
+CREATE POLICY "analytics_read_admin" ON public.analytics_events FOR SELECT TO authenticated USING (EXISTS (SELECT 1 FROM public.admin_users WHERE id = auth.uid() AND is_active = true));

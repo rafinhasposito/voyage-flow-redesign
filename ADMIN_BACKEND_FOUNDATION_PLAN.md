@@ -83,9 +83,9 @@ A função `admin-list-users` atende aos padrões de produção:
 
 ## Status Oficial e Gates
 * **ADMIN-2A** — Auditoria e proposta segura de backend: **Concluído** (Proposta técnica estruturada e aprovada).
-* **ADMIN-2B.1A** — Validação estática e pacote de homologação concluídos: **Concluído**
-* **ADMIN-2B.1B** — Bloqueada por ausência de ambiente PostgreSQL isolado
-* **ADMIN-2B.2** — Aplicação controlada no projeto real bloqueada
+- [x] **ADMIN-2B.1A** — Validação estática e pacote de homologação concluídos
+- [x] **ADMIN-2B.1B** — Validação física de banco e RLS concluída
+- [ ] **ADMIN-2B.2** — Aplicação controlada no projeto real aguardando autorização
 
 **Fatos da Fase ADMIN-2B:**
 * Docker indisponível; PostgreSQL local indisponível; Supabase CLI disponível;
