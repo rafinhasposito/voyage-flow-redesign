@@ -150,12 +150,25 @@ Este documento acompanha as fases do projeto de forma macro, definindo o que já
 
 ### Fase ADMIN-2: Fundação Real de Backend
 - [x] **ADMIN-2B.1A — Validação estática e pacote de homologação concluídos**
-- [ ] **ADMIN-2B.1B — Validação física em ambiente isolado pendente**
-- [ ] **ADMIN-2B.2 — Aplicação controlada no projeto real pendente**
-- [x] Criação de migration local candidata de `system_settings`, `partners`, `orders`, `profiles` e `analytics_events`.
-- [x] Escopo da Edge Function `admin-list-users` para B2C.
-- [x] Testes puros baseados nos novos contratos de Payload B2C e Cálculo Financeiro.
-- [x] Preparação documental e testes prontos para execução física.
+- [ ] **ADMIN-2B.1B — Bloqueada por ausência de ambiente PostgreSQL isolado**
+- [ ] **ADMIN-2B.2 — Aplicação controlada no projeto real bloqueada**
+
+**Fatos da Fase ADMIN-2B:**
+* Docker indisponível; PostgreSQL local indisponível; Supabase CLI disponível;
+* 15 assertions SQL preparadas; 0 executadas;
+* 0 testes reais de RLS;
+* 4 testes TypeScript dos helpers aprovados; 272 testes globais aprovados; build aprovado;
+* Aplicação real reprovada até existir homologação física.
+
+### Fase INFRA-LOCAL-1: Preparar ambiente isolado para testes Supabase
+- Instalar ou ativar Docker Desktop manualmente
+- Validar `docker info`
+- Iniciar Supabase local
+- Executar a candidata duas vezes
+- Executar as 15 assertions SQL
+- Testar RLS
+- Testar a Edge Function localmente
+- Produzir o relatório físico para liberar a ADMIN-2B.2
 
 ### Fase DESIGN-SYSTEM-1: Padronização global do Admin e Consumer [Bloqueada]
 - Tokenização de cores e tipografia

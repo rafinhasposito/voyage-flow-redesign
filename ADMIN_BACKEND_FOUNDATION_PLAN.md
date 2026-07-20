@@ -81,17 +81,18 @@ A função `admin-list-users` atende aos padrões de produção:
 * A Fase ADMIN-3 será a responsável por construir a integração desta entidade no painel B2B.
 * **Decisão:** Não criaremos um Database Trigger (Security Definer) para esta tabela agora.
 
----
+## Status Oficial e Gates
+* **ADMIN-2A** — Auditoria e proposta segura de backend: **Concluído** (Proposta técnica estruturada e aprovada).
+* **ADMIN-2B.1A** — Validação estática e pacote de homologação concluídos: **Concluído**
+* **ADMIN-2B.1B** — Bloqueada por ausência de ambiente PostgreSQL isolado
+* **ADMIN-2B.2** — Aplicação controlada no projeto real bloqueada
 
-## 6. Plano Oficial de Execução (Travado)
-
-1. **ADMIN-2B.1A** — Pacote estático e testes preparados.
-2. **ADMIN-2B.1B** — Execução física em homologação.
-3. **ADMIN-2B.2** — Aplicação no projeto Supabase real.
-4. **ADMIN-3** — Conexão das páginas (UI B2B consumindo repositórios).
-5. **LEGACY-1** — Remoção dos legados e mocks.
-6. **SYSTEM-QA** — Auditoria funcional global.
-7. **DESIGN-SYSTEM-1** — Padronização visual global (Atualmente Bloqueada).
+**Fatos da Fase ADMIN-2B:**
+* Docker indisponível; PostgreSQL local indisponível; Supabase CLI disponível;
+* 15 assertions SQL preparadas; 0 executadas;
+* 0 testes reais de RLS;
+* 4 testes TypeScript dos helpers aprovados; 272 testes globais aprovados; build aprovado;
+* Aplicação real reprovada até existir homologação física.
 
 * **Gate 1** — Mover candidata para `supabase/migrations` (comando: `mv supabase/migration_candidates/20260720080000_admin_backend_foundation.sql supabase/migrations/20260720080000_admin_backend_foundation.sql`).
 * **Gate 2** — Conferir diff e histórico do Git para garantir pureza da migration.
