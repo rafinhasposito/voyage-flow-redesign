@@ -29,7 +29,7 @@ export class TripRepository {
 
         if (error) {
             console.error("Erro ao buscar viagens", error);
-            throw error; 
+            throw error;
         }
         return data || [];
     }
@@ -64,11 +64,16 @@ export class TripRepository {
         const { data: { user } } = await supabase.auth.getUser();
         if (!user) throw new Error("Usuário não autenticado");
 
+        const current = await this.getTripById(tripId);
+
         // Merge preferences if present
         if (patch.preferences) {
-            const current = await this.getTripById(tripId);
             patch.preferences = { ...(current.preferences || {}), ...patch.preferences };
+        } else {
+            patch.preferences = { ...(current.preferences || {}) };
         }
+
+        // Removido o workaround: itinerary agora é uma coluna JSONB nativa na tabela trips.
 
         const { data, error } = await supabase
             .from('trips')
@@ -77,8 +82,29 @@ export class TripRepository {
             .eq('user_id', user.id)
             .select()
             .single();
-            
-        if (error) throw error;
+
+        if (error) {
+            console.error('[TRIP_UPDATE_ERROR]', error);
+            throw error;
+        }
+
+        if (!data) {
+            throw new Error("A viagem não foi atualizada. Verifique propriedade e política RLS.");
+        }
+
         return data;
+    }
+
+    static async deleteTrip(tripId: string) {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) throw new Error("Usuário não autenticado");
+
+        const { error } = await supabase
+            .from('trips')
+            .delete()
+            .eq('id', tripId)
+            .eq('user_id', user.id);
+
+        if (error) throw error;
     }
 }

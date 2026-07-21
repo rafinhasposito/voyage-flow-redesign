@@ -341,6 +341,38 @@ export type Database = {
           },
         ]
       }
+      itinerary_days: {
+        Row: {
+          created_at: string
+          date: string
+          day_number: number
+          id: string
+          trip_id: string
+        }
+        Insert: {
+          created_at?: string
+          date: string
+          day_number: number
+          id?: string
+          trip_id: string
+        }
+        Update: {
+          created_at?: string
+          date?: string
+          day_number?: number
+          id?: string
+          trip_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "itinerary_days_trip_id_fkey"
+            columns: ["trip_id"]
+            isOneToOne: false
+            referencedRelation: "trips"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       operating_hour_exceptions: {
         Row: {
           closes_at: string | null
@@ -501,6 +533,45 @@ export type Database = {
         }
         Relationships: []
       }
+      profiles: {
+        Row: {
+          avatar_url: string | null
+          created_at: string
+          email: string
+          first_name: string | null
+          full_name: string | null
+          id: string
+          last_name: string | null
+          preferences: Json | null
+          status: string | null
+          updated_at: string
+        }
+        Insert: {
+          avatar_url?: string | null
+          created_at?: string
+          email: string
+          first_name?: string | null
+          full_name?: string | null
+          id: string
+          last_name?: string | null
+          preferences?: Json | null
+          status?: string | null
+          updated_at?: string
+        }
+        Update: {
+          avatar_url?: string | null
+          created_at?: string
+          email?: string
+          first_name?: string | null
+          full_name?: string | null
+          id?: string
+          last_name?: string | null
+          preferences?: Json | null
+          status?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       tags: {
         Row: {
           category: string | null
@@ -636,6 +707,265 @@ export type Database = {
             columns: ["origin_experience_id"]
             isOneToOne: false
             referencedRelation: "experiences"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      trip_documents: {
+        Row: {
+          created_at: string
+          document_type: string | null
+          file_name: string | null
+          file_size: number | null
+          id: string
+          mime_type: string | null
+          offline_enabled: boolean | null
+          parse_status: string | null
+          parsed_data: Json | null
+          reservation_id: string | null
+          storage_path: string
+          trip_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          document_type?: string | null
+          file_name?: string | null
+          file_size?: number | null
+          id?: string
+          mime_type?: string | null
+          offline_enabled?: boolean | null
+          parse_status?: string | null
+          parsed_data?: Json | null
+          reservation_id?: string | null
+          storage_path: string
+          trip_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          document_type?: string | null
+          file_name?: string | null
+          file_size?: number | null
+          id?: string
+          mime_type?: string | null
+          offline_enabled?: boolean | null
+          parse_status?: string | null
+          parsed_data?: Json | null
+          reservation_id?: string | null
+          storage_path?: string
+          trip_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "trip_documents_reservation_id_fkey"
+            columns: ["reservation_id"]
+            isOneToOne: false
+            referencedRelation: "trip_reservations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "trip_documents_trip_id_fkey"
+            columns: ["trip_id"]
+            isOneToOne: false
+            referencedRelation: "trips"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      trip_experiences: {
+        Row: {
+          created_at: string
+          day_id: string
+          end_time: string | null
+          experience_id: string
+          id: string
+          is_fixed_appointment: boolean | null
+          order_index: number
+          reservation_details: Json | null
+          start_time: string | null
+        }
+        Insert: {
+          created_at?: string
+          day_id: string
+          end_time?: string | null
+          experience_id: string
+          id?: string
+          is_fixed_appointment?: boolean | null
+          order_index: number
+          reservation_details?: Json | null
+          start_time?: string | null
+        }
+        Update: {
+          created_at?: string
+          day_id?: string
+          end_time?: string | null
+          experience_id?: string
+          id?: string
+          is_fixed_appointment?: boolean | null
+          order_index?: number
+          reservation_details?: Json | null
+          start_time?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "trip_experiences_day_id_fkey"
+            columns: ["day_id"]
+            isOneToOne: false
+            referencedRelation: "itinerary_days"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "trip_experiences_experience_id_fkey"
+            columns: ["experience_id"]
+            isOneToOne: false
+            referencedRelation: "experiences"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      trip_reservations: {
+        Row: {
+          address: string | null
+          confirmation_code: string | null
+          created_at: string
+          currency: string | null
+          end_at: string | null
+          id: string
+          is_fixed: boolean
+          latitude: number | null
+          location_name: string | null
+          longitude: number | null
+          price: number | null
+          provider: string | null
+          purchase_status: string
+          start_at: string | null
+          structured_data: Json | null
+          title: string | null
+          trip_id: string
+          type: string
+          updated_at: string
+        }
+        Insert: {
+          address?: string | null
+          confirmation_code?: string | null
+          created_at?: string
+          currency?: string | null
+          end_at?: string | null
+          id?: string
+          is_fixed?: boolean
+          latitude?: number | null
+          location_name?: string | null
+          longitude?: number | null
+          price?: number | null
+          provider?: string | null
+          purchase_status?: string
+          start_at?: string | null
+          structured_data?: Json | null
+          title?: string | null
+          trip_id: string
+          type: string
+          updated_at?: string
+        }
+        Update: {
+          address?: string | null
+          confirmation_code?: string | null
+          created_at?: string
+          currency?: string | null
+          end_at?: string | null
+          id?: string
+          is_fixed?: boolean
+          latitude?: number | null
+          location_name?: string | null
+          longitude?: number | null
+          price?: number | null
+          provider?: string | null
+          purchase_status?: string
+          start_at?: string | null
+          structured_data?: Json | null
+          title?: string | null
+          trip_id?: string
+          type?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "trip_reservations_trip_id_fkey"
+            columns: ["trip_id"]
+            isOneToOne: false
+            referencedRelation: "trips"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      trips: {
+        Row: {
+          budget_level: string | null
+          companionship: string | null
+          created_at: string
+          destination: string
+          end_date: string
+          fixed_commitments: Json
+          hotel_lat: number | null
+          hotel_lng: number | null
+          hotel_name: string | null
+          id: string
+          itinerary: Json
+          pace: string | null
+          preferences: Json
+          start_date: string
+          status: string
+          title: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          budget_level?: string | null
+          companionship?: string | null
+          created_at?: string
+          destination: string
+          end_date: string
+          fixed_commitments?: Json
+          hotel_lat?: number | null
+          hotel_lng?: number | null
+          hotel_name?: string | null
+          id?: string
+          itinerary?: Json
+          pace?: string | null
+          preferences?: Json
+          start_date: string
+          status?: string
+          title: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          budget_level?: string | null
+          companionship?: string | null
+          created_at?: string
+          destination?: string
+          end_date?: string
+          fixed_commitments?: Json
+          hotel_lat?: number | null
+          hotel_lng?: number | null
+          hotel_name?: string | null
+          id?: string
+          itinerary?: Json
+          pace?: string | null
+          preferences?: Json
+          start_date?: string
+          status?: string
+          title?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "trips_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
         ]

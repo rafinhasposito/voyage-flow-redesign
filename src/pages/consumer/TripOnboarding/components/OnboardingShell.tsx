@@ -130,7 +130,7 @@ export default function OnboardingShell({
                    data-testid="onboarding-continue"
                    className="h-12 lg:h-14 px-8 rounded-full bg-[#D7F24B] hover:bg-[#c5e62b] text-[#171717] text-base font-extrabold shadow-lg shadow-[#D7F24B]/20 transition-all hover:scale-[1.02] disabled:opacity-50 disabled:hover:scale-100 hidden lg:flex items-center gap-2"
                  >
-                   {loading ? <Loader2 className="w-5 h-5 animate-spin mx-auto" /> : <>{continueLabel} <ArrowRight className="w-4 h-4" /></>}
+                   {loading ? <><Loader2 className="w-5 h-5 animate-spin" /> Salvando...</> : <>{continueLabel} <ArrowRight className="w-4 h-4" /></>}
                  </Button>
               </div>
             )}
@@ -217,7 +217,7 @@ export default function OnboardingShell({
                    data-testid="onboarding-continue-mobile"
                    className="w-full mt-8 bg-[#D7F24B] hover:bg-[#c5e62b] text-[#171717] rounded-full h-[52px] text-base font-extrabold shadow-lg shadow-[#D7F24B]/20 transition-all hover:scale-[1.02] disabled:opacity-50 disabled:hover:scale-100 flex lg:hidden items-center justify-center gap-2"
                  >
-                   {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : <>{continueLabel} <ArrowRight className="w-4 h-4 ml-1" /></>}
+                   {loading ? <><Loader2 className="w-5 h-5 animate-spin" /> Salvando...</> : <>{continueLabel} <ArrowRight className="w-4 h-4 ml-1" /></>}
                  </Button>
                )}
 

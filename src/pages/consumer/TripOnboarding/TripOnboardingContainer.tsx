@@ -12,8 +12,9 @@ import StepTravelStyle from './components/StepTravelStyle';
 import StepReservations from './components/StepReservations';
 import StepMatch from './components/StepMatch';
 import StepDNA from './components/StepDNA';
+import { GeneratingScreen } from './components/GeneratingScreen';
 
-export type OnboardingStepId = 'start' | 'travel_style' | 'reservations' | 'match' | 'dna';
+export type OnboardingStepId = 'start' | 'travel_style' | 'reservations' | 'match' | 'dna' | 'generating';
 
 export default function TripOnboardingContainer() {
   const { tripId } = useParams();
@@ -97,7 +98,7 @@ export default function TripOnboardingContainer() {
        const nextId = flow[nextIndex];
        await handleUpdateTrip({ preferences: { current_step: nextId } });
     } else {
-       navigate(`/viagens/${trip.id}/roteiro?generating=true`);
+       await handleUpdateTrip({ preferences: { current_step: 'generating' } });
     }
   };
 
@@ -222,21 +223,28 @@ export default function TripOnboardingContainer() {
     );
   }
 
-  // Fallback for steps not yet implemented
+  // Render Generating / Workspace
+  if (currentStepId === 'generating' || currentStepId === 'workspace') {
+    return (
+      <GeneratingScreen
+        trip={trip}
+        destination={destination}
+        onError={() => handleUpdateTrip({ preferences: { current_step: 'dna' } })}
+      />
+    );
+  }
+
+  // Fallback para etapas verdadeiramente desconhecidas
   return (
-    <OnboardingShell
-      trip={trip}
-      destination={destination}
-      stepNumber={displayStepNumber}
-      totalSteps={5}
-      heroTitle="Em construção"
-      heroSubtitle="Esta etapa ainda não está pronta."
-      onBack={goToPrevStep}
-    >
-      <div className="p-8 bg-white border border-slate-200 rounded-3xl text-center">
-        <h2 className="text-2xl font-bold text-slate-800">Em breve</h2>
-        <p className="text-slate-500 mt-2">A etapa "{currentStepId}" será construída a seguir.</p>
-      </div>
-    </OnboardingShell>
+    <div className="min-h-screen flex flex-col items-center justify-center bg-[#FDFCF8] p-6 text-center">
+      <h1 className="text-xl font-bold text-slate-800 mb-2">Não foi possível identificar esta etapa da viagem.</h1>
+      <p className="text-sm text-slate-500 mb-6">A etapa "{currentStepId}" é inválida ou não foi reconhecida.</p>
+      <button
+        onClick={() => navigate('/minhas-viagens')}
+        className="bg-slate-900 text-white px-6 py-2.5 rounded-full font-medium hover:bg-slate-800 transition-colors"
+      >
+        Voltar para Minhas Viagens
+      </button>
+    </div>
   );
 }

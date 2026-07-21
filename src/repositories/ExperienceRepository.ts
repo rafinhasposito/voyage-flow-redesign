@@ -13,18 +13,18 @@ export type ExperienceRow = Database["public"]["Tables"]["experiences"]["Row"] &
 
 const CACHE_KEY = "experiences";
 const CACHE_VERSION = 1;
-const TTL_MS = 24 * 60 * 60 * 1000; 
+const TTL_MS = 24 * 60 * 60 * 1000;
 
 export class ExperienceRepository {
   /**
-   * Called once at App startup. 
+   * Called once at App startup.
    * Triggers background sync but does not block the UI.
    */
   public static initialize(): void {
     if (import.meta.env.DEV) {
       console.log("[Repository] Initializing ExperienceRepository...");
     }
-    
+
     // Fire and forget - background sync
     this.sync().catch(e => {
       console.error("[Repository] Background sync failed, relying on cache/fallback", e);
@@ -42,7 +42,7 @@ export class ExperienceRepository {
           .from("experiences")
           .select("*, operating_hours(*), operating_hour_exceptions(*), transit_options_origin:transit_options!transit_options_origin_experience_id_fkey(*)")
           .eq("status", "published");
-        
+
         if (error) {
           console.error("[Repository] Supabase returned error:", error);
           if (import.meta.env.VITE_DEMO_MODE === "true") {
@@ -60,7 +60,7 @@ export class ExperienceRepository {
           }
           return [];
         }
-        
+
         // Map Supabase rows to the UI's TravelExperience type
         return data.map(row => this.mapRowToModel(row));
       },
@@ -78,23 +78,20 @@ export class ExperienceRepository {
   }
 
   /**
-   * Returns all experiences. 
+   * Returns all experiences.
    * 1. Tries Cache.
    * 2. If no cache, fetches from Supabase.
    */
-  public static async getPublishedHotelsByDestination(destinationId: string): Promise<ExperienceRow[]> {
+  public static async getPublishedHotelsByDestination(destinationId: string): Promise<TravelExperience[]> {
     if (!destinationId) return [];
-    
-    // We fetch from 'experiences' table, filtering by 'Hotel' or similar category, and destination.
-    // Assuming 'type' or 'category' is used. From earlier research, category is 'hotel' or 'hotel'.
-    // The user says: "Auditar e usar: ExperienceRepository -> experiências publicadas -> tipo Hotel -> destino real da viagem."
-    
+
+    // Using the canonical database field `type = 'hotel'` for lodging/hotels.
     const { data, error } = await supabase
       .from("experiences")
-      .select("*")
+      .select("*, operating_hours(*), operating_hour_exceptions(*), transit_options_origin:transit_options!transit_options_origin_experience_id_fkey(*)")
       .eq("destination_id", destinationId)
-      .eq("type", "Hotel")
-      .eq("status", "publicada")
+      .eq("type", "hotel")
+      .eq("status", "published")
       .order("rating", { ascending: false });
 
     if (error) {
@@ -102,12 +99,12 @@ export class ExperienceRepository {
       return [];
     }
 
-    return data || [];
+    return (data || []).map(row => this.mapRowToModel(row as ExperienceRow));
   }
 
   public static async searchPublishedExperiencesByDestination(destinationId: string, category: string, query: string): Promise<TravelExperience[]> {
     if (!destinationId) return [];
-    
+
     let dbCategory = category;
     if (category === 'attraction' || category === 'show') dbCategory = 'Atração';
     else if (category === 'hotel') dbCategory = 'Hotel';
@@ -130,14 +127,14 @@ export class ExperienceRepository {
       console.error("[ExperienceRepository] search error:", error);
       return [];
     }
-    
+
     // We do a manual filter for category if db doesn't perfectly match
     return (data || []).map(row => this.mapRowToModel(row));
   }
 
   public static async getAll(): Promise<TravelExperience[]> {
     const cached = CacheManager.get<TravelExperience[]>(CACHE_KEY, CACHE_VERSION);
-    
+
     // 1. Return cache if available (SWR ensures it will be updated in background by initialize())
     if (cached && cached.length > 0) {
       return cached;
@@ -146,7 +143,7 @@ export class ExperienceRepository {
     if (import.meta.env.DEV) {
       console.log("[Repository] Cache empty. Fetching directly from Supabase to guarantee fresh data...");
     }
-    
+
     return this.forceRefresh();
   }
 
@@ -158,7 +155,7 @@ export class ExperienceRepository {
       .from("experiences")
       .select("*, operating_hours(*), operating_hour_exceptions(*), transit_options_origin:transit_options!transit_options_origin_experience_id_fkey(*)")
       .eq("status", "published");
-      
+
     if (error) {
       console.error("[Repository] Force refresh failed:", error);
       if (import.meta.env.VITE_DEMO_MODE === "true") {
@@ -179,7 +176,7 @@ export class ExperienceRepository {
       CacheManager.set(CACHE_KEY, [], { version: CACHE_VERSION, ttlMs: TTL_MS });
       return [];
     }
-    
+
     const mapped = data.map(row => this.mapRowToModel(row));
     CacheManager.set(CACHE_KEY, mapped, { version: CACHE_VERSION, ttlMs: TTL_MS });
     return mapped;
@@ -190,7 +187,7 @@ export class ExperienceRepository {
    */
   public static async getByDestination(destinationId: string): Promise<TravelExperience[]> {
     const all = await this.getAll();
-    return all; 
+    return all;
   }
 
   /**
@@ -234,20 +231,20 @@ export class ExperienceRepository {
     return {
       id: row.id,
       name: row.title,
-      category: (row.category as "culture" | "food" | "views" | "nature" | "shopping" | "classic" | "nightlife" | "hidden_gem") || "Atração", 
-      categoryLabel: row.category || "Atração",
+      category: row.category || null,
+      categoryLabel: row.category || null,
       description: row.description || "",
-      emotionalDescription: row.description || "",
-      image: imageUrl, 
+      emotionalDescription: row.short_description || "",
+      image: imageUrl,
       images: row.media_urls || [],
       costLevel: this.mapCostLevel(row.base_cost ?? 0),
       costUSD: row.base_cost ?? 0,
       neighborhood: row.neighborhood || "Centro",
-      coordinates: (row.location_lat != null && row.location_lng != null) 
-                   ? { lat: row.location_lat, lng: row.location_lng } 
+      coordinates: (row.location_lat != null && row.location_lng != null)
+                   ? { lat: row.location_lat, lng: row.location_lng }
                    : undefined,
       matchScore: 0,
-      durationHours: (row.duration_minutes ?? 120) / 60,
+      durationHours: row.duration_minutes ? row.duration_minutes / 60 : null,
       bestTime: "Morning",
       is_must_see: row.is_must_see ?? false,
       reservationRequired: row.reservation_required ?? false,
@@ -263,7 +260,7 @@ export class ExperienceRepository {
       type: row.type || row.category,
       climate: row.climate ?? undefined,
       ideal_companion: row.ideal_companion ?? undefined,
-      
+
       personaWeights: (row.intelligence_metadata != null && ai.personaWeights) ? normalizeWeights(ai.personaWeights) : undefined,
       companionshipCompatibility: (row.intelligence_metadata != null && ai.companionshipCompatibility) ? normalizeComp(ai.companionshipCompatibility) : undefined,
       recommendedSeasons: (row.intelligence_metadata != null) ? ai.recommendedSeasons as ("winter" | "spring" | "summer" | "autumn" | "all")[] : undefined,
@@ -279,7 +276,7 @@ export class ExperienceRepository {
    */
   private static buildAffiliateLink(url: string | null | undefined): string | undefined {
     if (!url) return undefined;
-    
+
     try {
       if (url.includes("getyourguide.com")) {
         const urlObj = new URL(url);
@@ -314,7 +311,7 @@ export class ExperienceRepository {
       .select("*, operating_hours(*), operating_hour_exceptions(*), transit_options_origin:transit_options!transit_options_origin_experience_id_fkey(*)")
       .eq("status", "published")
       .ilike("title", `%${query}%`);
-      
+
     if (error) throw error;
     return data.map(row => this.mapRowToModel(row));
   }
@@ -325,7 +322,7 @@ export class ExperienceRepository {
       .select("*, operating_hours(*), operating_hour_exceptions(*), transit_options_origin:transit_options!transit_options_origin_experience_id_fkey(*)")
       .eq("id", id)
       .single();
-      
+
     if (error) {
       if (error.code === 'PGRST116') return null; // Not found
       throw error;

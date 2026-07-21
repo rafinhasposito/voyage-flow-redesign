@@ -85,14 +85,15 @@ const AVOIDS = [
   'Atividades noturnas'
 ];
 
-export default function StepTravelStyle({ trip, destination, displayStepNumber, onSave, onPrev }: any) {
+export default function StepTravelStyle({ trip, destination, displayStepNumber, onSave, onNext, onPrev }: any) {
   const [isSaving, setIsSaving] = useState(false);
-  
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+
   // Game state
   const [quizAnswers, setQuizAnswers] = useState<Record<string, any>>({});
   const [currentQIndex, setCurrentQIndex] = useState(0);
   const [showResult, setShowResult] = useState(trip?.preferences?.travel_profile ? true : false);
-  
+
   // Profile Dimensions (range 0 to 100, where 50 is neutral)
   const [dimensions, setDimensions] = useState({
     classic: 50,
@@ -113,7 +114,7 @@ export default function StepTravelStyle({ trip, destination, displayStepNumber, 
     const saved = trip?.preferences?.selected_experiences || trip?.preferences?.priorities || [];
     return saved.filter((id: string) => EXPERIENCES.some(e => e.id === id)).slice(0, 5);
   });
-  
+
   const [rankedPriorities, setRankedPriorities] = useState<string[]>(() => {
     const saved = trip?.preferences?.ranked_priorities || trip?.preferences?.priorities || [];
     return saved.filter((id: string) => EXPERIENCES.some(e => e.id === id)).slice(0, 3);
@@ -124,7 +125,7 @@ export default function StepTravelStyle({ trip, destination, displayStepNumber, 
   const handleAnswer = (questionId: string, option: any) => {
     const newAnswers = { ...quizAnswers, [questionId]: option };
     setQuizAnswers(newAnswers);
-    
+
     if (currentQIndex < QUIZ_QUESTIONS.length - 1) {
       setCurrentQIndex(currentQIndex + 1);
     } else {
@@ -167,7 +168,7 @@ export default function StepTravelStyle({ trip, destination, displayStepNumber, 
         return prev.filter(i => i !== item);
       }
       if (prev.length >= 5) return prev;
-      
+
       const newSelected = [...prev, item];
       // Auto-add to ranked if there's space
       if (rankedPriorities.length < 3) {
@@ -205,6 +206,16 @@ export default function StepTravelStyle({ trip, destination, displayStepNumber, 
   };
 
   const handleSave = async () => {
+    setErrorMsg(null);
+    if (!budgetValue) {
+      setErrorMsg("Defina o orçamento diário.");
+      return;
+    }
+    if (selectedExperiences.length === 0) {
+      setErrorMsg("Selecione ao menos uma experiência.");
+      return;
+    }
+
     setIsSaving(true);
     try {
       await onSave({
@@ -217,12 +228,13 @@ export default function StepTravelStyle({ trip, destination, displayStepNumber, 
           budget_currency: currency,
           selected_experiences: selectedExperiences,
           ranked_priorities: rankedPriorities,
-          avoids,
-          current_step: 'travel_style' 
+          avoids
         }
       });
+      await onNext();
     } catch (e) {
       console.error(e);
+      setErrorMsg("Não foi possível salvar esta etapa. Tente novamente.");
     } finally {
       setIsSaving(false);
     }
@@ -251,10 +263,10 @@ export default function StepTravelStyle({ trip, destination, displayStepNumber, 
             </div>
           </div>
           <h2 className="text-2xl lg:text-3xl font-extrabold text-slate-800 mb-10 leading-tight">{q.title}</h2>
-          
+
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 h-[400px]">
             {q.options.map((opt) => (
-               <button 
+               <button
                  key={opt.id}
                  onClick={() => handleAnswer(q.id, opt)}
                  className="relative group rounded-[24px] overflow-hidden border-4 border-transparent hover:border-[#D7F24B] transition-all shadow-md hover:shadow-xl hover:-translate-y-1"
@@ -289,17 +301,16 @@ export default function StepTravelStyle({ trip, destination, displayStepNumber, 
       onBack={onPrev}
       onContinue={handleSave}
       loading={isSaving}
-      disabled={!isValid}
     >
       <div className="space-y-16">
-        
+
         {/* PERFIL */}
         <section className="bg-white p-8 rounded-[32px] border border-slate-200 shadow-sm relative overflow-hidden">
            <div className="absolute top-0 right-0 w-64 h-64 bg-lime-100 rounded-full blur-3xl -translate-y-1/2 translate-x-1/3 opacity-50" />
            <div className="relative z-10">
               <h3 className="text-sm font-bold text-slate-400 uppercase tracking-widest mb-2">Seu perfil inicial</h3>
               <h2 className="text-3xl font-extrabold text-slate-800 mb-8">{getProfileName()}</h2>
-              
+
               <div className="space-y-6">
                 {[
                   { key: 'classic', left: 'Fora do óbvio', right: 'Clássicos' },
@@ -314,18 +325,18 @@ export default function StepTravelStyle({ trip, destination, displayStepNumber, 
                        <span>{dim.right}</span>
                     </div>
                     <div className="relative h-2 bg-slate-100 rounded-full">
-                       <input 
-                         type="range" 
-                         min="0" max="100" 
+                       <input
+                         type="range"
+                         min="0" max="100"
                          value={dimensions[dim.key as keyof typeof dimensions]}
                          onChange={e => setDimensions({...dimensions, [dim.key]: parseInt(e.target.value)})}
                          className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
                        />
-                       <div 
+                       <div
                          className="absolute top-0 left-0 h-full bg-lime-400 rounded-full transition-all pointer-events-none"
                          style={{ width: `${dimensions[dim.key as keyof typeof dimensions]}%` }}
                        />
-                       <div 
+                       <div
                          className="absolute top-1/2 -mt-2 w-4 h-4 bg-white border-2 border-lime-500 rounded-full pointer-events-none shadow-sm transition-all"
                          style={{ left: `calc(${dimensions[dim.key as keyof typeof dimensions]}% - 8px)` }}
                        />
@@ -340,11 +351,11 @@ export default function StepTravelStyle({ trip, destination, displayStepNumber, 
         <section>
           <h3 className="text-2xl font-extrabold text-[#171717] mb-2">Quanto você pretende gastar por dia, por pessoa?</h3>
           <p className="text-slate-500 font-medium text-sm mb-6">Considere alimentação, transporte local, atrações e compras. Voo e hotel ficam fora deste valor.</p>
-          
+
           <div className="bg-white p-6 rounded-[24px] border border-slate-200 shadow-sm">
              <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
                {budgetPresets.map(b => (
-                 <button 
+                 <button
                    key={b.id}
                    onClick={() => {
                      setBudgetType(b.id);
@@ -361,7 +372,7 @@ export default function StepTravelStyle({ trip, destination, displayStepNumber, 
                 <label className="block text-sm font-bold text-slate-700 mb-2">Valor Personalizado ({currency})</label>
                 <div className="relative max-w-xs">
                   <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 font-bold">{currency}</span>
-                  <Input 
+                  <Input
                     type="number"
                     value={budgetValue}
                     onChange={e => {
@@ -436,19 +447,19 @@ export default function StepTravelStyle({ trip, destination, displayStepNumber, 
                      {rankedPriorities.length} de 3 ranqueadas
                    </div>
                  </div>
-                 
+
                  <div className="space-y-3">
                    {selectedExperiences.map(pid => {
                      const exp = EXPERIENCES.find(e => e.id === pid);
                      if (!exp) return null;
-                     
+
                      const rankIdx = rankedPriorities.indexOf(pid);
                      const isRanked = rankIdx !== -1;
                      const isRankDisabled = !isRanked && rankedPriorities.length >= 3;
-                     
+
                      return (
                        <div key={pid} className={`flex items-center gap-4 p-4 rounded-2xl border transition-colors ${isRanked ? 'bg-slate-800 border-lime-500/50' : 'bg-slate-800/50 border-slate-700/50'}`}>
-                         <button 
+                         <button
                            onClick={() => toggleRanking(pid)}
                            disabled={isRankDisabled}
                            className={`w-10 h-10 shrink-0 rounded-xl flex items-center justify-center border transition-all ${isRanked ? 'bg-lime-500 border-lime-600 text-slate-900 shadow-sm' : isRankDisabled ? 'bg-slate-800 border-slate-700 text-slate-600 opacity-50 cursor-not-allowed' : 'bg-slate-800 border-slate-600 text-slate-400 hover:border-slate-500 hover:text-white'}`}
@@ -466,14 +477,14 @@ export default function StepTravelStyle({ trip, destination, displayStepNumber, 
                          </div>
                          {isRanked && (
                            <div className="flex flex-col gap-1 shrink-0">
-                             <button 
+                             <button
                                onClick={() => moveRanked(rankIdx, 'up')}
                                disabled={rankIdx === 0}
                                className="w-8 h-8 rounded-lg flex items-center justify-center bg-slate-700 text-slate-300 hover:bg-slate-600 disabled:opacity-30 disabled:hover:bg-slate-700 transition-colors"
                              >
                                <ChevronUp className="w-5 h-5" />
                              </button>
-                             <button 
+                             <button
                                onClick={() => moveRanked(rankIdx, 'down')}
                                disabled={rankIdx === rankedPriorities.length - 1}
                                className="w-8 h-8 rounded-lg flex items-center justify-center bg-slate-700 text-slate-300 hover:bg-slate-600 disabled:opacity-30 disabled:hover:bg-slate-700 transition-colors"
@@ -509,6 +520,11 @@ export default function StepTravelStyle({ trip, destination, displayStepNumber, 
           </div>
         </section>
 
+        {errorMsg && (
+          <div className="bg-red-50 text-red-600 p-4 rounded-xl border border-red-200 font-bold mt-8 animate-in fade-in">
+            {errorMsg}
+          </div>
+        )}
       </div>
     </OnboardingShell>
   );

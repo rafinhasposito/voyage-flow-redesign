@@ -53,7 +53,15 @@ export default function ReservationComposer({ trip, tripId, destinationId, modul
   const searchCatalog = async (query: string) => {
     setIsSearching(true);
     try {
-      const data = await ExperienceRepository.searchPublishedExperiencesByDestination(destinationId, moduleType, query);
+      let data = [];
+      if (moduleType === 'hotel') {
+        data = await ExperienceRepository.getPublishedHotelsByDestination(destinationId);
+        if (query) {
+          data = data.filter((item: any) => item.name.toLowerCase().includes(query.toLowerCase()));
+        }
+      } else {
+        data = await ExperienceRepository.searchPublishedExperiencesByDestination(destinationId, moduleType, query);
+      }
       setCatalogResults(data);
     } catch (e) {
       console.error(e);
@@ -128,7 +136,7 @@ export default function ReservationComposer({ trip, tripId, destinationId, modul
         end_at: endAt ? new Date(endAt).toISOString() : undefined,
         location_name: locationName,
         is_fixed: true,
-        structured_data: finalStructuredData
+        structured_data: type === 'hotel' ? { ...finalStructuredData, is_basecamp: true } : finalStructuredData
       };
 
       const saved = await TripWalletRepository.saveReservation(res);
@@ -145,25 +153,28 @@ export default function ReservationComposer({ trip, tripId, destinationId, modul
   const handleFlightSelected = async (flight: FlightSearchResult) => {
     setLoading(true);
     try {
+      const departureTime = flight.departure?.scheduledTime || (flight as any).departureTime;
+      const arrivalTime = flight.arrival?.scheduledTime || (flight as any).arrivalTime;
+      
       const res: TripReservation = {
         trip_id: tripId,
         type: 'flight',
-        title: `Voo ${flight.airline} ${flight.flightNumber}`,
-        provider: flight.airline,
+        title: `Voo ${flight.airlineName || flight.airlineCode || (flight as any).airline} ${flight.flightNumber}`,
+        provider: flight.airlineName || flight.airlineCode || (flight as any).airline,
         purchase_status: 'booked',
-        start_at: new Date(flight.departureTime).toISOString(),
-        end_at: new Date(flight.arrivalTime).toISOString(),
-        location_name: flight.destinationIata,
+        start_at: departureTime ? new Date(departureTime).toISOString() : undefined,
+        end_at: arrivalTime ? new Date(arrivalTime).toISOString() : undefined,
+        location_name: flight.arrival?.iataCode || (flight as any).destinationIata,
         is_fixed: true,
         structured_data: {
-          flight_number: `${flight.airline}${flight.flightNumber}`,
-          origin: flight.originIata,
-          destination: flight.destinationIata,
-          terminal: flight.terminal,
-          gate: flight.gate,
+          flight_number: `${flight.airlineCode || (flight as any).airline}${flight.flightNumber}`,
+          origin: flight.departure?.iataCode || (flight as any).originIata,
+          destination: flight.arrival?.iataCode || (flight as any).destinationIata,
+          terminal: flight.departure?.terminal || (flight as any).terminal,
+          gate: flight.departure?.gate || (flight as any).gate,
           status: flight.status,
           duration: flight.duration,
-          is_sandbox: flight.isSandbox
+          is_sandbox: flight.sandbox || (flight as any).isSandbox
         }
       };
       const saved = await TripWalletRepository.saveReservation(res);
@@ -484,18 +495,30 @@ export default function ReservationComposer({ trip, tripId, destinationId, modul
                    </div>
                    <div>
                      <h5 className="font-bold text-slate-800 text-sm group-hover:text-lime-600 transition-colors line-clamp-1">{item.name}</h5>
-                     <p className="text-xs text-slate-500 line-clamp-1">{item.neighborhood || item.address || 'Sem endereço'}</p>
+                     <p className="text-xs text-slate-500 line-clamp-1">{item.neighborhood || 'Bairro'} &middot; {item.address || 'Endereço não cadastrado'}</p>
                    </div>
                  </button>
               ))}
             </div>
           )}
           
-          <div className="text-center pt-2 border-t border-slate-100">
-             <button onClick={() => setShowCatalog(false)} className="text-sm font-bold text-lime-600 hover:underline">
-               Ou preencher dados manualmente +
-             </button>
-          </div>
+          {moduleType === 'hotel' && catalogResults.length === 0 && !isSearching && (
+            <div className="text-center py-6 bg-slate-50 rounded-xl border border-slate-100">
+              <Building2 className="w-8 h-8 text-slate-300 mx-auto mb-2" />
+              <p className="text-sm font-medium text-slate-600 mb-4">Nenhuma hospedagem cadastrada para este destino.</p>
+              <button onClick={() => setShowCatalog(false)} className="px-4 py-2 bg-slate-900 text-white rounded-lg text-sm font-bold hover:bg-slate-800">
+                Adicionar hospedagem manualmente
+              </button>
+            </div>
+          )}
+
+          {!(moduleType === 'hotel' && catalogResults.length === 0 && !isSearching) && (
+            <div className="text-center pt-2 border-t border-slate-100">
+               <button onClick={() => setShowCatalog(false)} className="text-sm font-bold text-lime-600 hover:underline">
+                 Ou preencher dados manualmente +
+               </button>
+            </div>
+          )}
         </div>
       )}
 

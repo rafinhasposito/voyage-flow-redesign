@@ -26,8 +26,8 @@ export default function TripWorkspace() {
   const { tripId } = useParams();
   const [state, setState] = useState<TravelState | null>(null);
   const [loading, setLoading] = useState(true);
-  const [isGenerating, setIsGenerating] = useState(new URLSearchParams(window.location.search).get('generating') === 'true');
-  const [generationError, setGenerationError] = useState(false);
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [trip, setTrip] = useState<any>(null);
   const [destination, setDestination] = useState<any>(null);
   const [activeDay, setActiveDay] = useState(1);
@@ -70,107 +70,41 @@ export default function TripWorkspace() {
         if (trip.itinerary && Array.isArray(trip.itinerary) && trip.itinerary.length > 0) {
           // Já tem roteiro salvo
           setState({ ...baseState, itinerary: trip.itinerary as any, profile: { ...baseState.profile, days: trip.itinerary.length } });
-          if (isGenerating) {
-             setIsGenerating(false);
-             window.history.replaceState({}, '', `/viagens/${tripId}/roteiro`);
-          }
         } else {
-          // Verify concurrency lock
-          if (trip.preferences?.is_generating_locked) {
-             // Already generating elsewhere, let's wait a bit or assume it failed if stuck
-             const lockTime = trip.preferences.generating_locked_at;
-             if (lockTime && Date.now() - lockTime < 30000) {
-                // Locked for less than 30s, wait and reload
-                setTimeout(() => loadWorkspace(), 2000);
-                return;
-             }
-          }
-          
-          // Set lock
-          await TripRepository.updateTripOnboarding(tripId, { preferences: { ...trip.preferences, is_generating_locked: true, generating_locked_at: Date.now() } });
-
-          // Gerar roteiro real
-          const reservations = await TripWalletRepository.getReservations(tripId);
-          const catalog = await ExperienceRepository.getAll();
-
-          const dto = buildTripEngineDTO(trip, reservations);
-          const userProfile: UserProfile = {
-            style: dto.companionship as any,
-            interests: [],
-            budget: dto.budget_level === 'high' ? '$$$$' : dto.budget_level === 'low' ? '$' : '$$',
-            days: trip.start_date && trip.end_date ? Math.max(1, Math.ceil((new Date(trip.end_date).getTime() - new Date(trip.start_date).getTime()) / (1000 * 60 * 60 * 24))) : 3,
-            startDate: trip.start_date || new Date().toISOString().split('T')[0],
-            passengerName: "Viajante",
-            personaAffinity: { explorador_visual: 0.5, curador_experiencias: 0.5, descobridor: 0.5, aproveitador: 0.5, slow_traveler: 0.5 },
-            tagAffinity: {}, pace: dto.pace as any, companionship: dto.companionship as any, transport: 'public', financial: 'balanced',
-            swipedRightIds: Object.keys(dto.tinder_votes || {}).filter(k => dto.tinder_votes[k] === 'love'),
-            swipedLeftIds: Object.keys(dto.tinder_votes || {}).filter(k => dto.tinder_votes[k] === 'reject'),
-            interactions: []
-          };
-
-          const start = Date.now();
-          const itinerary = generateSmartItinerary(userProfile, catalog);
-          const newState = { ...baseState, itinerary, profile: userProfile };
-          
-          // Real persistence and unlock
-          const updatedTrip = await TripRepository.updateTripOnboarding(tripId, { 
-            itinerary, 
-            preferences: { ...trip.preferences, current_step: 'workspace', is_generating_locked: false } 
-          });
-          
-          // Re-read after persisting to ensure it's saved
-          if (!updatedTrip.itinerary) {
-             throw new Error("Falha na persistência do roteiro");
-          }
-          
-          setState(newState);
-          
-          if (isGenerating) {
-             const elapsed = Date.now() - start;
-             const minTransitionTime = 1500;
-             if (elapsed < minTransitionTime) {
-                await new Promise(r => setTimeout(r, minTransitionTime - elapsed));
-             }
-             window.history.replaceState({}, '', `/viagens/${tripId}/roteiro`);
-             setIsGenerating(false);
-          }
+          setErrorMessage("O roteiro ainda não foi gerado.");
         }
       } catch (err) {
         console.error(err);
-        setGenerationError(true);
-        // Unlock on error
-        if (trip) {
-           await TripRepository.updateTripOnboarding(tripId, { preferences: { ...trip.preferences, is_generating_locked: false } }).catch(() => {});
-        }
+        setErrorMessage("Erro ao carregar o roteiro.");
       } finally {
         setLoading(false);
       }
     }
     loadWorkspace();
-  }, [tripId, navigate, isGenerating]);
+  }, [tripId, navigate]);
 
-  if (generationError) {
+  if (errorMessage) {
     return (
       <div className="min-h-screen bg-[#FAF8F5] flex flex-col items-center justify-center p-6 text-center">
         <h2 className="text-2xl font-serif font-medium text-[#0D0E10] mb-4">Ops! Tivemos um problema.</h2>
-        <p className="text-slate-500 mb-8 max-w-md">Ocorreu um erro ao gerar o seu roteiro. Por favor, tente novamente.</p>
+        <p className="text-slate-500 mb-8 max-w-md">{errorMessage}</p>
         <button 
-          onClick={() => { setGenerationError(false); setLoading(true); }}
+          onClick={() => navigate(`/viagens/${tripId}/onboarding`)}
           className="bg-[#0D0E10] text-white px-6 py-3 rounded-full text-sm font-medium hover:bg-slate-800 transition-colors"
         >
-          Tentar Novamente
+          Voltar ao Planejamento
         </button>
       </div>
     );
   }
 
-  if (loading || !state || isGenerating) {
-    if (isGenerating && trip) {
-      // Lazy load GeneratingScreen to avoid circular dependencies
-      const { GeneratingScreen } = require('./GeneratingScreen');
-      return <GeneratingScreen trip={trip} destination={destination} />;
-    }
-    return <div className="min-h-screen bg-[#FAF8F5] flex items-center justify-center">Montando seu Roteiro Inteligente...</div>;
+  if (loading || !state) {
+    return (
+      <div className="min-h-screen bg-[#FAF8F5] flex flex-col items-center justify-center text-[#C5A85C]">
+        <Compass className="w-8 h-8 animate-spin mb-4" />
+        Carregando seu roteiro...
+      </div>
+    );
   }
 
   const handleToggleChecklist = (id: string) => {

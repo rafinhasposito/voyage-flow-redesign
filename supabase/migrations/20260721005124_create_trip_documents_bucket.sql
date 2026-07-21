@@ -13,9 +13,10 @@ on conflict (id) do update set
   allowed_mime_types = '{image/jpeg,image/png,image/webp,application/pdf}';
 
 -- Enable RLS on storage.objects (if not already enabled)
-alter table storage.objects enable row level security;
+-- alter table storage.objects enable row level security;
 
 -- Policy: Users can upload documents to their own folder (folder name must start with their user ID)
+DROP POLICY IF EXISTS "Users can upload their own trip documents" ON storage.objects;
 create policy "Users can upload their own trip documents"
 on storage.objects for insert
 to authenticated
@@ -25,6 +26,7 @@ with check (
 );
 
 -- Policy: Users can read their own documents
+DROP POLICY IF EXISTS "Users can read their own trip documents" ON storage.objects;
 create policy "Users can read their own trip documents"
 on storage.objects for select
 to authenticated
@@ -34,6 +36,7 @@ using (
 );
 
 -- Policy: Users can update their own documents
+DROP POLICY IF EXISTS "Users can update their own trip documents" ON storage.objects;
 create policy "Users can update their own trip documents"
 on storage.objects for update
 to authenticated
@@ -43,6 +46,7 @@ using (
 );
 
 -- Policy: Users can delete their own documents
+DROP POLICY IF EXISTS "Users can delete their own trip documents" ON storage.objects;
 create policy "Users can delete their own trip documents"
 on storage.objects for delete
 to authenticated

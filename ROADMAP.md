@@ -42,8 +42,25 @@ Este documento acompanha as fases do projeto de forma macro, definindo o que já
   - **Schema:** Planejadas tabelas relativas de persistência (Reservations e Documents).
   - Estado local reativo salvo no Supabase passo a passo.
 
-- [ ] **Fase 6.3 - Bloco C (Workspace e Roteiro) [Aguardando]**
-  - Geração e edição final do Itinerário gerado por IA amarrado aos *Fixed Commitments* do Bloco B.
+- [x] **Fase 6.3 - Bloco C (Workspace e Roteiro / Seu Canto da Viagem)**
+  - Criação da página oficial pós-onboarding `/viagens/:tripId/roteiro` ("Seu canto da viagem").
+  - Estrutura modular (`TripSpacePage`, `TripSpaceSidebar`, `TripHeader`, `DayWorkspace`, `TripContextSidebar`, `TripCollections`, `TripPreparations`).
+
+- [ ] **Fase 7: Evoluções do Trip Space & Diferenciais Concorrenciais**
+  - Roteiro flexível com drag-and-drop.
+  - Recálculo parcial, sem recriar toda a viagem.
+  - Roteiro e mapa trabalhando lado a lado com destaque dinâmico.
+  - Alertas de fricção logística.
+  - Importação automática de e-mails, PDFs, screenshots e reservas.
+  - Edição colaborativa em tempo real com permissões e votação.
+  - Gestão de despesas da viagem e acerto entre participantes.
+  - Modo offline completo para roteiro, mapas, PDFs e QR codes.
+  - Diário pós-viagem e mapa de memórias.
+  - Guia compartilhável.
+  - Alertas em tempo real de clima e lotação.
+  - Otimização contínua por localização.
+  - Wallet com cartões virtuais e passes de embarque.
+  - IA Concierge contextual ativa.
 
 - [ ] **Fase 6.4 - Bloco D (Modo Viagem Mobile)**
   - Acesso aos Passes Offline e mapas básicos. serviços auxiliares em `StorageService` e `ExperienceService`.

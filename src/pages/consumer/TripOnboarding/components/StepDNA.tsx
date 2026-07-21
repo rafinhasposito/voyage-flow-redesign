@@ -49,12 +49,16 @@ export default function StepDNA({
       <div className="space-y-8">
         
         {/* Mensagem central */}
-        <div className="bg-gradient-to-br from-[#171717] to-slate-800 rounded-[32px] p-8 text-white relative overflow-hidden shadow-xl shadow-slate-900/20">
-          <div className="absolute top-0 right-0 w-64 h-64 bg-[#D7F24B] opacity-10 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2" />
+        <div className="bg-gradient-to-br from-[#171717] to-slate-900 rounded-[32px] p-8 lg:p-10 text-white relative overflow-hidden shadow-xl shadow-slate-900/20 border border-slate-800">
+          <div className="absolute top-0 right-0 w-80 h-80 bg-[#D7F24B] opacity-10 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2" />
           <div className="relative z-10">
             <Sparkles className="w-8 h-8 text-[#D7F24B] mb-6" />
-            <h2 className="text-3xl font-extrabold leading-tight mb-2">O Voyage Flow<br/>entendeu esta viagem.</h2>
-            <p className="text-slate-300 font-medium max-w-md">Vamos equilibrar {trip.preferences?.pace || 'seu ritmo'} com {trip.preferences?.must_have?.[0] || 'suas prioridades'}, respeitando seu orçamento {trip.preferences?.budget || 'definido'}.</p>
+            <h2 className="text-3xl lg:text-4xl font-extrabold leading-tight mb-4 text-white drop-shadow-sm">
+              O Voyage Flow<br/>entendeu esta viagem.
+            </h2>
+            <p className="text-lg text-slate-300 font-medium max-w-lg leading-relaxed">
+              Vamos equilibrar <span className="text-white font-bold">{trip.preferences?.pace || 'seu ritmo'}</span> com <span className="text-white font-bold">{trip.preferences?.must_have?.[0] || 'suas prioridades'}</span>, respeitando seu orçamento <span className="text-white font-bold">{trip.preferences?.budget || 'definido'}</span>.
+            </p>
           </div>
         </div>
 

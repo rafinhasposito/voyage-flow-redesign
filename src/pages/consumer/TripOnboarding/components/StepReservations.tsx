@@ -6,16 +6,16 @@ import OnboardingShell from './OnboardingShell';
 import { TripReservation, TripWalletRepository } from '../../../../repositories/TripWalletRepository';
 import ReservationComposer from './ReservationComposer';
 
-export default function StepReservations({ 
-  trip, 
-  destination, 
-  displayStepNumber, 
-  onSave, 
-  onNext, 
-  onPrev 
-}: { 
-  trip: any, 
-  destination: any, 
+export default function StepReservations({
+  trip,
+  destination,
+  displayStepNumber,
+  onSave,
+  onNext,
+  onPrev
+}: {
+  trip: any,
+  destination: any,
   displayStepNumber: number,
   onSave: (patch: any) => Promise<void>,
   onNext: () => void,
@@ -23,10 +23,11 @@ export default function StepReservations({
 }) {
   const [loading, setLoading] = useState(false);
   const [activeModule, setActiveModule] = useState<string | null>(null);
-  
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+
   const [reservations, setReservations] = useState<TripReservation[]>([]);
   const startMode = trip?.preferences?.startMode;
-  
+
   const modules = [
     { id: 'flight', title: 'Voo', icon: Plane },
     { id: 'hotel', title: 'Hotel', icon: Building2 },
@@ -68,9 +69,17 @@ export default function StepReservations({
   };
 
   const handleNext = async () => {
+    if (activeModule) {
+      setErrorMsg("Salve ou descarte a reserva que está sendo editada antes de continuar.");
+      return;
+    }
+    setErrorMsg(null);
     setLoading(true);
     try {
       await onNext();
+    } catch (e) {
+      console.error(e);
+      setErrorMsg("Não foi possível continuar. Tente novamente.");
     } finally {
       setLoading(false);
     }
@@ -89,7 +98,7 @@ export default function StepReservations({
       loading={loading}
     >
       <div className="space-y-10">
-        
+
         {startMode === 'zero' && reservations.length === 0 && (
            <div className="bg-lime-50 border border-lime-100 rounded-2xl p-6 text-center">
              <p className="text-lime-800 font-medium text-sm mb-4">Ainda não comprou nada? Tudo bem, você pode pular esta etapa por enquanto.</p>
@@ -137,7 +146,7 @@ export default function StepReservations({
 
         <div>
           <h3 className="font-extrabold text-2xl text-[#171717] mb-6">Adicionar uma reserva ou documento</h3>
-          
+
           {!activeModule ? (
             <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
               {modules.map(mod => (
@@ -154,16 +163,22 @@ export default function StepReservations({
               ))}
             </div>
           ) : (
-            <ReservationComposer 
+            <ReservationComposer
               trip={trip}
-              tripId={trip.id} 
-              destinationId={trip.destination} 
-              moduleType={activeModule} 
+              tripId={trip.id}
+              destinationId={trip.destination}
+              moduleType={activeModule}
               onClose={() => setActiveModule(null)}
               onSave={handleSaved}
             />
           )}
         </div>
+
+        {errorMsg && (
+          <div className="bg-red-50 text-red-600 p-4 rounded-xl border border-red-200 font-bold mt-4 animate-in fade-in">
+            {errorMsg}
+          </div>
+        )}
       </div>
     </OnboardingShell>
   );
