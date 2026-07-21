@@ -82,6 +82,59 @@ export class ExperienceRepository {
    * 1. Tries Cache.
    * 2. If no cache, fetches from Supabase.
    */
+  public static async getPublishedHotelsByDestination(destinationId: string): Promise<ExperienceRow[]> {
+    if (!destinationId) return [];
+    
+    // We fetch from 'experiences' table, filtering by 'Hotel' or similar category, and destination.
+    // Assuming 'type' or 'category' is used. From earlier research, category is 'hotel' or 'hotel'.
+    // The user says: "Auditar e usar: ExperienceRepository -> experiências publicadas -> tipo Hotel -> destino real da viagem."
+    
+    const { data, error } = await supabase
+      .from("experiences")
+      .select("*")
+      .eq("destination_id", destinationId)
+      .eq("type", "Hotel")
+      .eq("status", "publicada")
+      .order("rating", { ascending: false });
+
+    if (error) {
+      console.error("[ExperienceRepository] getPublishedHotelsByDestination error:", error);
+      return [];
+    }
+
+    return data || [];
+  }
+
+  public static async searchPublishedExperiencesByDestination(destinationId: string, category: string, query: string): Promise<TravelExperience[]> {
+    if (!destinationId) return [];
+    
+    let dbCategory = category;
+    if (category === 'attraction' || category === 'show') dbCategory = 'Atração';
+    else if (category === 'hotel') dbCategory = 'Hotel';
+    else if (category === 'restaurant') dbCategory = 'Restaurante';
+
+    let q = supabase
+      .from("experiences")
+      .select("*, operating_hours(*), operating_hour_exceptions(*), transit_options_origin:transit_options!transit_options_origin_experience_id_fkey(*)")
+      .eq("destination_id", destinationId)
+      .eq("status", "published");
+
+    // "type" could be the database column or "category"
+    // from earlier research it seems 'type' or 'category' is used. Let's use ilike on both
+    if (query) {
+      q = q.ilike("title", `%${query}%`);
+    }
+
+    const { data, error } = await q.limit(10);
+    if (error) {
+      console.error("[ExperienceRepository] search error:", error);
+      return [];
+    }
+    
+    // We do a manual filter for category if db doesn't perfectly match
+    return (data || []).map(row => this.mapRowToModel(row));
+  }
+
   public static async getAll(): Promise<TravelExperience[]> {
     const cached = CacheManager.get<TravelExperience[]>(CACHE_KEY, CACHE_VERSION);
     

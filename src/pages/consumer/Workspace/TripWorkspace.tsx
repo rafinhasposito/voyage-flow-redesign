@@ -2,9 +2,9 @@
 
 import React, { useState, useEffect } from "react";
 import { useNavigate, Link } from "react-router-dom";
-import { 
-  Compass, Calendar, MapPin, Clock, DollarSign, Sparkles, 
-  CheckSquare, Square, Plus, Trash2, ArrowRight, ChevronRight, 
+import {
+  Compass, Calendar, MapPin, Clock, DollarSign, Sparkles,
+  CheckSquare, Square, Plus, Trash2, ArrowRight, ChevronRight,
   Briefcase, Award, RefreshCw, Heart
 } from "lucide-react";
 import { useParams } from "react-router-dom";
@@ -26,11 +26,15 @@ export default function TripWorkspace() {
   const { tripId } = useParams();
   const [state, setState] = useState<TravelState | null>(null);
   const [loading, setLoading] = useState(true);
+  const [isGenerating, setIsGenerating] = useState(new URLSearchParams(window.location.search).get('generating') === 'true');
+  const [generationError, setGenerationError] = useState(false);
+  const [trip, setTrip] = useState<any>(null);
+  const [destination, setDestination] = useState<any>(null);
   const [activeDay, setActiveDay] = useState(1);
   const [draggedItem, setDraggedItem] = useState<{ day: number; id: string } | null>(null);
   const [replacingItem, setReplacingItem] = useState<{ day: number; id: string, triggerRef?: React.RefObject<HTMLButtonElement> } | null>(null);
   const [replacementCandidates, setReplacementCandidates] = useState<RecommendedExperience[]>([]);
-  
+
   // Ref to hold the trigger button for focus restoration
   const replaceTriggerRef = React.useRef<HTMLButtonElement | null>(null);
 
@@ -51,17 +55,44 @@ export default function TripWorkspace() {
         const trip = await TripRepository.getTripById(tripId);
         if (!trip) return navigate("/minhas-viagens");
 
+        setTrip(trip);
+        // Try to fetch destination for the GeneratingScreen
+        import("@/repositories/DestinationRepository").then(({ DestinationRepository }) => {
+          DestinationRepository.sync((dests) => {
+            const found = dests.find(d => d.id === trip.destination);
+            if (found) setDestination(found);
+          });
+        });
+
         // Use local storage default for anything not in DB yet for backward compatibility
         const baseState = getTravelState();
 
         if (trip.itinerary && Array.isArray(trip.itinerary) && trip.itinerary.length > 0) {
           // Já tem roteiro salvo
           setState({ ...baseState, itinerary: trip.itinerary as any, profile: { ...baseState.profile, days: trip.itinerary.length } });
+          if (isGenerating) {
+             setIsGenerating(false);
+             window.history.replaceState({}, '', `/viagens/${tripId}/roteiro`);
+          }
         } else {
+          // Verify concurrency lock
+          if (trip.preferences?.is_generating_locked) {
+             // Already generating elsewhere, let's wait a bit or assume it failed if stuck
+             const lockTime = trip.preferences.generating_locked_at;
+             if (lockTime && Date.now() - lockTime < 30000) {
+                // Locked for less than 30s, wait and reload
+                setTimeout(() => loadWorkspace(), 2000);
+                return;
+             }
+          }
+          
+          // Set lock
+          await TripRepository.updateTripOnboarding(tripId, { preferences: { ...trip.preferences, is_generating_locked: true, generating_locked_at: Date.now() } });
+
           // Gerar roteiro real
           const reservations = await TripWalletRepository.getReservations(tripId);
           const catalog = await ExperienceRepository.getAll();
-          
+
           const dto = buildTripEngineDTO(trip, reservations);
           const userProfile: UserProfile = {
             style: dto.companionship as any,
@@ -76,27 +107,74 @@ export default function TripWorkspace() {
             swipedLeftIds: Object.keys(dto.tinder_votes || {}).filter(k => dto.tinder_votes[k] === 'reject'),
             interactions: []
           };
-          
+
+          const start = Date.now();
           const itinerary = generateSmartItinerary(userProfile, catalog);
           const newState = { ...baseState, itinerary, profile: userProfile };
+          
+          // Real persistence and unlock
+          const updatedTrip = await TripRepository.updateTripOnboarding(tripId, { 
+            itinerary, 
+            preferences: { ...trip.preferences, current_step: 'workspace', is_generating_locked: false } 
+          });
+          
+          // Re-read after persisting to ensure it's saved
+          if (!updatedTrip.itinerary) {
+             throw new Error("Falha na persistência do roteiro");
+          }
+          
           setState(newState);
-          await TripRepository.updateTripOnboarding(tripId, { itinerary });
+          
+          if (isGenerating) {
+             const elapsed = Date.now() - start;
+             const minTransitionTime = 1500;
+             if (elapsed < minTransitionTime) {
+                await new Promise(r => setTimeout(r, minTransitionTime - elapsed));
+             }
+             window.history.replaceState({}, '', `/viagens/${tripId}/roteiro`);
+             setIsGenerating(false);
+          }
         }
       } catch (err) {
         console.error(err);
+        setGenerationError(true);
+        // Unlock on error
+        if (trip) {
+           await TripRepository.updateTripOnboarding(tripId, { preferences: { ...trip.preferences, is_generating_locked: false } }).catch(() => {});
+        }
       } finally {
         setLoading(false);
       }
     }
     loadWorkspace();
-  }, [tripId, navigate]);
+  }, [tripId, navigate, isGenerating]);
 
-  if (loading || !state) {
+  if (generationError) {
+    return (
+      <div className="min-h-screen bg-[#FAF8F5] flex flex-col items-center justify-center p-6 text-center">
+        <h2 className="text-2xl font-serif font-medium text-[#0D0E10] mb-4">Ops! Tivemos um problema.</h2>
+        <p className="text-slate-500 mb-8 max-w-md">Ocorreu um erro ao gerar o seu roteiro. Por favor, tente novamente.</p>
+        <button 
+          onClick={() => { setGenerationError(false); setLoading(true); }}
+          className="bg-[#0D0E10] text-white px-6 py-3 rounded-full text-sm font-medium hover:bg-slate-800 transition-colors"
+        >
+          Tentar Novamente
+        </button>
+      </div>
+    );
+  }
+
+  if (loading || !state || isGenerating) {
+    if (isGenerating && trip) {
+      // Lazy load GeneratingScreen to avoid circular dependencies
+      const { GeneratingScreen } = require('./GeneratingScreen');
+      return <GeneratingScreen trip={trip} destination={destination} />;
+    }
     return <div className="min-h-screen bg-[#FAF8F5] flex items-center justify-center">Montando seu Roteiro Inteligente...</div>;
   }
 
   const handleToggleChecklist = (id: string) => {
-    const updatedChecklist = state.checklist.map(item => 
+    const updatedChecklist = state.checklist.map(item =>
       item.id === id ? { ...item, done: !item.done } : item
     );
     const newState = { ...state, checklist: updatedChecklist };
@@ -125,7 +203,7 @@ export default function TripWorkspace() {
       }
       return day;
     });
-    
+
     const recalculated = recalculateAffectedSegment(updatedItinerary, state.profile, dayIndex, Math.max(0, stopIndex - 1));
     const newState = { ...state, itinerary: recalculated, itineraryHistory: history };
     setState(newState);
@@ -136,7 +214,7 @@ export default function TripWorkspace() {
   const handleToggleLock = (dayNumber: number, attractionId: string) => {
     const history = saveStateToHistory(state);
     const dayIndex = state.itinerary.findIndex(d => d.dayNumber === dayNumber);
-    
+
     const updatedItinerary = state.itinerary.map(day => {
       if (day.dayNumber === dayNumber) {
         return {
@@ -170,29 +248,29 @@ export default function TripWorkspace() {
     const updatedItinerary = [...state.itinerary];
     const dayIndex = updatedItinerary.findIndex(d => d.dayNumber === dayNumber);
     if (dayIndex === -1) return;
-    
+
     const recs = [...(updatedItinerary[dayIndex].recommendations || [])];
     const idx = recs.findIndex(r => r.experience.id === attractionId);
     if (idx === -1) return;
-    
+
     const newIdx = idx + direction;
     if (newIdx < 0 || newIdx >= recs.length) return;
-    
+
     const temp = recs[idx];
     recs[idx] = recs[newIdx];
     recs[newIdx] = temp;
-    
+
     recs[idx].manualMetadata = { ...recs[idx].manualMetadata, source: "manual", manuallyMoved: true, locked: true };
     recs[newIdx].manualMetadata = { ...recs[newIdx].manualMetadata, source: "manual", manuallyMoved: true, locked: true };
-    
+
     updatedItinerary[dayIndex] = { ...updatedItinerary[dayIndex], recommendations: recs };
-    
+
     const recalculated = recalculateAffectedSegment(updatedItinerary, state.profile, dayIndex, Math.min(idx, newIdx));
     const newState = { ...state, itinerary: recalculated, itineraryHistory: history };
     setState(newState);
     saveTravelState(newState);
   };
-  
+
   const handleMoveToDay = (dayNumber: number, attractionId: string, targetDayNumber: number) => {
     if (dayNumber === targetDayNumber) return;
     const history = saveStateToHistory(state);
@@ -228,16 +306,16 @@ export default function TripWorkspace() {
     const updatedItinerary = [...state.itinerary];
     const dayIndex = updatedItinerary.findIndex(d => d.dayNumber === dayNumber);
     if (dayIndex === -1) return;
-    
+
     const recs = [...(updatedItinerary[dayIndex].recommendations || [])];
     const idx = recs.findIndex(r => r.experience.id === attractionId);
     if (idx === -1) return;
-    
+
     recs[idx].experience = { ...recs[idx].experience, plannedStartTime: newTime };
     recs[idx].manualMetadata = { ...recs[idx].manualMetadata, source: "manual", manuallyScheduled: true, locked: true };
-    
+
     updatedItinerary[dayIndex] = { ...updatedItinerary[dayIndex], recommendations: recs };
-    
+
     const recalculated = recalculateAffectedSegment(updatedItinerary, state.profile, dayIndex, idx);
     const newState = { ...state, itinerary: recalculated, itineraryHistory: history };
     setState(newState);
@@ -248,10 +326,10 @@ export default function TripWorkspace() {
   const openReplacementModal = async (dayNumber: number, attractionId: string, e: React.MouseEvent<HTMLButtonElement>) => {
     e.preventDefault();
     replaceTriggerRef.current = e.currentTarget;
-    
+
     const { findAllSubstituteExperiences } = await import("@/utils/travelItineraryPartial");
     const candidates = findAllSubstituteExperiences(state.itinerary, state.profile, dayNumber, attractionId);
-    
+
     if (candidates.length === 0) {
       showSuccess("Nenhuma atração extra disponível ou compatível para substituir.");
       // Se não há candidatos, devolvemos o foco imediatamente
@@ -276,12 +354,12 @@ export default function TripWorkspace() {
   const confirmSwap = (candidate: RecommendedExperience) => {
     if (!replacingItem) return;
     const { day: dayNumber, id: attractionId } = replacingItem;
-    
+
     const history = saveStateToHistory(state);
     const updatedItinerary = [...state.itinerary];
     const dayIndex = updatedItinerary.findIndex(d => d.dayNumber === dayNumber);
     if (dayIndex === -1) return;
-    
+
     const recs = [...(updatedItinerary[dayIndex].recommendations || [])];
     const idx = recs.findIndex(r => r.experience.id === attractionId);
     if (idx === -1) return;
@@ -290,7 +368,7 @@ export default function TripWorkspace() {
 
     updatedItinerary[dayIndex] = { ...updatedItinerary[dayIndex], recommendations: recs };
     const recalculated = recalculateAffectedSegment(updatedItinerary, state.profile, dayIndex, idx);
-       
+
     const newState = { ...state, itinerary: recalculated, itineraryHistory: history };
     setState(newState);
     saveTravelState(newState);
@@ -325,7 +403,7 @@ export default function TripWorkspace() {
     }
 
     const history = saveStateToHistory(state);
-    
+
     // Import moveAttractionToPosition dynamically or assume it's in travelItineraryPartial
     import("@/utils/travelItineraryPartial").then(({ moveAttractionToPosition }) => {
       const recalculated = moveAttractionToPosition(state.itinerary, state.profile, sourceDay, sourceId, targetDayNumber, targetAttractionId);
@@ -356,7 +434,7 @@ export default function TripWorkspace() {
       }
     }
   }, [replacingItem]);
-  
+
   const handleUndo = () => {
     if (!state.itineraryHistory || state.itineraryHistory.length === 0) return;
     const history = [...state.itineraryHistory];
@@ -408,7 +486,7 @@ export default function TripWorkspace() {
 
       {/* Main Dashboard Layout */}
       <main className="flex-1 mx-auto w-full max-w-[1240px] px-6 py-8 md:px-10 grid gap-8 lg:grid-cols-[minmax(0,1.8fr)_minmax(0,1fr)]">
-        
+
         {/* Left Column: Itinerary Timeline */}
         <div className="space-y-6">
           <div className="flex flex-wrap items-center justify-between gap-4">
@@ -419,7 +497,7 @@ export default function TripWorkspace() {
               </h1>
             </div>
             <div className="flex gap-2">
-              <button 
+              <button
                 onClick={handleUndo}
                 disabled={!state.itineraryHistory || state.itineraryHistory.length === 0}
                 className="inline-flex items-center gap-1.5 text-xs font-medium text-slate-400 hover:text-slate-600 disabled:opacity-50 transition-colors"
@@ -427,7 +505,7 @@ export default function TripWorkspace() {
                 <Undo className="h-3.5 w-3.5" />
                 Desfazer
               </button>
-              <button 
+              <button
                 onClick={handleResetItinerary}
                 className="inline-flex items-center gap-1.5 text-xs font-medium text-slate-400 hover:text-red-500 transition-colors"
               >
@@ -478,7 +556,7 @@ export default function TripWorkspace() {
             </div>
 
             {currentDayData && currentDayData.attractions.length > 0 ? (
-              <div 
+              <div
                 className="relative border-l-2 border-[#EAE6DF] ml-4 pl-6 space-y-8 min-h-[100px]"
                 onDragOver={(e) => e.preventDefault()}
                 onDrop={(e) => handleDrop(e, activeDay)}
@@ -487,10 +565,10 @@ export default function TripWorkspace() {
                   const rec = currentDayData.recommendations?.find(r => r.experience.id === attr.id);
                   const isDragged = draggedItem?.id === attr.id;
                   const isApproximate = attr.logisticsEvaluation?.warnings?.some(w => w.code === 'TRANSIT_TIME_UNKNOWN');
-                  
+
                   return (
-                    <div 
-                      key={attr.id} 
+                    <div
+                      key={attr.id}
                       className={`relative group p-4 rounded-xl transition-all ${isDragged ? 'opacity-40 border-dashed border-2 border-slate-300' : 'bg-white hover:shadow-md border border-transparent hover:border-[#E2F18A]'}`}
                       draggable={!rec?.manualMetadata?.locked}
                       onDragStart={(e) => handleDragStart(e, activeDay, attr.id)}
@@ -576,8 +654,8 @@ export default function TripWorkspace() {
                               >
                                 <Trash2 className="h-4 w-4" />
                               </button>
-                              
-                              <select 
+
+                              <select
                                 className="text-[10px] bg-slate-50 border border-slate-200 rounded px-1 text-slate-500 h-6 outline-none"
                                 value={activeDay}
                                 onChange={(e) => handleMoveToDay(activeDay, attr.id, Number(e.target.value))}
@@ -595,11 +673,11 @@ export default function TripWorkspace() {
 
                           {rec && (
                             <>
-                              <ConciergeExplanation 
+                              <ConciergeExplanation
                                 justification={rec.explanation.humanJustification}
                                 reasons={rec.explanation.reasons}
                               />
-                              <ExperienceWarning 
+                              <ExperienceWarning
                                 warnings={[
                                   ...rec.explanation.warnings,
                                   ...(rec.manualMetadata?.conflict?.restrictions?.messages || []),
@@ -607,12 +685,12 @@ export default function TripWorkspace() {
                                   ...(attr.logisticsEvaluation?.warnings?.map(w => w.message) || []),
                                   ...(attr.logisticsEvaluation?.blockers?.map(b => b.message) || []),
                                   ...(attr.logisticsEvaluation?.suggestedAdjustment ? [`Sugestão: ${attr.logisticsEvaluation.suggestedAdjustment.reason}`] : [])
-                                ]} 
+                                ]}
                                 isBlocker={
-                                  rec.restrictions?.allowed === false || 
-                                  attr.logisticsEvaluation?.feasible === false || 
+                                  rec.restrictions?.allowed === false ||
+                                  attr.logisticsEvaluation?.feasible === false ||
                                   !!rec.manualMetadata?.conflict
-                                } 
+                                }
                               />
                             </>
                           )}
@@ -624,12 +702,12 @@ export default function TripWorkspace() {
                             </span>
                             <span className="flex items-center gap-1">
                               <Clock className="h-3.5 w-3.5 text-slate-300" />
-                              {attr.plannedStartTime && attr.plannedEndTime 
+                              {attr.plannedStartTime && attr.plannedEndTime
                                 ? <span className="font-medium text-slate-700 flex items-center gap-1">
-                                    <input 
-                                      type="time" 
-                                      className="bg-transparent border-b border-slate-200 outline-none text-slate-700 w-16 text-center" 
-                                      value={attr.plannedStartTime} 
+                                    <input
+                                      type="time"
+                                      className="bg-transparent border-b border-slate-200 outline-none text-slate-700 w-16 text-center"
+                                      value={attr.plannedStartTime}
                                       onChange={(e) => handleChangeTime(activeDay, attr.id, e.target.value)}
                                     />
                                     - {attr.plannedEndTime}
@@ -666,7 +744,7 @@ export default function TripWorkspace() {
           {/* Trip Summary Card */}
           <div className="bg-[#0D0E10] text-white rounded-3xl p-6 md:p-8 space-y-6 shadow-xl relative overflow-hidden">
             <div className="absolute -right-10 -top-10 h-40 w-40 rounded-full bg-[#C5A85C]/10 blur-2xl" />
-            
+
             <div className="space-y-1">
               <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[#C5A85C]">Resumo da Viagem</p>
               <h3 className="font-serif text-2xl font-light">Nova York dos Sonhos</h3>
@@ -745,7 +823,7 @@ export default function TripWorkspace() {
       </main>
       {/* Replacement Modal */}
       {replacingItem && (
-        <div 
+        <div
           className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 backdrop-blur-sm p-4"
           role="dialog"
           aria-modal="true"
@@ -760,7 +838,7 @@ export default function TripWorkspace() {
                 <h3 id="modal-title" tabIndex={-1} className="font-serif text-xl font-medium text-[#0D0E10] focus:outline-none">Substituir Atração</h3>
                 <p className="text-xs text-slate-500 mt-1">Alternativas compatíveis com horário e restrições</p>
               </div>
-              <button 
+              <button
                 onClick={closeReplacementModal}
                 className="text-slate-400 hover:text-slate-700 p-2 rounded-full focus:outline-none focus:ring-2 focus:ring-[#7CFE9D]"
                 aria-label="Cancelar substituição"
@@ -768,7 +846,7 @@ export default function TripWorkspace() {
                 ✕
               </button>
             </div>
-            
+
             <div className="flex-1 overflow-y-auto p-6 space-y-4">
               {replacementCandidates.length === 0 ? (
                 <div className="text-center text-slate-500 py-10">
@@ -792,7 +870,7 @@ export default function TripWorkspace() {
                       </div>
                     </div>
                     <div className="flex items-center">
-                      <button 
+                      <button
                         onClick={() => confirmSwap(cand)}
                         className="bg-[#0D0E10] text-white px-4 py-2 rounded-full text-xs font-medium hover:bg-slate-800 focus:ring-2 focus:ring-[#7CFE9D] transition-colors whitespace-nowrap"
                       >
@@ -803,9 +881,9 @@ export default function TripWorkspace() {
                 ))
               )}
             </div>
-            
+
             <div className="p-4 border-t border-[#EAE6DF] bg-slate-50 text-right">
-              <button 
+              <button
                 onClick={closeReplacementModal}
                 className="bg-white border border-slate-200 text-slate-600 px-4 py-2 rounded-full text-xs font-medium hover:bg-slate-100 focus:ring-2 focus:ring-slate-400 transition-colors"
               >

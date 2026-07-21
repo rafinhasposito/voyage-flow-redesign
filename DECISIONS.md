@@ -230,8 +230,14 @@ A padronização visual global será feita **somente** depois que estrutura, ban
 - **Motivo:** Simplificar o mapeamento `ON CONFLICT` de upserts nas Edge Functions de Auth, e evitar conflitos de escopo RLS no front-end Consumer e Admin.
 - **Risco:** Reduzido. A tabela única substitui sem quebras o uso de `admin_users` para identificação de perfil.
 
-## Status Executivo Atual (Bloco A.2 - Preparação)
-Bloco A.1 — Home, Auth e Minhas Viagens concluídos localmente
-Bloco A.2 — Backup e dry-run da fundação Consumer
-Aplicação remota — Aguardando autorização explícita
+## 28. Endurecimentos Futuros (Hardening) Registrados
+- **Idempotência de Reservas**: Atualmente feita no frontend (`TripWalletRepository` + state `isVoting`). No futuro, garantir isso no banco via `UNIQUE(trip_id, type, structured_data->>'source_experience_id')`.
+- **Lock Transacional de Geração**: Atualmente, a flag `is_generating_locked` vive no JSONB `preferences` e tem checagem síncrona na UI. Futuramente, deverá usar advisory locks (`pg_try_advisory_xact_lock`) ou triggers atômicas na tabela `trips`.
+- **Integração de Voos (Flight Lookup)**: O módulo automático foi suspenso no fluxo de Onboarding para não bloquear o lançamento (aguardando definição do provider definitivo, ex: Amadeus vs AeroDataBox). A interface permanece permitindo adicionar manualmente ou pular.
+
+## Status Executivo Atual
+Bloco A — Home, Auth e Minhas Viagens (Concluído)
+Bloco B & C — Onboarding, Carteira, Match e Engine de Roteiro (Concluído)
+Bloco D — Mobile Offline Mode (Próxima Fase)
+Aplicação remota — Em execução
 Backend comercial — Congelado

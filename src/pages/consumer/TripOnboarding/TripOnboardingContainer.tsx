@@ -1,42 +1,77 @@
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useConsumerAuth } from '../../../contexts/ConsumerAuthProvider';
 import { TripRepository } from '../../../repositories/TripRepository';
 import { TripWalletRepository, TripReservation, TripDocument } from '../../../repositories/TripWalletRepository';
-import Step1TripMeta from './components/Step1TripMeta';
-import Step2WalletReservations from './components/Step2WalletReservations';
-import Step3Documents from './components/Step3Documents';
-import Step4StyleTinder from './components/Step4StyleTinder';
-import Step5DNA from './components/Step5DNA';
+import { DestinationRepository, DestinationRow } from '../../../repositories/DestinationRepository';
+import { Loader2 } from 'lucide-react';
+
+import OnboardingShell from './components/OnboardingShell';
+import StepTripStart from './components/StepTripStart';
+import StepTravelStyle from './components/StepTravelStyle';
+import StepReservations from './components/StepReservations';
+import StepMatch from './components/StepMatch';
+import StepDNA from './components/StepDNA';
+
+export type OnboardingStepId = 'start' | 'travel_style' | 'reservations' | 'match' | 'dna';
 
 export default function TripOnboardingContainer() {
   const { tripId } = useParams();
   const navigate = useNavigate();
   const { user } = useConsumerAuth();
-  
-  const [currentStep, setCurrentStep] = useState(1);
+
   const [trip, setTrip] = useState<any>(null);
+  const [destination, setDestination] = useState<DestinationRow | null>(null);
   const [reservations, setReservations] = useState<TripReservation[]>([]);
   const [documents, setDocuments] = useState<TripDocument[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  // Dynamic flow calculation based on startMode
+  const startMode = trip?.preferences?.startMode || 'zero';
+
+  const flow: OnboardingStepId[] = useMemo(() => {
+    if (startMode === 'zero') {
+      return ['start', 'travel_style', 'reservations', 'match', 'dna'];
+    }
+    // "reservas" mode
+    return ['start', 'reservations', 'travel_style', 'match', 'dna'];
+  }, [startMode]);
+
+  // Read current step from DB or default to 'start' if not found
+  const currentStepId = trip?.preferences?.current_step || 'start';
+  const currentStepIndex = flow.indexOf(currentStepId) !== -1 ? flow.indexOf(currentStepId) : 0;
+
+  // Step number is purely visual based on the array order (1 to 5)
+  const displayStepNumber = currentStepIndex + 1;
 
   const loadAll = async () => {
     if (!tripId || !user) return;
     try {
       setLoading(true);
+      setError(null);
       const data = await TripRepository.getTripById(tripId);
       if (data && data.user_id === user.id) {
         setTrip(data);
+
+        // Fetch destination details
+        if (data.destination) {
+           DestinationRepository.sync((dests) => {
+             const found = dests.find(d => d.id === data.destination);
+             if (found) setDestination(found);
+           });
+        }
+
         const res = await TripWalletRepository.getReservations(tripId);
         setReservations(res);
         const docs = await TripWalletRepository.getDocuments(tripId);
         setDocuments(docs);
       } else {
-        navigate('/minhas-viagens');
+        setError("Viagem não encontrada ou acesso negado.");
       }
     } catch (err) {
       console.error(err);
-      navigate('/minhas-viagens');
+      setError("Erro ao carregar a viagem.");
     } finally {
       setLoading(false);
     }
@@ -44,7 +79,7 @@ export default function TripOnboardingContainer() {
 
   useEffect(() => {
     loadAll();
-  }, [tripId, user, navigate]);
+  }, [tripId, user]);
 
   const handleUpdateTrip = async (patch: any) => {
     try {
@@ -52,59 +87,156 @@ export default function TripOnboardingContainer() {
       await loadAll();
     } catch (err) {
       console.error("Falha ao salvar", err);
-      alert("Falha ao salvar. Tente novamente.");
       throw err;
     }
   };
 
-  const nextStep = () => setCurrentStep(prev => Math.min(5, prev + 1));
-  const prevStep = () => setCurrentStep(prev => Math.max(1, prev - 1));
+  const goToNextStep = async () => {
+    const nextIndex = currentStepIndex + 1;
+    if (nextIndex < flow.length) {
+       const nextId = flow[nextIndex];
+       await handleUpdateTrip({ preferences: { current_step: nextId } });
+    } else {
+       navigate(`/viagens/${trip.id}/roteiro?generating=true`);
+    }
+  };
 
-  if (loading) return <div className="p-8">Carregando viagem...</div>;
+  const goToPrevStep = async () => {
+    const prevIndex = currentStepIndex - 1;
+    if (prevIndex >= 0) {
+       const prevId = flow[prevIndex];
+       await handleUpdateTrip({ preferences: { current_step: prevId } });
+    } else {
+       // Se estiver no Start, pode voltar pra lista de viagens
+       navigate('/minhas-viagens');
+    }
+  };
+
+  if (loading) {
+    return <div className="min-h-screen flex items-center justify-center bg-[#FDFCF8]"><Loader2 className="w-8 h-8 animate-spin text-lime-500" /></div>;
+  }
+
+  if (error) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center bg-[#FDFCF8] p-6 text-center">
+        <h1 className="text-2xl font-bold mb-4">{error}</h1>
+        <button onClick={() => navigate('/minhas-viagens')} className="text-lime-600 font-bold hover:underline">Voltar para Minhas Viagens</button>
+      </div>
+    );
+  }
+
   if (!trip) return null;
 
+  // Render Step 1 (Start)
+  if (currentStepId === 'start') {
+    return (
+      <OnboardingShell
+        trip={trip}
+        destination={destination}
+        stepNumber={1}
+        totalSteps={5}
+        heroTitle={<>Como sua próxima<br />viagem começa?</>}
+        heroSubtitle="Selecione o destino, as datas e quem vai com você. O resto deixa com a gente."
+        onBack={() => navigate('/minhas-viagens')}
+        onContinue={async () => {
+          // Quando estiver na etapa Start já criada, e clicar em Continuar,
+          // nós apenas navegamos para a próxima etapa visual.
+          await goToNextStep();
+        }}
+      >
+        <StepTripStart
+          initialData={trip}
+          onChange={async (data) => {
+             // Autosave do formulário caso ele mude coisas no Start
+             if (
+               data.destination !== trip.destination ||
+               data.start_date !== trip.start_date ||
+               data.end_date !== trip.end_date ||
+               data.companionship !== trip.companionship ||
+               data.preferences.startMode !== trip.preferences?.startMode
+             ) {
+                TripRepository.updateTripOnboarding(trip.id, data).then(() => {
+                  loadAll(); // Atualizar o shell
+                });
+             }
+          }}
+          onDestinationSelect={setDestination}
+        />
+      </OnboardingShell>
+    );
+  }
+
+  // Render Step 2 (Travel Style)
+  if (currentStepId === 'travel_style') {
+    return (
+      <StepTravelStyle
+        trip={trip}
+        destination={destination}
+        displayStepNumber={displayStepNumber}
+        onSave={handleUpdateTrip}
+        onNext={goToNextStep}
+        onPrev={goToPrevStep}
+      />
+    );
+  }
+
+  // Render Reservations
+  if (currentStepId === 'reservations') {
+    return (
+      <StepReservations
+        trip={trip}
+        destination={destination}
+        displayStepNumber={displayStepNumber}
+        onSave={handleUpdateTrip}
+        onNext={goToNextStep}
+        onPrev={goToPrevStep}
+      />
+    );
+  }
+
+  // Render Match
+  if (currentStepId === 'match') {
+    return (
+      <StepMatch
+        trip={trip}
+        destination={destination}
+        displayStepNumber={displayStepNumber}
+        onSave={handleUpdateTrip}
+        onNext={goToNextStep}
+        onPrev={goToPrevStep}
+      />
+    );
+  }
+
+  // Render DNA
+  if (currentStepId === 'dna') {
+    return (
+      <StepDNA
+        trip={trip}
+        destination={destination}
+        displayStepNumber={displayStepNumber}
+        onSave={handleUpdateTrip}
+        onNext={goToNextStep}
+        onPrev={goToPrevStep}
+      />
+    );
+  }
+
+  // Fallback for steps not yet implemented
   return (
-    <div className="min-h-screen bg-[#F0F2F5] text-slate-900 font-urbanist">
-      <header className="px-6 py-4 border-b border-slate-200 bg-white flex justify-between items-center">
-        <button onClick={() => navigate('/minhas-viagens')} className="text-sm text-slate-500 hover:text-slate-900">
-          ← Voltar para Minhas Viagens
-        </button>
-        <div className="font-semibold text-lg">{trip.title || trip.destination}</div>
-        <div className="text-sm font-medium px-3 py-1 bg-lime-100 text-lime-900 rounded-full">
-          Etapa {currentStep} de 5
-        </div>
-      </header>
-      
-      <main className="max-w-4xl mx-auto py-12 px-4">
-        {currentStep === 1 && (
-          <Step1TripMeta trip={trip} onSave={handleUpdateTrip} onNext={nextStep} />
-        )}
-        {currentStep === 2 && (
-          <Step2WalletReservations 
-            trip={trip} 
-            reservations={reservations} 
-            onRefresh={loadAll}
-            onNext={nextStep} 
-            onPrev={prevStep} 
-          />
-        )}
-        {currentStep === 3 && (
-          <Step3Documents 
-            trip={trip} 
-            documents={documents}
-            reservations={reservations}
-            onRefresh={loadAll}
-            onNext={nextStep} 
-            onPrev={prevStep} 
-          />
-        )}
-        {currentStep === 4 && (
-          <Step4StyleTinder trip={trip} onSave={handleUpdateTrip} onNext={nextStep} onPrev={prevStep} />
-        )}
-        {currentStep === 5 && (
-          <Step5DNA trip={trip} reservations={reservations} documents={documents} onPrev={prevStep} onFinish={() => navigate(`/viagens/${tripId}/carteira`)} />
-        )}
-      </main>
-    </div>
+    <OnboardingShell
+      trip={trip}
+      destination={destination}
+      stepNumber={displayStepNumber}
+      totalSteps={5}
+      heroTitle="Em construção"
+      heroSubtitle="Esta etapa ainda não está pronta."
+      onBack={goToPrevStep}
+    >
+      <div className="p-8 bg-white border border-slate-200 rounded-3xl text-center">
+        <h2 className="text-2xl font-bold text-slate-800">Em breve</h2>
+        <p className="text-slate-500 mt-2">A etapa "{currentStepId}" será construída a seguir.</p>
+      </div>
+    </OnboardingShell>
   );
 }

@@ -40,8 +40,8 @@ Este documento representa o estado atual do projeto, suas regras arquiteturais e
   
   **Blocos de Execução (Trip Ready V1):**
   *   **Bloco A (Concluído)**: Auth, Persistência Local e RLS. 
-  *   **Bloco B (Em andamento)**: Onboarding "Wallet-First" & Carteira da Viagem. Captura de 5 etapas (Certezas da Viagem, Importação de Passagens, Tinder, Documentos e DNA). Inclui módulo visual de Boarding Passes e uploads de reservas e restrições.
-  *   **Bloco C (Aguardando)**: Inteligência do Roteiro e Workspace.
+  *   **Bloco B (Concluído)**: Onboarding "Wallet-First" & Carteira da Viagem. Captura de 5 etapas (Certezas da Viagem, Importação de Passagens, Tinder, Documentos e DNA).
+  *   **Bloco C (Concluído)**: Inteligência do Roteiro e Workspace perfeitamente integrados ao banco de dados com atualizações e locks transacionais de engine.
   *   **Bloco D (Aguardando)**: Mobile Offline Mode.
   - **EI-9 (Concluída):** Edição manual com StopEditMetadata, preservação inteligente e substituição focal com validação estrita.
   - **EI-10 (Concluída - Validada):** Experiência Visual do Roteiro. Implementado Drag and Drop nativo HTML5 para desktop (com setas acessíveis para mobile). Modal de substituição com a11y completo (role dialog, trap escape/cliques fora, restore focus). Identidade visual ajustada para lime/mint/slate (sem dourado).
@@ -143,14 +143,16 @@ Elaborada proposta de infraestrutura (Edge Functions e SQL migrations locais) pa
 **Fatos da Fase TRIP-READY V1:**
 * MUDANÇA DE PRIORIDADE URGENTE: O admin foi congelado. Foco 100% na jornada do viajante.
 * Objetivo: Ter o app funcional em 13 dias para viagem real do criador.
+* Bloco B & C Integrados e Funcionais: A jornada completa do usuário final está fechada. Engine, Match, DNA, e Roteiro gerado inteligentemente persistem via Supabase (Trips e TripWallet). Endurecimentos de concorrência e idempotência aplicados.
 
 6. TRIP-READY-1 — Jornada funcional do viajante (Prioridade Máxima)
 7. ADMIN-2B.2B — Congelada temporariamente
 8. ADMIN-3 — Congelada temporariamente
 9. DESIGN-SYSTEM-1 — Pós-viagem
 
-## Status Executivo Atual (Bloco A.2 - Preparação)
-Bloco A.1 — Home, Auth e Minhas Viagens concluídos localmente
-Bloco A.2 — Backup e dry-run da fundação Consumer
-Aplicação remota — Aguardando autorização explícita
+## Status Executivo Atual
+Bloco A — Home, Auth e Minhas Viagens (Concluído)
+Bloco B & C — Onboarding, Carteira, Match e Engine de Roteiro (Concluído)
+Bloco D — Mobile Offline Mode (Próxima Fase)
+Aplicação remota — Em execução
 Backend comercial — Congelado
