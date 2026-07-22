@@ -743,9 +743,10 @@ export class SchedulerV1 {
 
       let pCandidates = getCandidates(priority);
       pCandidates = await sortCandidates(pCandidates);
+      let sCandidates: any[] = [];
       if (pCandidates.length > 0) candidate = pCandidates[0];
       else {
-        let sCandidates = getCandidates(secondary);
+        sCandidates = getCandidates(secondary);
         sCandidates = await sortCandidates(sCandidates);
         if (sCandidates.length > 0) candidate = sCandidates[0];
       }
