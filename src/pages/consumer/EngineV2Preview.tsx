@@ -23,7 +23,11 @@ export default function EngineV2Preview() {
   const [inputData, setInputData] = useState<TripEngineInputV1 | null>(null);
   const [persistedTrip, setPersistedTrip] = useState<any>(null);
   
-  const [approvalState, setApprovalState] = useState<'IDLE' | 'REVIEW' | 'APPLYING' | 'APPLIED' | 'ALREADY_APPLIED' | 'ITINERARY_CHANGED_SINCE_PREVIEW' | 'PERSISTENCE_FAILED' | 'READBACK_MISMATCH' | 'BLOCKED_BY_CONFLICT'>('IDLE');
+  const [approvalState, setApprovalState] = useState<'IDLE' | 'BLOCKED' | 'REVIEW_WITH_WARNINGS' | 'READY_TO_APPLY' | 'APPLYING' | 'APPLIED' | 'ALREADY_APPLIED' | 'ITINERARY_CHANGED_SINCE_PREVIEW' | 'PERSISTENCE_FAILED' | 'READBACK_MISMATCH' | 'BLOCKED_BY_CONFLICT'>('IDLE');
+  const [isReviewOpen, setIsReviewOpen] = useState(false);
+  const [pendingWarnings, setPendingWarnings] = useState<string[]>([]);
+  const [acknowledgedWarnings, setAcknowledgedWarnings] = useState<Record<string, boolean>>({});
+  const [rollbackAcknowledged, setRollbackAcknowledged] = useState(false);
   const [applyError, setApplyError] = useState<string | null>(null);
 
   const generatePreview = async () => {
@@ -47,6 +51,50 @@ export default function EngineV2Preview() {
       const geoProvider = new LocalDeterministicGeoProvider();
       const itineraryDraft = await SchedulerV1.generate(input, geoProvider);
       setDraft(itineraryDraft);
+      
+      let hasCriticals = healthResult ? healthResult.critical.length > 0 : false;
+      let integrationBlocked = !healthResult?.isReadyForIntegration || hasCriticals;
+      let currentWarnings: string[] = [];
+
+      itineraryDraft.days.forEach(d => {
+         d.warnings.forEach(w => {
+            if (w.includes('TEMPORAL_OVERLAP') || w.includes('INVALID_') || w.includes('OVERLOAD') || w.includes('DUPLICATE_')) {
+               integrationBlocked = true;
+               hasCriticals = true;
+            } else {
+               currentWarnings.push(w);
+            }
+         });
+      });
+      
+      itineraryDraft.geoHealthIssues?.forEach(g => {
+         if (g.severity === 'critical') {
+            integrationBlocked = true;
+            hasCriticals = true;
+         } else {
+            currentWarnings.push(g.message);
+         }
+      });
+      
+      healthResult?.warnings.forEach(w => currentWarnings.push(w.message));
+      
+      if (itineraryDraft.overallWarnings.some(w => w.includes('Planejamento incompleto'))) {
+         integrationBlocked = true;
+      }
+      
+      currentWarnings = [...new Set(currentWarnings)];
+      setPendingWarnings(currentWarnings);
+      setAcknowledgedWarnings({});
+      setRollbackAcknowledged(false);
+      setIsReviewOpen(false);
+
+      if (hasCriticals || integrationBlocked) {
+         setApprovalState('BLOCKED');
+      } else if (currentWarnings.length > 0) {
+         setApprovalState('REVIEW_WITH_WARNINGS');
+      } else {
+         setApprovalState('READY_TO_APPLY');
+      }
 
     } catch (err: any) {
       console.error(err);
@@ -152,14 +200,18 @@ export default function EngineV2Preview() {
           <div className="flex gap-4">
             <Button onClick={generatePreview} variant="outline" className="text-slate-700">Recalcular Draft</Button>
             {draft && persistedTrip && (
-              <Button onClick={() => setApprovalState('REVIEW')} className="bg-lime-600 text-white hover:bg-lime-700">
-                Aplicar ao Trip Space
+              <Button 
+                onClick={() => setIsReviewOpen(true)} 
+                disabled={approvalState === 'BLOCKED'}
+                className={approvalState === 'BLOCKED' ? "bg-slate-300 text-slate-500 cursor-not-allowed" : "bg-lime-600 text-white hover:bg-lime-700"}
+              >
+                Revisar aplicação
               </Button>
             )}
           </div>
         </header>
 
-        {approvalState === 'REVIEW' && draft && persistedTrip && (
+        {isReviewOpen && draft && persistedTrip && (
           <div className="bg-white p-6 rounded-2xl shadow-lg border-2 border-lime-500 mb-8 relative z-50">
             <h2 className="text-2xl font-black text-slate-800 mb-4">Revisar aplicação ao Trip Space</h2>
             <div className="grid grid-cols-2 gap-6 mb-6">
@@ -182,24 +234,56 @@ export default function EngineV2Preview() {
                  </ul>
                </div>
             </div>
+            
+            {pendingWarnings.length > 0 && (
+               <div className="bg-amber-50 p-4 rounded-xl border border-amber-200 mb-6">
+                 <h3 className="font-bold text-amber-800 mb-2">Confirmação de Ressalvas Necessária</h3>
+                 <div className="space-y-2">
+                    {pendingWarnings.map((w, idx) => (
+                       <label key={idx} className="flex items-start gap-2 text-sm text-amber-900 cursor-pointer">
+                          <input type="checkbox" className="mt-1" checked={!!acknowledgedWarnings[w]} onChange={(e) => setAcknowledgedWarnings({...acknowledgedWarnings, [w]: e.target.checked})} />
+                          Estou ciente de que {w}
+                       </label>
+                    ))}
+                    <label className="flex items-start gap-2 text-sm text-amber-900 cursor-pointer">
+                       <input type="checkbox" className="mt-1" checked={rollbackAcknowledged} onChange={(e) => setRollbackAcknowledged(e.target.checked)} />
+                       Estou ciente de que esta aplicação de desenvolvimento não possui rollback persistente.
+                    </label>
+                 </div>
+               </div>
+            )}
+            
+            {pendingWarnings.length === 0 && (
+               <div className="bg-blue-50 p-4 rounded-xl border border-blue-200 mb-6">
+                 <label className="flex items-start gap-2 text-sm text-blue-900 cursor-pointer font-medium">
+                    <input type="checkbox" className="mt-1" checked={rollbackAcknowledged} onChange={(e) => setRollbackAcknowledged(e.target.checked)} />
+                    Estou ciente de que esta aplicação de desenvolvimento não possui rollback persistente.
+                 </label>
+               </div>
+            )}
+            
             <div className="flex gap-4">
                {import.meta.env.DEV ? (
-                 <Button onClick={handleApplyDraft} className="bg-slate-900 text-white font-bold w-full">
-                   Aprovar e aplicar ao Trip Space
+                 <Button 
+                   onClick={() => { setIsReviewOpen(false); handleApplyDraft(); }} 
+                   disabled={!rollbackAcknowledged || pendingWarnings.some(w => !acknowledgedWarnings[w])}
+                   className="bg-slate-900 text-white font-bold w-full disabled:opacity-50 disabled:cursor-not-allowed"
+                 >
+                   {pendingWarnings.length > 0 ? "Aprovar com ressalvas e aplicar ao Trip Space" : "Aprovar e aplicar ao Trip Space"}
                  </Button>
                ) : (
                  <Button disabled className="bg-slate-300 text-slate-500 font-bold w-full cursor-not-allowed">
                    Aprovação restrita a ambiente de desenvolvimento
                  </Button>
                )}
-               <Button onClick={() => setApprovalState('IDLE')} variant="outline" className="w-1/3">
+               <Button onClick={() => setIsReviewOpen(false)} variant="outline" className="w-1/3">
                  Cancelar
                </Button>
             </div>
           </div>
         )}
 
-        {approvalState !== 'IDLE' && approvalState !== 'REVIEW' && (
+        {approvalState !== 'IDLE' && approvalState !== 'REVIEW_WITH_WARNINGS' && approvalState !== 'READY_TO_APPLY' && approvalState !== 'BLOCKED' && (
            <div className={`p-6 rounded-2xl shadow-sm mb-8 font-bold border-2 ${approvalState === 'APPLYING' ? 'bg-blue-50 border-blue-500 text-blue-800' : approvalState === 'APPLIED' ? 'bg-lime-50 border-lime-500 text-lime-800' : 'bg-red-50 border-red-500 text-red-800'}`}>
               {approvalState === 'APPLYING' && <div className="flex items-center gap-3"><Loader2 className="w-6 h-6 animate-spin" /> Aplicando Roteiro...</div>}
               {approvalState === 'APPLIED' && <div className="flex flex-col gap-3"><div className="flex items-center gap-3"><CheckCircle className="w-6 h-6" /> Roteiro persistido com sucesso!</div><Link to={`/app/trips/${tripId}`} className="text-lime-700 underline text-sm font-medium ml-9">Abrir no Trip Space</Link></div>}
@@ -212,33 +296,8 @@ export default function EngineV2Preview() {
         )}
 
         {(health || draft) && (() => {
-          let hasCriticals = health ? health.critical.length > 0 : false;
-          let integrationBlocked = !health?.isReadyForIntegration || hasCriticals;
-          let blockReasons: string[] = [];
-
-          if (draft) {
-             draft.days.forEach(d => {
-                d.warnings.forEach(w => {
-                   if (w.includes('TEMPORAL_OVERLAP') || w.includes('INVALID_') || w.includes('OVERLOAD') || w.includes('DUPLICATE_')) {
-                      integrationBlocked = true;
-                      hasCriticals = true;
-                      blockReasons.push(w);
-                   }
-                });
-             });
-             
-             draft.geoHealthIssues?.forEach(g => {
-                if (g.severity === 'critical') {
-                   integrationBlocked = true;
-                   hasCriticals = true;
-                   blockReasons.push(`[GEO_CRITICAL] ${g.message}`);
-                }
-             });
-             if (draft.overallWarnings.some(w => w.includes('Planejamento incompleto'))) {
-                integrationBlocked = true;
-             }
-          }
-
+          let hasCriticals = approvalState === 'BLOCKED';
+          
           let providerName = "LocalDeterministicGeoProvider";
           let providerSource = "local_fallback";
           let providerConfidence = "low";
@@ -270,13 +329,13 @@ export default function EngineV2Preview() {
 
           return (
           <section className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
-            {hasCriticals ? (
+            {approvalState === 'BLOCKED' ? (
                <div className="bg-red-600 text-white p-4 rounded-xl mb-6 shadow-md flex flex-col items-center justify-center font-black tracking-wide">
                  <span className="text-xl">DRAFT INVÁLIDO — REQUER CORREÇÃO</span>
                </div>
-            ) : integrationBlocked ? (
+            ) : approvalState === 'REVIEW_WITH_WARNINGS' ? (
                <div className="bg-amber-500 text-white p-4 rounded-xl mb-6 shadow-md flex flex-col items-center justify-center font-black tracking-wide">
-                 <span className="text-xl">AINDA NÃO PRONTO PARA INTEGRAÇÃO</span>
+                 <span className="text-xl">Pronto para revisão com ressalvas</span>
                  <span className="text-sm font-medium mt-1">DRAFT VÁLIDO PARA REVISÃO</span>
                </div>
             ) : (
@@ -292,11 +351,10 @@ export default function EngineV2Preview() {
             
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                <div>
-                  <h3 className="font-bold text-sm text-red-800 bg-red-50 p-2 rounded mb-2">Critical Issues ({(health?.critical.length || 0) + blockReasons.length})</h3>
+                  <h3 className="font-bold text-sm text-red-800 bg-red-50 p-2 rounded mb-2">Critical Issues ({health?.critical.length || 0})</h3>
                   <ul className="space-y-2 text-sm text-red-700">
                     {health?.critical.map((c, i) => <li key={`hc-${i}`} className="flex gap-2"><AlertTriangle className="w-4 h-4 shrink-0" /> {c.message}</li>)}
-                    {blockReasons.map((r, i) => <li key={`dr-${i}`} className="flex gap-2"><AlertTriangle className="w-4 h-4 shrink-0" /> {r}</li>)}
-                    {(health?.critical.length === 0 && blockReasons.length === 0) && <li className="text-slate-400">Nenhum problema crítico.</li>}
+                    {health?.critical.length === 0 && <li className="text-slate-400">Nenhum problema crítico.</li>}
                   </ul>
                </div>
                <div>
