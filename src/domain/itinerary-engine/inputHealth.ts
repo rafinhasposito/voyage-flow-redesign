@@ -37,35 +37,67 @@ export class InputHealthValidator {
     // Validate Basecamp
     if (!input.basecamp) {
        missingOptional.push('basecamp');
-       warnings.push({ severity: 'warning', message: 'Nenhum hotel ou basecamp fornecido. A otimização logística será reduzida.', field: 'basecamp' });
+       warnings.push({ severity: 'warning', message: 'Nenhum hotel ou basecamp fornecido. A logística assumirá comportamento default sem localização âncora.', field: 'basecamp' });
     } else if (!input.basecamp.lat || !input.basecamp.lng) {
        missingOptional.push('basecamp.coordinates');
-       warnings.push({ severity: 'warning', message: 'Hotel não possui coordenadas GPS. O agrupamento geográfico usará fallback.', field: 'basecamp.coordinates' });
+       warnings.push({ severity: 'warning', message: 'Hospedagem sem GPS. Sugestões ao redor e deslocamentos perdem precisão temporal.', field: 'basecamp.coordinates' });
     }
 
     // Validate Flights
+    let tripStartMs = -1;
+    let tripEndMs = -1;
+
     if (input.flightSegments.length === 0) {
-       warnings.push({ severity: 'warning', message: 'Nenhum voo informado. O roteiro começará e terminará em horários padrão.', field: 'flights' });
+       warnings.push({ severity: 'warning', message: 'Viagem sem voo informado. Roteiro começará e terminará em horários abertos locais.', field: 'flights' });
     } else {
-       input.flightSegments.forEach(segment => {
-         if (!segment.departureTimezone || !segment.arrivalTimezone) {
-            warnings.push({ severity: 'warning', message: `Fuso horário ausente para o voo ${segment.flightNumber}.`, field: 'flight.timezone' });
-         }
-       });
-       if (input.arrivalFlight && input.departureFlight) {
-         const arr = new Date(input.arrivalFlight.arrivalLocalDateTime);
-         const dep = new Date(input.departureFlight.departureLocalDateTime);
-         if (arr > dep) {
-            critical.push({ severity: 'critical', message: 'Chegada ao destino ocorre após a partida.', field: 'flight.dates' });
-         }
+       if (input.arrivalFlight) {
+          const arrStr = input.arrivalFlight.arrivalLocalDateTime;
+          if (arrStr) {
+             const dateStr = arrStr.split('T')[0];
+             const [h, m] = (arrStr.split('T')[1] || '00:00:00').split(':').map(Number);
+             tripStartMs = new Date(dateStr).getTime() + (h * 3600000) + (m * 60000);
+          }
+       } else {
+          warnings.push({ severity: 'warning', message: 'Voo de chegada não pôde ser mapeado. Início do roteiro fica cego.', field: 'flight.arrival' });
+       }
+
+       if (input.departureFlight) {
+          const depStr = input.departureFlight.departureLocalDateTime;
+          if (depStr) {
+             const dateStr = depStr.split('T')[0];
+             const [h, m] = (depStr.split('T')[1] || '00:00:00').split(':').map(Number);
+             tripEndMs = new Date(dateStr).getTime() + (h * 3600000) + (m * 60000);
+          }
+       } else {
+          warnings.push({ severity: 'warning', message: 'Voo de partida não pôde ser mapeado. Fim do roteiro fica cego.', field: 'flight.departure' });
+       }
+
+       if (tripStartMs !== -1 && tripEndMs !== -1 && tripStartMs > tripEndMs) {
+          critical.push({ severity: 'critical', message: 'Chegada ao destino ocorre após a partida (Datas de voo invertidas/corrompidas).', field: 'flight.dates' });
        }
     }
 
-    // Validate Fixed Reservations
+    // Validate Fixed Reservations and Logistical Bounds
     input.fixedReservations.forEach(res => {
       if (!res.date || !res.startTime || !res.endTime) {
         critical.push({ severity: 'critical', message: `Reserva fixa "${res.type}" não possui horário exato definido.`, field: 'fixedReservations.time' });
+        return;
       }
+
+      // Check TRAVELER_NOT_IN_DESTINATION
+      let sTime = res.startTime.replace('Z', '');
+      const dateStr = res.date;
+      const [h, m] = (sTime.split('T')[1] || '00:00:00').split(':').map(Number);
+      const resStartMs = new Date(dateStr).getTime() + (h * 3600000) + (m * 60000);
+
+      if (tripStartMs !== -1 && resStartMs < tripStartMs) {
+         critical.push({ severity: 'critical', message: `[TRAVELER_NOT_IN_DESTINATION] Reserva fixa '${res.title || res.type}' agendada antes da chegada no destino.`, field: 'logistics.bounds' });
+      }
+
+      if (tripEndMs !== -1 && resStartMs > tripEndMs) {
+         critical.push({ severity: 'critical', message: `[TRAVELER_NOT_IN_DESTINATION] Reserva fixa '${res.title || res.type}' agendada após a partida do destino.`, field: 'logistics.bounds' });
+      }
+
       if (!res.location && !res.coordinates) {
         warnings.push({ severity: 'warning', message: `Reserva fixa "${res.type}" sem localização. Pode gerar deslocamentos irreais.`, field: 'fixedReservations.location' });
       }
