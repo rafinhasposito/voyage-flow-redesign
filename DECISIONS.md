@@ -241,3 +241,9 @@ Bloco B & C — Onboarding, Carteira, Match e Engine de Roteiro (Concluído)
 Bloco D — Mobile Offline Mode (Próxima Fase)
 Aplicação remota — Em execução
 Backend comercial — Congelado
+
+### DECISION 22: Arquitetura Semântica da Engine V2 (Fase B)
+- **Data:** 2026-07-22
+- **Contexto:** A Engine V2 gerava cronogramas cegos e falhava ao alocar itens incompatíveis (ex: rooftops diurnos no limite de noturnos), resultando em violações de restrições de diversidade e sobreposição, dependendo puramente do Validation Gate para denunciar o problema.
+- **Decisão:** Implementamos uma arquitetura de classificação hierárquica baseada em `parentRole` (família principal) e `semanticRole` (função temporal/operacional específica). O Scheduler foi refatorado para ser **Constraint-Aware**, impedindo a alocação de itens que violam limites globais e diários de diversidade antes mesmo de inseri-los. Adicionalmente, implementamos um **Repair Pass** que atua logo antes da validação final para higienizar qualquer resquício de excesso (por exemplo, remover o item de menor prioridade quando limites de refeições ou rooftops são excedidos).
+- **Por quê:** O Validation Gate não deve ser um mecanismo de planejamento primário, mas sim a última rede de segurança. O roteiro deve ser autossuficiente e estruturalmente seguro de nascença, respeitando os limites semânticos absolutos da viagem.

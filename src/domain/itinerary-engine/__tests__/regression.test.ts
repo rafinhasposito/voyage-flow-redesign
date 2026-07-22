@@ -1,5 +1,6 @@
-import { SchedulerV1 } from './src/domain/itinerary-engine/schedulerV1';
-import { EngineInputBuilder } from './src/domain/itinerary-engine/inputBuilder';
+import { SchedulerV1 } from '../schedulerV1';
+import { EngineInputBuilder } from '../inputBuilder';
+import assert from 'assert';
 
 async function runTests() {
   console.log("=== EXECUTANDO TESTES DE REGRESSÃO DA FASE B ===");
@@ -45,7 +46,8 @@ async function runTests() {
   draft.days.forEach(d => d.activities.forEach(a => {
       if (['one40', 'timeout', 'press'].includes(a.id)) totalRooftops++;
   }));
-  console.log(`[TEST] Máximo de dois rooftops na viagem (global limit): ${totalRooftops} -> ${totalRooftops <= 2 ? 'PASSOU' : 'FALHOU'}`);
+  assert(totalRooftops <= 2, `[TEST FAILED] Máximo de dois rooftops na viagem. Encontrado: ${totalRooftops}`);
+  console.log("[TEST PASS] Máximo de dois rooftops na viagem (global limit)");
 
   let maxRooftopPerDay = 0;
   draft.days.forEach(d => {
@@ -53,32 +55,42 @@ async function runTests() {
       d.activities.forEach(a => { if (['one40', 'timeout', 'press'].includes(a.id)) dailyR++; });
       if (dailyR > maxRooftopPerDay) maxRooftopPerDay = dailyR;
   });
-  console.log(`[TEST] Máximo de um rooftop por dia: ${maxRooftopPerDay} -> ${maxRooftopPerDay <= 1 ? 'PASSOU' : 'FALHOU'}`);
+  assert(maxRooftopPerDay <= 1, `[TEST FAILED] Máximo de um rooftop por dia. Encontrado: ${maxRooftopPerDay}`);
+  console.log("[TEST PASS] Máximo de um rooftop por dia");
   
   const ktownHour = getScheduledStartTime('ktown');
-  console.log(`[TEST] Jantar K-Town depois das 18h: ${ktownHour} -> ${ktownHour >= 18 || ktownHour === -1 ? 'PASSOU' : 'FALHOU'}`);
+  assert(ktownHour >= 18 || ktownHour === -1, `[TEST FAILED] Jantar K-Town depois das 18h. Encontrado: ${ktownHour}`);
+  console.log("[TEST PASS] Jantar K-Town depois das 18h");
 
   const edgeHour = getScheduledStartTime('edge');
-  console.log(`[TEST] Festa no The Edge no período noturno: ${edgeHour} -> ${edgeHour >= 18 || edgeHour === -1 ? 'PASSOU' : 'FALHOU'}`);
+  assert(edgeHour >= 18 || edgeHour === -1, `[TEST FAILED] Festa no The Edge no período noturno. Encontrado: ${edgeHour}`);
+  console.log("[TEST PASS] Festa no The Edge no período noturno");
   
   let mealsArrivalDay = 0;
   draft.days[0].activities.forEach(a => {
      if (['shake', 'joes', 'ktown', 'brunch', 'tick'].includes(a.id)) mealsArrivalDay++;
   });
-  console.log(`[TEST] Máximo de uma refeição principal no dia de chegada (<=1): ${mealsArrivalDay} -> ${mealsArrivalDay <= 1 ? 'PASSOU' : 'FALHOU'}`);
+  assert(mealsArrivalDay <= 1, `[TEST FAILED] Máximo de uma refeição principal no dia de chegada. Encontrado: ${mealsArrivalDay}`);
+  console.log("[TEST PASS] Máximo de uma refeição principal no dia de chegada (<=1)");
   
   const tickHour = getScheduledStartTime('tick');
   const brunchHour = getScheduledStartTime('brunch');
   const consec = (tickHour !== -1 && brunchHour !== -1 && Math.abs(tickHour - brunchHour) < 3.5);
-  console.log(`[TEST] Não haver Tick Tock e Brunch consecutivos: ${!consec ? 'PASSOU' : 'FALHOU'}`);
+  assert(!consec, `[TEST FAILED] Não haver Tick Tock e Brunch consecutivos.`);
+  console.log("[TEST PASS] Não haver Tick Tock e Brunch consecutivos");
   
   const hasCritical = draft.days.some(d => d.warnings.length > 0 && (d.warnings.some(w => w.includes('OVERLOAD') || w.includes('DUPLICATE') || w.includes('INVALID'))));
-  console.log(`[TEST] Zero Critical Issues no draft final (Após Repair Pass): ${!hasCritical ? 'PASSOU' : 'FALHOU'}`);
+  assert(!hasCritical, `[TEST FAILED] Zero Critical Issues no draft final.`);
+  console.log("[TEST PASS] Zero Critical Issues no draft final (Após Repair Pass)");
   
   const isProtected = draft.days[draft.days.length - 1].activities.length === 0;
-  console.log(`[TEST] Último dia protegido (sem atividades pois não há voo): ${isProtected ? 'PASSOU' : 'FALHOU'}`);
+  assert(isProtected, `[TEST FAILED] Último dia protegido.`);
+  console.log("[TEST PASS] Último dia protegido (sem atividades pois não há voo)");
   
-  console.log("=== FIM DOS TESTES ===");
+  console.log("=== TODOS OS TESTES PASSARAM ===");
 }
 
-runTests().catch(console.error);
+runTests().catch(e => {
+  console.error(e);
+  process.exit(1);
+});

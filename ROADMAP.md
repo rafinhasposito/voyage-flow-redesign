@@ -198,6 +198,11 @@ Este documento acompanha as fases do projeto de forma macro, definindo o que já
 - [x] Persistência em DB via Supabase (`trips` e `trip_reservations`).
 - [x] Match Idempotente e Concorrência Segura no Frontend (Locks).
 
+### Engine V2 [Fase B Concluída]
+- [x] **Fase A (Fundação Temporal):** Configuração de dias, preenchimento de dependências e baseline logístico.
+- [x] **Fase B (Viabilidade Semântica e Temporal):** O draft obedece regras de diversidade (ex: rooftops diários/globais), espaçamentos de refeições, e categorizações hierárquicas estritas (`parentRole` vs `semanticRole`). Implementados os limites de alocação (Constraint-Aware), o **Repair Pass** (limpeza defensiva final) e o Validation Gate. Aprovado em `f116cf27` com 0 Critical Issues.
+- [ ] **Fase C (Geografia e Roteamento API):** Clustering baseado em distância de bairro, consulta de distância real no Google Maps e uso rigoroso de horários de funcionamento.
+
 **Fases Congeladas Temporariamente:**
 - ADMIN-2B.2B — Aplicação remota e pós-validação
 - ADMIN-3 — Conexão das páginas administrativas

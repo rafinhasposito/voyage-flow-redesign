@@ -156,3 +156,14 @@ Bloco B & C — Onboarding, Carteira, Match e Engine de Roteiro (Concluído)
 Bloco D — Mobile Offline Mode (Próxima Fase)
 Aplicação remota — Em execução
 Backend comercial — Congelado
+
+## Engine V2 - Status das Fases
+- **Fase A (Fundação Temporal):** Concluída.
+- **Fase B (Viabilidade Semântica e Temporal):** Concluída. A Fase B foi aprovada no preview da viagem `f116cf27-03e8-46af-98dd-4b437f30cb4d` com Critical Issues = 0. O draft permaneceu não pronto para integração pela ausência do voo de partida e GPS do Basecamp.
+  - Implementada arquitetura de hierarquia estrita: `parentRole` vs `semanticRole`.
+  - Engine de seleção orientada a restrições com limites globais e diários, controlando diversidade.
+  - Repair Pass atua de forma defensiva para limpar resquícios que causam Critical Issues.
+  - O Validation Gate garante segurança antes do roteiro ser exposto, convertendo falhas de dependência em Warnings.
+  - Logística base de chegada e partida mapeadas em `availability_windows` transparentes. Diferenciação visual e estrutural entre estimado e confirmado.
+  - Limitações: A Engine ainda age de forma puramente cronológica.
+- **Fase C (Geografia e Roteamento API):** Próximo marco. Agrupamento por bairro (Clustering Baseado em Distância), matriz de distâncias (Google Maps) e horários oficiais.
