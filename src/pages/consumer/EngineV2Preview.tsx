@@ -178,14 +178,20 @@ export default function EngineV2Preview() {
                  <ul className="text-sm space-y-1 text-slate-600">
                    <li>Versão atual: {new Date(persistedTrip.updated_at).toLocaleString()}</li>
                    <li>O roteiro anterior será substituído pela versão do Engine.</li>
-                   <li className="text-amber-600 font-semibold mt-2">Atenção: Ações de reversão automática não estão garantidas nesta versão (V2 Foundation).</li>
+                   <li className="text-amber-600 font-semibold mt-2">Atenção: Aplicação de desenvolvimento sem histórico persistente de reversão (ROLLBACK_UNAVAILABLE).</li>
                  </ul>
                </div>
             </div>
             <div className="flex gap-4">
-               <Button onClick={handleApplyDraft} className="bg-slate-900 text-white font-bold w-full">
-                 Aprovar e aplicar ao Trip Space
-               </Button>
+               {import.meta.env.DEV ? (
+                 <Button onClick={handleApplyDraft} className="bg-slate-900 text-white font-bold w-full">
+                   Aprovar e aplicar ao Trip Space
+                 </Button>
+               ) : (
+                 <Button disabled className="bg-slate-300 text-slate-500 font-bold w-full cursor-not-allowed">
+                   Aprovação restrita a ambiente de desenvolvimento
+                 </Button>
+               )}
                <Button onClick={() => setApprovalState('IDLE')} variant="outline" className="w-1/3">
                  Cancelar
                </Button>

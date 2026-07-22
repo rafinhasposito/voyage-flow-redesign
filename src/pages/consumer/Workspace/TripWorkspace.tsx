@@ -34,6 +34,7 @@ export default function TripWorkspace() {
   const [draggedItem, setDraggedItem] = useState<{ day: number; id: string } | null>(null);
   const [replacingItem, setReplacingItem] = useState<{ day: number; id: string, triggerRef?: React.RefObject<HTMLButtonElement> } | null>(null);
   const [replacementCandidates, setReplacementCandidates] = useState<RecommendedExperience[]>([]);
+  const [v2Metadata, setV2Metadata] = useState<any>(null);
 
   // Ref to hold the trigger button for focus restoration
   const replaceTriggerRef = React.useRef<HTMLButtonElement | null>(null);
@@ -68,8 +69,37 @@ export default function TripWorkspace() {
         const baseState = getTravelState();
 
         if (trip.itinerary && Array.isArray(trip.itinerary) && trip.itinerary.length > 0) {
-          // Já tem roteiro salvo
-          setState({ ...baseState, itinerary: trip.itinerary as any, profile: { ...baseState.profile, days: trip.itinerary.length } });
+          // Check for V2 format
+          let legacyItinerary = trip.itinerary;
+          if (trip.itinerary[0] && trip.itinerary[0]._isMetadata) {
+             setV2Metadata(trip.itinerary[0]);
+             const v2Days = trip.itinerary.slice(1);
+             legacyItinerary = v2Days.map((d: any) => ({
+                dayNumber: d.dayNumber,
+                attractions: [],
+                recommendations: (d.activities || []).map((a: any) => ({
+                   experience: {
+                      id: a.sourceExperienceId || a.id,
+                      title: a.title,
+                      type: a.type,
+                      category: a.type,
+                      plannedStartTime: a.startTime,
+                      location_lat: a.coordinates?.lat,
+                      location_lng: a.coordinates?.lng,
+                      is_must_see: a.isFixed,
+                      address: a.location
+                   },
+                   matchScore: 100,
+                   matchReasons: [],
+                   manualMetadata: {
+                      source: a.source,
+                      locked: a.isFixed || a.manualLock
+                   }
+                }))
+             }));
+          }
+
+          setState({ ...baseState, itinerary: legacyItinerary as any, profile: { ...baseState.profile, days: legacyItinerary.length } });
         } else {
           setErrorMessage("O roteiro ainda não foi gerado.");
         }
@@ -429,6 +459,11 @@ export default function TripWorkspace() {
               <h1 className="font-serif text-3xl md:text-4xl font-light text-[#0D0E10] mt-1">
                 Seu dia a dia em <span className="italic">Nova York</span>
               </h1>
+              {v2Metadata && (
+                 <p className="text-[10px] text-slate-400 mt-2 font-mono uppercase">
+                   Engine V{v2Metadata.engineVersion} • Persistido em {new Date(v2Metadata.generatedAt).toLocaleString()}
+                 </p>
+              )}
             </div>
             <div className="flex gap-2">
               <button
