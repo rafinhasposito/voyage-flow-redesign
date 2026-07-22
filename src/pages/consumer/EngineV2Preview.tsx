@@ -136,8 +136,12 @@ export default function EngineV2Preview() {
 
           return (
           <section className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
-            {integrationBlocked ? (
+            {hasCriticals ? (
                <div className="bg-red-600 text-white p-4 rounded-xl mb-6 shadow-md flex flex-col items-center justify-center font-black tracking-wide">
+                 <span className="text-xl">DRAFT INVÁLIDO — REQUER CORREÇÃO</span>
+               </div>
+            ) : integrationBlocked ? (
+               <div className="bg-amber-500 text-white p-4 rounded-xl mb-6 shadow-md flex flex-col items-center justify-center font-black tracking-wide">
                  <span className="text-xl">AINDA NÃO PRONTO PARA INTEGRAÇÃO</span>
                  <span className="text-sm font-medium mt-1">DRAFT VÁLIDO PARA REVISÃO</span>
                </div>

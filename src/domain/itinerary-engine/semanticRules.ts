@@ -130,43 +130,57 @@ export class SemanticRules {
   }
 
   static getExperienceRole(experience: any): string | null {
-    if (experience.experienceRole) return experience.experienceRole;
+    const classif = this.getClassification(experience);
+    return classif ? classif.semanticRole : null;
+  }
+
+  static getClassification(experience: any): { semanticRole: string, parentRole: string, foodSubtype?: string } | null {
+    if (experience.experienceRole) {
+       return { semanticRole: experience.experienceRole, parentRole: experience.experienceRole };
+    }
     
     const cat = (experience.category || '').toLowerCase();
     const tags = (experience.tags || []).map((t: string) => t.toLowerCase());
     const title = (experience.title || experience.name || '').toLowerCase();
 
     // Priority 1: Explicit Title rules
-    if (title.includes('jantar') || title.includes('dinner')) return 'dinner';
-    if (title.includes('festa') || title.includes('party') || title.includes('nightclub') || tags.includes('nightclub') || tags.includes('noite') && title.includes('edge')) return 'nightlife';
-    if (title.includes('brunch') || tags.includes('brunch')) return 'brunch';
-    if (title.includes('almoço') || title.includes('lunch')) return 'lunch';
-    if (tags.includes('café da manhã') || tags.includes('breakfast')) return 'breakfast';
+    if (title.includes('jantar') || title.includes('dinner')) return { semanticRole: 'dinner', parentRole: 'food' };
+    if (title.includes('festa') || title.includes('party') || title.includes('nightclub') || tags.includes('nightclub') || tags.includes('noite') && title.includes('edge')) return { semanticRole: 'nightlife', parentRole: 'nightlife' };
+    if (title.includes('brunch') || tags.includes('brunch')) return { semanticRole: 'brunch', parentRole: 'food' };
+    if (title.includes('almoço') || title.includes('lunch')) return { semanticRole: 'lunch', parentRole: 'food' };
+    if (tags.includes('café da manhã') || tags.includes('breakfast')) return { semanticRole: 'breakfast', parentRole: 'food' };
 
-    if (cat === 'show' || tags.includes('broadway') || tags.includes('teatro') || title.includes('broadway') || title.includes('show')) return 'theater_show';
+    if (cat === 'show' || tags.includes('broadway') || tags.includes('teatro') || title.includes('broadway') || title.includes('show')) return { semanticRole: 'theater_show', parentRole: 'theater_show' };
     
     // Check for daytime rooftop
-    if (tags.includes('rooftop') && (tags.includes('almoço') || tags.includes('dia') || tags.includes('view') || title.includes('one40'))) return 'rooftop_day_view';
-    if (tags.includes('rooftop') || title.includes('rooftop')) return 'rooftop';
+    if (tags.includes('rooftop') && (tags.includes('almoço') || tags.includes('dia') || tags.includes('view') || title.includes('one40'))) return { semanticRole: 'rooftop_day_view', parentRole: 'rooftop' };
+    if (tags.includes('rooftop') || title.includes('rooftop')) return { semanticRole: 'rooftop_bar', parentRole: 'rooftop' };
     
-    if (tags.includes('pizza') || title.includes('pizza')) return 'pizza';
-    if (tags.includes('hamburguer') || tags.includes('rápido') || title.includes('shake shack')) return 'fast_food';
-    if (tags.includes('park') || title.includes('park')) return 'park';
-    if (tags.includes('museum') || title.includes('museum') || cat === 'museum') return 'museum';
-    if (tags.includes('panoramic_view') || title.includes('edge') || title.includes('summit')) return 'panoramic_view';
+    if (tags.includes('pizza') || title.includes('pizza')) return { semanticRole: 'flexible_food', parentRole: 'food', foodSubtype: 'pizza' };
+    if (tags.includes('hamburguer') || tags.includes('rápido') || title.includes('shake shack')) return { semanticRole: 'flexible_food', parentRole: 'food', foodSubtype: 'fast_food' };
+    if (tags.includes('park') || title.includes('park')) return { semanticRole: 'park', parentRole: 'park' };
+    if (tags.includes('museum') || title.includes('museum') || cat === 'museum') return { semanticRole: 'museum', parentRole: 'museum' };
+    if (tags.includes('panoramic_view') || title.includes('edge') || title.includes('summit')) return { semanticRole: 'panoramic_view', parentRole: 'panoramic_view' };
     
     return null;
   }
 
-  static getMaxInstancesPerRole(role: string): number {
-    switch(role) {
-      case 'theater_show': return 2; // Max 2 shows per trip
-      case 'rooftop': return 2;
-      case 'panoramic_view': return 1;
-      case 'pizza': return 2;
+  static getMaxInstancesPerRole(parentRole: string): number {
+    switch(parentRole) {
+      case 'rooftop': return 2; // Max 2 rooftops per trip globally
+      case 'theater_show': return 2; 
+      case 'panoramic_view': return 2;
       case 'museum': return 3;
       case 'park': return 3;
       default: return 99; // Unlimited if role not strictly capped
+    }
+  }
+
+  static getMaxInstancesPerFoodSubtype(foodSubtype: string): number {
+    switch(foodSubtype) {
+      case 'pizza': return 2;
+      case 'fast_food': return 2;
+      default: return 99;
     }
   }
 
