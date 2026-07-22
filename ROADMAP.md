@@ -199,9 +199,14 @@ Este documento acompanha as fases do projeto de forma macro, definindo o que já
 - [x] Match Idempotente e Concorrência Segura no Frontend (Locks).
 
 ### Engine V2 [Fase B Concluída]
-- [x] **Fase A (Fundação Temporal):** Configuração de dias, preenchimento de dependências e baseline logístico.
-- [x] **Fase B (Viabilidade Semântica e Temporal):** O draft obedece regras de diversidade (ex: rooftops diários/globais), espaçamentos de refeições, e categorizações hierárquicas estritas (`parentRole` vs `semanticRole`). Implementados os limites de alocação (Constraint-Aware), o **Repair Pass** (limpeza defensiva final) e o Validation Gate. Aprovado em `f116cf27` com 0 Critical Issues.
-- [ ] **Fase C (Geografia e Roteamento API):** Clustering baseado em distância de bairro, consulta de distância real no Google Maps e uso rigoroso de horários de funcionamento.
+- [x] **Fase A (Fundação Temporal):** Concluída.
+- [x] **Fase B (Viabilidade Semântica e Temporal):** Concluída.
+- [x] **Fase C (Geografia e Roteamento API):** Concluída e aprovada.
+  - GeoRoutingProvider isolado do fornecedor externo (uso de `local_fallback` via Haversine, confidence `low`).
+  - Deslocamento participa ativamente da alocação temporal.
+  - Repair Pass atua preventivamente para impedir conflitos de deslocamento (atividades flexíveis reorganizadas ou removidas, reservas fixas nunca movidas).
+  - Nenhuma integração final com `trips.itinerary` ou Trip Space nesta etapa.
+  - Pendências Futuras Registradas: Enriquecer GPS do Arlo NoMad; Mapear voo de partida; Corrigir nomes vazios nos avisos `DUPLICATE_GEOPOINT_REVIEW_REQUIRED`; Revisar registros locais que compartilham mesmas coordenadas; Avaliar provider externo na próxima etapa.
 
 **Fases Congeladas Temporariamente:**
 - ADMIN-2B.2B — Aplicação remota e pós-validação
@@ -232,13 +237,7 @@ Este documento acompanha as fases do projeto de forma macro, definindo o que já
 - Revisão de estados vazios
 - Responsividade e Acessibilidade (B2B e B2C)
 
-
-
-### Fase C - Inteligência Geográfica
-- Branch `feature/itinerary-engine-v2-geography`
-- Provider local determinístico implementado.
-- Separação entre distância aproximada e rota real garantida.
-- Regras da Fase B preservadas (Testes de regressão assíncronos passando).
-- Contrato assíncrono do Scheduler aplicado.
-- **Fase C aguardando validação visual.**
-- API externa, merge e Trip Space ainda bloqueados.
+### Atualizações - Fase C (Inteligência Geográfica)
+- **Status:** Concluída.
+- **Branch:** feature/itinerary-engine-v2-geography
+- **Implementações:** Provider local `local_fallback` aprovado, deslocamento bloqueante, segmentação temporal e geográfica estrita sem reabertura de integrações externas.

@@ -159,18 +159,18 @@ Backend comercial — Congelado
 
 ## Engine V2 - Status das Fases
 - **Fase A (Fundação Temporal):** Concluída.
-- **Fase B (Viabilidade Semântica e Temporal):** Concluída. A Fase B foi aprovada no preview da viagem `f116cf27-03e8-46af-98dd-4b437f30cb4d` com Critical Issues = 0. O draft permaneceu não pronto para integração pela ausência do voo de partida e GPS do Basecamp.
-  - Implementada arquitetura de hierarquia estrita: `parentRole` vs `semanticRole`.
-  - Engine de seleção orientada a restrições com limites globais e diários, controlando diversidade.
-  - Repair Pass atua de forma defensiva para limpar resquícios que causam Critical Issues.
-  - O Validation Gate garante segurança antes do roteiro ser exposto, convertendo falhas de dependência em Warnings.
-  - Logística base de chegada e partida mapeadas em `availability_windows` transparentes. Diferenciação visual e estrutural entre estimado e confirmado.
-  - Limitações: A Engine ainda age de forma puramente cronológica.
-- **Fase C (Geografia e Roteamento API):** Próximo marco. Agrupamento por bairro (Clustering Baseado em Distância), matriz de distâncias (Google Maps) e horários oficiais.
+- **Fase B (Viabilidade Semântica e Temporal):** Concluída.
+- **Fase C (Geografia e Roteamento API):** Concluída e aprovada técnica e visualmente.
+  - GeoRoutingProvider isolado do fornecedor externo. Provider atual `local_fallback` com Haversine (Confidence `low`).
+  - Deslocamento inserido como restrição primária de tempo na agenda.
+  - Repair Pass previne conflito logístico remanejando ou removendo flexíveis (Fixos intocáveis).
+  - Estado geographicReadiness avaliado rigorosamente (viagem atual preservada em PARTIAL por ausência do GPS no Basecamp).
+  - Nenhuma integração com trips.itinerary ocorreu.
+  - Pendências Futuras Registradas: enriquecer GPS do Arlo NoMad, mapear voo de partida, corrigir nomes vazios nos avisos DUPLICATE_GEOPOINT_REVIEW_REQUIRED, revisar registros coincidentes, avaliar provider externo API.
 
 
 ## Atualizações - Fase C (Inteligência Geográfica)
-- **Status:** Fase C aguardando validação visual.
+- **Status:** Concluída e aprovada técnica e visualmente.
 - **Branch:** feature/itinerary-engine-v2-geography
-- **Implementações:** Provider local determinístico, separação entre distância aproximada e rota real, preservação das regras da Fase B, contrato assíncrono do Scheduler.
-- **Bloqueios Atuais:** API externa, merge e Trip Space ainda bloqueados.
+- **Implementações:** Provider local determinístico (`local_fallback`), deslocamento temporal incorporado, conflitos evitados via Repair Pass.
+- **Bloqueios Atuais:** API externa de mapas foi preterida intencionalmente. Trip Space permanece bloqueado.

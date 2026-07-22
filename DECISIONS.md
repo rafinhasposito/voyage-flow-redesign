@@ -251,3 +251,15 @@ Backend comercial — Congelado
 ## 12. GeoRoutingProvider
 - **O que foi decidido:** Utilizar um provider local determinístico.
 - **Por quê:** Nenhum fornecedor externo deve entrar no domínio inicialmente. Haversine é utilizado somente para fallback e clustering, sempre com baixa confiança obrigatória, mantendo a arquitetura agnóstica.
+
+### DECISION 23: Encerramento da Fase C - Geografia e Roteamento API
+- **Data:** 2026-07-22
+- **Contexto:** A viagem requeria segurança temporal real, prevendo o tempo gasto em deslocamento (ex: Staten Island Ferry para Ess-a-Bagel) para impedir colisões logísticas indesejadas, sem depender de integrações complexas de terceiros no momento.
+- **Decisão:** A Fase C foi encerrada isolando o `GeoRoutingProvider` de fornecedores externos. A alocação foi refatorada para usar `local_fallback` via fórmula de Haversine com confiança `low`, mas forçando o deslocamento a participar ativamente do bloqueio da agenda. O `Repair Pass` foi implementado para reorganizar ou remover atividades flexíveis em conflito, garantindo que reservas fixas nunca sejam movidas.
+- **Por quê:** Entregar robustez temporal com 0 conflitos estruturais (`segmentsWithTemporalConflict = 0`) no draft sem criar dependências externas prematuras. O estado `geographicReadiness` preserva honestidade ao acusar `PARTIAL` caso dados como o Basecamp careçam de GPS.
+- **Pendências Futuras (sem bloqueio):** 
+  - Enriquecer GPS do Arlo NoMad.
+  - Mapear voo de partida.
+  - Corrigir nomes vazios nos avisos `DUPLICATE_GEOPOINT_REVIEW_REQUIRED`.
+  - Revisar registros que compartilham coordenadas exatas.
+  - Avaliar API provider externo.
