@@ -122,7 +122,7 @@ export default function EngineV2Preview() {
           if (draft) {
              draft.days.forEach(d => {
                 d.warnings.forEach(w => {
-                   if (w.includes('TEMPORAL_OVERLAP')) {
+                   if (w.includes('TEMPORAL_OVERLAP') || w.includes('INVALID_') || w.includes('OVERLOAD') || w.includes('DUPLICATE_')) {
                       integrationBlocked = true;
                       hasCriticals = true;
                       blockReasons.push(w);
@@ -254,17 +254,26 @@ export default function EngineV2Preview() {
                 <div className="space-y-4 relative before:absolute before:inset-0 before:ml-[1.125rem] before:-translate-x-px md:before:mx-auto md:before:translate-x-0 before:h-full before:w-0.5 before:bg-gradient-to-b before:from-transparent before:via-slate-200 before:to-transparent">
                   {day.activities.map((act, actIdx) => {
                     const st = act.startTime.split('T')[1]?.substring(0, 5) || act.startTime;
-                    const et = act.endTime.split('T')[1]?.substring(0, 5) || act.endTime;
+                    const et = act.endTime ? act.endTime.split('T')[1]?.substring(0, 5) || act.endTime : null;
                     
                     return (
                       <div key={`${act.id}-${actIdx}`} className="relative flex items-center justify-between md:justify-normal md:odd:flex-row-reverse group is-active">
                         <div className="flex items-center justify-center w-10 h-10 rounded-full border border-white bg-slate-100 group-[.is-active]:bg-lime-50 text-slate-500 group-[.is-active]:text-lime-500 shadow shrink-0 md:order-1 md:group-odd:-translate-x-1/2 md:group-even:translate-x-1/2 z-10">
                           {renderActivityIcon(act)}
                         </div>
-                        <div className="w-[calc(100%-4rem)] md:w-[calc(50%-2.5rem)] p-4 rounded-xl border border-slate-200 bg-white shadow-sm">
+                        <div className={`w-[calc(100%-4rem)] md:w-[calc(50%-2.5rem)] p-4 rounded-xl border relative overflow-hidden transition-all hover:shadow-md ${
+                          act.isFixed ? 'bg-amber-50/50 border-amber-200' :
+                          act.isWindow ? 'bg-slate-50 border-slate-200' :
+                          act.isEstimatedTime ? 'bg-blue-50/30 border-blue-100' :
+                          'bg-white border-slate-200'
+                        }`}>
                           <div className="flex items-center justify-between space-x-2 mb-1">
                             <div className="font-bold text-slate-800">{act.title}</div>
-                            <time className="font-mono text-xs font-medium text-indigo-500 bg-indigo-50 px-2 py-1 rounded-full">{st} - {et}</time>
+                            {act.isWindow ? (
+                               <time className="font-mono text-xs font-medium text-slate-500 bg-slate-100 px-2 py-1 rounded-full border border-slate-200">A partir das {st}</time>
+                            ) : (
+                               <time className="font-mono text-xs font-medium text-indigo-500 bg-indigo-50 px-2 py-1 rounded-full">{st} - {et}</time>
+                            )}
                           </div>
                           {act.location && <div className="text-sm text-slate-500 mb-2">{act.location}</div>}
                           

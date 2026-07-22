@@ -163,6 +163,7 @@ export class SchedulerV1 {
       }
 
       let currentMs = dayStartMs;
+      const usedRolesCountPerDay: Record<string, number> = {};
 
       // Extract only blocking activities for the loop
       const blockingActs = day.activities.filter(a => !a.isWindow && (a.isFixed || a.source === 'logistics' || a.source === 'hotel'));
@@ -172,7 +173,7 @@ export class SchedulerV1 {
         const actStartMs = this.parseMs(act.startTime.split('T')[1]);
         
         if (currentMs < actStartMs) {
-           currentMs = this.fillWindow(day, currentMs, actStartMs, priorityItems, secondaryItems, usedIds, usedRolesCount, input, isFirstDay);
+           currentMs = this.fillWindow(day, currentMs, actStartMs, priorityItems, secondaryItems, usedIds, usedRolesCount, usedRolesCountPerDay, input, isFirstDay);
         }
         
         const actEndMs = this.parseMs(act.endTime.split('T')[1]);
@@ -180,7 +181,7 @@ export class SchedulerV1 {
       }
 
       if (currentMs < dayEndMs) {
-        this.fillWindow(day, currentMs, dayEndMs, priorityItems, secondaryItems, usedIds, usedRolesCount, input, isFirstDay);
+        this.fillWindow(day, currentMs, dayEndMs, priorityItems, secondaryItems, usedIds, usedRolesCount, usedRolesCountPerDay, input, isFirstDay);
       }
     });
 
@@ -204,6 +205,52 @@ export class SchedulerV1 {
            day.warnings.push(`[TEMPORAL_OVERLAP] Conflito detectado entre ${a.title} e ${b.title}`);
         }
       }
+    });
+
+    draft.days.forEach(day => {
+       const dailyRoles: Record<string, number> = {};
+       const meals = ['lunch', 'dinner', 'pizza', 'fast_food', 'brunch'];
+       let mealCount = 0;
+       
+       day.activities.forEach(act => {
+          if (act.isWindow && act.endTime && !act.id.includes('checkin')) {
+             // We allow checkin to have endTime internally for buffer calculation, but UI will hide it
+          }
+
+          if (act.type === 'experience' && act.source !== 'logistics' && act.source !== 'hotel') {
+             // Find original item to check role
+             const originalItem = input.catalog.find(c => c.id === act.id);
+             if (originalItem) {
+                const role = SemanticRules.getExperienceRole(originalItem);
+                const [h, m] = act.startTime.split('T')[1].split(':').map(Number);
+                const startMs = h * 3600000 + m * 60000;
+                
+                if (role === 'dinner' && startMs < 17 * 3600000) {
+                   day.warnings.push(`[INVALID_MEAL_PERIOD] ${act.title} agendado antes do período de jantar`);
+                }
+                if (role === 'nightlife' && startMs < 18 * 3600000) {
+                   day.warnings.push(`[INVALID_NIGHTLIFE_PERIOD] ${act.title} agendado antes da noite`);
+                }
+                
+                if (role) {
+                   dailyRoles[role] = (dailyRoles[role] || 0) + 1;
+                   if (dailyRoles[role] > 1 && !['panoramic_view'].includes(role)) {
+                      day.warnings.push(`[DAILY_ROLE_OVERLOAD] Múltiplas experiências do tipo ${role} no mesmo dia`);
+                   }
+                   if (meals.includes(role)) {
+                      mealCount++;
+                      if (mealCount > 2) {
+                         day.warnings.push(`[DUPLICATE_FOOD_SUBTYPE] Excesso de refeições no mesmo dia`);
+                      }
+                   }
+                }
+             }
+          }
+       });
+       
+       if (day.date === input.tripStartDate && mealCount > 2) {
+          day.warnings.push(`[ARRIVAL_DAY_OVERLOAD] Excesso de refeições no dia da chegada`);
+       }
     });
 
     return draft;
@@ -365,6 +412,7 @@ export class SchedulerV1 {
     secondary: any[],
     usedIds: Set<string>,
     usedRolesCount: Record<string, number>,
+    usedRolesCountPerDay: Record<string, number>,
     input: TripEngineInputV1,
     isFirstDay: boolean
   ): number {
@@ -381,6 +429,20 @@ export class SchedulerV1 {
         // Diversity check
         const role = SemanticRules.getExperienceRole(item);
         if (role && usedRolesCount[role] >= SemanticRules.getMaxInstancesPerRole(role)) return false;
+        
+        // Daily Diversity Check
+        if (role) {
+           const dailyCount = usedRolesCountPerDay[role] || 0;
+           // If we already have this exact role today, block it unless we have no other options (which we handle by just blocking for now to be safe)
+           if (dailyCount >= 1 && ['lunch', 'dinner', 'fast_food', 'pizza', 'rooftop', 'museum', 'park', 'theater_show', 'nightlife'].includes(role)) {
+              return false; // Only 1 of these specific roles per day
+           }
+           
+           if (isFirstDay) {
+              const meals = ['lunch', 'dinner', 'pizza', 'fast_food', 'brunch'].reduce((acc, r) => acc + (usedRolesCountPerDay[r] || 0), 0);
+              if (meals >= 1 && ['lunch', 'dinner', 'pizza', 'fast_food', 'brunch'].includes(role)) return false; // Max 1 meal on arrival day
+           }
+        }
         
         const windows = SemanticRules.getValidWindows(item, day.date);
         const duration = SemanticRules.getEstimatedDurationMs(item);
@@ -412,6 +474,7 @@ export class SchedulerV1 {
         const role = SemanticRules.getExperienceRole(candidate);
         if (role) {
            usedRolesCount[role] = (usedRolesCount[role] || 0) + 1;
+           usedRolesCountPerDay[role] = (usedRolesCountPerDay[role] || 0) + 1;
         }
         
         const vote = input.matchVotes[candidate.id];

@@ -31,36 +31,36 @@ export class SemanticRules {
 
     // 2. Meal Periods and structured types
     const cat = (experience.category || '').toLowerCase();
-    const role = (experience.experienceRole || '').toLowerCase();
+    const role = this.getExperienceRole(experience); // Re-use the role classifier
     const bestTime = (experience.bestTime || '').toLowerCase();
 
-    if (role === 'dinner' || cat === 'dinner' || (tags.includes('dinner') && !tags.includes('fast_food')) || tags.includes('jantar')) {
+    if (role === 'dinner') {
       return [{ startMs: 18 * 3600000, endMs: 23 * 3600000 }];
     }
     
-    if (role === 'lunch' || cat === 'lunch' || (tags.includes('lunch') && !tags.includes('fast_food')) || tags.includes('almoço')) {
+    if (role === 'lunch') {
       return [{ startMs: 11 * 3600000 + 1800000, endMs: 15 * 3600000 }]; 
     }
 
-    if (role === 'breakfast' || tags.includes('breakfast') || tags.includes('café da manhã') || cat === 'cafe') {
+    if (role === 'breakfast') {
       return [{ startMs: 7 * 3600000, endMs: 11 * 3600000 + 1800000 }]; 
     }
     
-    if (tags.includes('brunch') || title.includes('brunch')) {
+    if (role === 'brunch') {
       return [{ startMs: 10 * 3600000, endMs: 14 * 3600000 }];
     }
 
-    if (tags.includes('fast_food') || tags.includes('pizza') || role === 'flexible_food' || title.includes('shake shack') || title.includes('pizza')) {
-      return [{ startMs: 11 * 3600000 + 1800000, endMs: 22 * 3600000 }]; // 11:30 to 22:00
+    if (role === 'fast_food' || role === 'pizza' || role === 'flexible_food') {
+      return [{ startMs: 11 * 3600000 + 1800000, endMs: 22 * 3600000 }]; // Block before 11:30
     }
 
     // Daytime specific rooftops
-    if (tags.includes('rooftop_day_view') || title.includes('edge') || title.includes('summit')) {
-      return [{ startMs: 9 * 3600000, endMs: 18 * 3600000 }];
+    if (role === 'rooftop_day_view') {
+      return [{ startMs: 11 * 3600000, endMs: 18 * 3600000 }];
     }
 
-    if (tags.includes('nightlife') || tags.includes('rooftop') || tags.includes('bar') || tags.includes('club') || cat === 'nightlife') {
-      return [{ startMs: 18 * 3600000, endMs: 26 * 3600000 }]; // Shifted back to 18:00
+    if (role === 'nightlife' || role === 'rooftop') {
+      return [{ startMs: 18 * 3600000, endMs: 26 * 3600000 }]; // 18:00 to 02:00
     }
 
     if (tags.includes('sunrise') || tags.includes('nascer do sol')) {
@@ -136,9 +136,21 @@ export class SemanticRules {
     const tags = (experience.tags || []).map((t: string) => t.toLowerCase());
     const title = (experience.title || experience.name || '').toLowerCase();
 
+    // Priority 1: Explicit Title rules
+    if (title.includes('jantar') || title.includes('dinner')) return 'dinner';
+    if (title.includes('festa') || title.includes('party') || title.includes('nightclub') || tags.includes('nightclub') || tags.includes('noite') && title.includes('edge')) return 'nightlife';
+    if (title.includes('brunch') || tags.includes('brunch')) return 'brunch';
+    if (title.includes('almoço') || title.includes('lunch')) return 'lunch';
+    if (tags.includes('café da manhã') || tags.includes('breakfast')) return 'breakfast';
+
     if (cat === 'show' || tags.includes('broadway') || tags.includes('teatro') || title.includes('broadway') || title.includes('show')) return 'theater_show';
+    
+    // Check for daytime rooftop
+    if (tags.includes('rooftop') && (tags.includes('almoço') || tags.includes('dia') || tags.includes('view') || title.includes('one40'))) return 'rooftop_day_view';
     if (tags.includes('rooftop') || title.includes('rooftop')) return 'rooftop';
+    
     if (tags.includes('pizza') || title.includes('pizza')) return 'pizza';
+    if (tags.includes('hamburguer') || tags.includes('rápido') || title.includes('shake shack')) return 'fast_food';
     if (tags.includes('park') || title.includes('park')) return 'park';
     if (tags.includes('museum') || title.includes('museum') || cat === 'museum') return 'museum';
     if (tags.includes('panoramic_view') || title.includes('edge') || title.includes('summit')) return 'panoramic_view';
