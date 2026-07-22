@@ -13,9 +13,15 @@ export class GeoAuditExporter {
         validGps: 0,
         missingGps: 0,
         invalidGps: 0,
+        mappingFailures: 0,
         coveragePercent: 0,
         basecampHasGps: false,
-        possibleSegments: 0
+        possibleSegments: 0,
+        generatedSegments: 0,
+        segmentsWithTemporalConflict: 0,
+        longestSegmentMinutes: 0,
+        totalTravelMinutes: 0,
+        totalTravelDistance: 0
       }
     };
 
@@ -28,7 +34,7 @@ export class GeoAuditExporter {
     let valid = 0;
     let missing = 0;
     let invalid = 0;
-    
+
     if (inputData.basecamp) {
       const lat = inputData.basecamp.lat;
       const lng = inputData.basecamp.lng;
@@ -58,9 +64,9 @@ export class GeoAuditExporter {
            const origId = a.sourceExperienceId || a.id;
            usedExpIds.add(origId);
            const catItem = inputData.catalog.find(c => c.id === origId);
-           
+
            let situation = getSituation(a.coordinates?.lat, a.coordinates?.lng);
-           
+
            if (!catItem) {
               situation = 'mapping_failed';
            }
@@ -111,7 +117,7 @@ export class GeoAuditExporter {
     exportData.summary.invalidGps = invalid;
     exportData.summary.mappingFailures = mappingFailures;
     exportData.summary.coveragePercent = exportData.summary.totalEntities > 0 ? Math.round((valid / exportData.summary.totalEntities) * 100) : 0;
-    
+
     let possibleSegments = 0;
     draft.days.forEach(d => {
        let lastHadGps = exportData.summary.basecampHasGps;
@@ -126,7 +132,42 @@ export class GeoAuditExporter {
     });
     exportData.summary.possibleSegments = possibleSegments;
 
-    // Remove any sensitive keys implicitly by only building from safe primitives, no ...spread of arbitrary objects.
+    let genSegments = 0;
+    let conflicts = 0;
+    let maxMin = 0;
+    let totalMin = 0;
+    let totalDist = 0;
+
+    draft.days.forEach(d => {
+       d.activities.forEach(a => {
+          if (a.source === 'transit' && a.routeEstimate) {
+             genSegments++;
+             const est = a.routeEstimate.estimate;
+             const dur = est.durationMinutes || 0;
+             const dist = est.distanceMeters || 0;
+             totalMin += dur;
+             totalDist += dist;
+             if (dur > maxMin) maxMin = dur;
+
+             // Check if it fits (this was also handled by the Repair Pass)
+             const gapMs = new Date(a.endTime).getTime() - new Date(a.startTime).getTime();
+             if ((dur * 60000) > gapMs) {
+                conflicts++;
+             }
+          }
+       });
+    });
+
+    // But wait, the Repair Pass might have just deleted the origin or logged an issue
+    // Let's also count any UNREPAIRED_TIME_CONFLICT as a conflict
+    conflicts += draft.geoHealthIssues.filter(g => g.code === 'UNREPAIRED_TIME_CONFLICT' || g.code === 'TRAVEL_TIME_DOES_NOT_FIT').length;
+
+    exportData.summary.generatedSegments = genSegments;
+    exportData.summary.segmentsWithTemporalConflict = conflicts;
+    exportData.summary.longestSegmentMinutes = maxMin;
+    exportData.summary.totalTravelMinutes = totalMin;
+    exportData.summary.totalTravelDistance = totalDist;
+
     return exportData;
   }
 }

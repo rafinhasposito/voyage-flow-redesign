@@ -315,11 +315,14 @@ export default function EngineV2Preview() {
                           {act.source === 'transit' ? (
                             <div>
                                <div className="font-bold text-sky-900 mb-2">{act.title}</div>
-                               <div className="text-xs text-sky-700 font-mono mb-2">
-                                 {act.routeEstimate?.fromActivityId} &rarr; {act.routeEstimate?.toActivityId}
-                               </div>
+                               <details className="text-[10px] text-sky-500 font-mono mb-2">
+                                 <summary className="cursor-pointer hover:text-sky-700">Debug IDs</summary>
+                                 <div className="mt-1 pl-2 border-l-2 border-sky-200">
+                                   {act.routeEstimate?.fromActivityId} &rarr; {act.routeEstimate?.toActivityId}
+                                 </div>
+                               </details>
                                <div className="grid grid-cols-2 gap-2 text-sm text-sky-800">
-                                  <div>🚗 {act.routeEstimate?.estimate.distanceMeters}m</div>
+                                  <div>{act.routeEstimate?.estimate.mode === 'walk' ? '🚶' : '🚌'} {act.routeEstimate?.estimate.distanceMeters}m</div>
                                   <div>⏱ {act.routeEstimate?.estimate.durationMinutes} min</div>
                                </div>
                                <div className="mt-3 pt-3 border-t border-sky-100 text-[10px] text-sky-600 uppercase tracking-wide">

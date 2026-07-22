@@ -58,7 +58,7 @@ export class SchedulerV1 {
       integrationReadiness: false
     };
 
-    
+
     let hasBasecampGps = false;
     if (input.basecamp) {
       if (input.basecamp.lat && input.basecamp.lng) hasBasecampGps = true;
@@ -103,7 +103,7 @@ export class SchedulerV1 {
     } else {
       draft.overallWarnings.push("Voo de chegada não identificado.");
     }
-    
+
     if (input.departureFlight) {
       tripEndMs = this.injectDepartureLogistics(draft, input);
     } else {
@@ -121,7 +121,7 @@ export class SchedulerV1 {
 
         const actStartMs = this.parseMs(sTime.split('T')[1]);
         const absoluteActMs = new Date(day.date).getTime() + actStartMs;
-        
+
         day.activities.push({
           id: res.id,
           type: res.type,
@@ -166,19 +166,19 @@ export class SchedulerV1 {
 
       const absoluteDayStart = new Date(day.date).getTime();
       const isFirstDay = tripStartMs !== -1 && tripStartMs >= absoluteDayStart && tripStartMs < absoluteDayStart + 86400000;
-      
+
       // Strict pre-trip check
       if (tripStartMs !== -1 && absoluteDayStart + dayEndMs < tripStartMs) {
          day.warnings.push("Pré-viagem. Nenhuma atividade programada.");
-         continue; 
+         continue;
       }
-      
+
       // Strict post-trip check
       if (tripEndMs !== -1 && absoluteDayStart >= tripEndMs) {
          day.warnings.push("Pós-viagem. Nenhuma atividade programada.");
          continue;
       }
-      
+
       // Missing departure flight blocks the last day to prevent fake assumptions
       if (tripEndMs === -1 && absoluteDayStart === new Date(input.endDate).getTime()) {
          day.warnings.push("Planejamento incompleto: informe sua partida para liberar atividades com segurança.");
@@ -211,11 +211,11 @@ export class SchedulerV1 {
 
       for (const act of blockingActs) {
         const actStartMs = this.parseMs(act.startTime.split('T')[1]);
-        
+
         if (currentMs < actStartMs) {
            currentMs = await this.fillWindow(day, currentMs, actStartMs, priorityItems, secondaryItems, usedIds, usedGlobalCounts, dailyCounts, input, isFirstDay, geoProvider, day.activities);
         }
-        
+
         const actEndMs = this.parseMs(act.endTime.split('T')[1]);
         currentMs = actEndMs + (30 * 60000); // 30 min buffer
       }
@@ -251,7 +251,7 @@ export class SchedulerV1 {
        const dailyRoles: Record<string, number> = {};
        const meals = ['lunch', 'dinner', 'pizza', 'fast_food', 'brunch'];
        let mealCount = 0;
-       
+
        day.activities.forEach(act => {
           if (act.isWindow && act.endTime && !act.id.includes('checkin')) {
              // We allow checkin to have endTime internally for buffer calculation, but UI will hide it
@@ -266,14 +266,14 @@ export class SchedulerV1 {
                 const parentRole = classif?.parentRole;
                 const [h, m] = act.startTime.split('T')[1].split(':').map(Number);
                 const startMs = h * 3600000 + m * 60000;
-                
+
                 if (role === 'dinner' && startMs < 17 * 3600000) {
                    day.warnings.push(`[INVALID_MEAL_PERIOD] ${act.title} agendado antes do período de jantar`);
                 }
                 if (role === 'nightlife' && startMs < 18 * 3600000) {
                    day.warnings.push(`[INVALID_NIGHTLIFE_PERIOD] ${act.title} agendado antes da noite`);
                 }
-                
+
                 if (role && parentRole) {
                    dailyRoles[role] = (dailyRoles[role] || 0) + 1;
                    if (dailyRoles[role] > 1 && !['panoramic_view'].includes(role)) {
@@ -289,7 +289,7 @@ export class SchedulerV1 {
              }
           }
        });
-       
+
        if (day.date === input.tripStartDate && mealCount > 2) {
           day.warnings.push(`[ARRIVAL_DAY_OVERLOAD] Excesso de refeições no dia da chegada`);
        }
@@ -297,13 +297,13 @@ export class SchedulerV1 {
 
     // 6. Repair Pass
     draft.days.forEach(day => {
-       const hasRepairableWarning = day.warnings.some(w => 
-          w.includes('DAILY_ROLE_OVERLOAD') || 
-          w.includes('GLOBAL_ROLE_OVERLOAD') || 
-          w.includes('DUPLICATE_FOOD_SUBTYPE') || 
+       const hasRepairableWarning = day.warnings.some(w =>
+          w.includes('DAILY_ROLE_OVERLOAD') ||
+          w.includes('GLOBAL_ROLE_OVERLOAD') ||
+          w.includes('DUPLICATE_FOOD_SUBTYPE') ||
           w.includes('ARRIVAL_DAY_OVERLOAD')
        );
-       
+
        if (hasRepairableWarning) {
           // Identify lowest priority item (engine source / maybe)
           let toRemoveIdx = -1;
@@ -322,9 +322,9 @@ export class SchedulerV1 {
           }
           if (toRemoveIdx !== -1) {
              const removed = day.activities.splice(toRemoveIdx, 1)[0];
-             day.warnings = day.warnings.filter(w => 
-                !w.includes('DAILY_ROLE_OVERLOAD') && 
-                !w.includes('DUPLICATE_FOOD_SUBTYPE') && 
+             day.warnings = day.warnings.filter(w =>
+                !w.includes('DAILY_ROLE_OVERLOAD') &&
+                !w.includes('DUPLICATE_FOOD_SUBTYPE') &&
                 !w.includes('ARRIVAL_DAY_OVERLOAD')
              );
              day.warnings.push(`[REPAIR_PASS] Atividade removida devido a violação semântica: ${removed.title}`);
@@ -338,26 +338,64 @@ export class SchedulerV1 {
       for (const day of draft.days) {
          const newActs: ScheduledActivity[] = [];
          let lastGeoAct: ScheduledActivity | null = null;
-         
+
          for (const act of day.activities) {
             if (act.isWindow) {
                newActs.push(act);
                continue;
             }
-            
+
             let actGeo: GeoPoint | null = null;
             if (act.coordinates?.lat && act.coordinates?.lng) {
                actGeo = { latitude: act.coordinates.lat, longitude: act.coordinates.lng, source: 'unknown', confidence: 'low' };
             } else if (act.location && input.basecamp?.name && act.location === input.basecamp.name && input.basecamp.lat && input.basecamp.lng) {
                actGeo = { latitude: input.basecamp.lat, longitude: input.basecamp.lng, source: 'reservation', confidence: 'high' };
             }
-            
+
             if (lastGeoAct && actGeo && lastGeoAct.coordinates) {
                // We need a segment
                const origin: GeoPoint = { latitude: lastGeoAct.coordinates.lat!, longitude: lastGeoAct.coordinates.lng!, source: 'unknown', confidence: 'low' };
                const estimate = await geoProvider.getEstimate(origin, actGeo);
-               
+
                if (estimate.distanceMeters > 50) {
+                 const travelMs = estimate.durationMinutes * 60000;
+                 const gapMs = new Date(act.startTime).getTime() - new Date(lastGeoAct.endTime).getTime();
+
+                 if (travelMs > gapMs) {
+                     // Conflict detected!
+                     draft.geoHealthIssues.push({
+                        code: 'TRAVEL_TIME_DOES_NOT_FIT',
+                        severity: 'critical',
+                        message: `Deslocamento de ${estimate.durationMinutes} min excede intervalo de ${Math.round(gapMs / 60000)} min entre ${lastGeoAct.title} e ${act.title}.`
+                     });
+
+                     if (!act.isFixed) {
+                         draft.overallWarnings.push(`Atividade removida por conflito geográfico (não cabe no tempo): ${act.title}`);
+                         continue; // Skip adding this flexible activity
+                     } else if (!lastGeoAct.isFixed) {
+                         const idx = newActs.findIndex(x => x.id === lastGeoAct!.id);
+                         if (idx >= 0) {
+                             newActs.splice(idx, 1);
+                             draft.overallWarnings.push(`Atividade removida por conflito geográfico com fixo: ${lastGeoAct.title}`);
+                             // We skip adding the route segment because the origin was removed.
+                             // We keep act, but without a transit segment to it from the now-deleted lastGeoAct.
+                             newActs.push(act);
+                             if (actGeo) {
+                                act.coordinates = { lat: actGeo.latitude, lng: actGeo.longitude };
+                                lastGeoAct = act;
+                             }
+                             continue;
+                         }
+                     } else {
+                         // Unrepaired conflict (both are fixed)
+                         draft.geoHealthIssues.push({
+                             code: 'UNREPAIRED_TIME_CONFLICT',
+                             severity: 'critical',
+                             message: `Conflito temporal insuperável: ${lastGeoAct.title} e ${act.title} são fixos e o deslocamento de ${estimate.durationMinutes} min não cabe.`
+                         });
+                     }
+                 }
+
                  const segment: RouteSegment = {
                     fromActivityId: lastGeoAct.id,
                     toActivityId: act.id,
@@ -368,18 +406,18 @@ export class SchedulerV1 {
                  newActs.push({
                     id: `transit-${lastGeoAct.id}-${act.id}`,
                     type: 'logistics',
-                    title: `Deslocamento (${estimate.mode === 'walk' ? 'A pé' : 'Transporte'})`,
+                    title: `${lastGeoAct.title} → ${act.title}`,
                     startTime: lastGeoAct.endTime,
                     endTime: act.startTime, // Assuming flexible transit
                     isFixed: false,
                     isEstimatedTime: true,
                     source: 'transit',
-                    reason: `Estimativa geográfica (${estimate.durationMinutes} min / ${estimate.distanceMeters} m)`,
+                    reason: `Estimativa: ${estimate.durationMinutes} min / ${estimate.distanceMeters} m`,
                     routeEstimate: segment
                  });
                }
             }
-            
+
             newActs.push(act);
             if (actGeo) {
                act.coordinates = { lat: actGeo.latitude, lng: actGeo.longitude };
@@ -389,12 +427,33 @@ export class SchedulerV1 {
          day.activities = newActs;
       }
     }
-    
+
+    // Quality Check: Duplicate Coordinates
+    const coordsMap = new Map<string, string[]>();
+    input.catalog.forEach(c => {
+       const lat = c.coordinates?.lat || c.location_lat;
+       const lng = c.coordinates?.lng || c.location_lng;
+       if (lat && lng) {
+          const key = `${lat},${lng}`;
+          if (!coordsMap.has(key)) coordsMap.set(key, []);
+          coordsMap.get(key)!.push(c.title);
+       }
+    });
+    coordsMap.forEach((titles, key) => {
+       if (titles.length > 1) {
+          draft.geoHealthIssues.push({
+             code: 'DUPLICATE_GEOPOINT_REVIEW_REQUIRED',
+             severity: 'warning',
+             message: `As seguintes experiências possuem exatamente as mesmas coordenadas (${key}): ${titles.join(', ')}.`
+          });
+       }
+    });
+
     let hasBasecampWarning = draft.geoHealthIssues.some(g => g.code === 'BASECAMP_GPS_MISSING');
     let totalActsGeo = 0;
     let gpsActs = 0;
     let generatedSegments = 0;
-    
+
     draft.days.forEach(day => {
       day.activities.forEach(act => {
         if (['experience', 'hotel', 'flight', 'reservation'].includes(act.type)) {
@@ -418,13 +477,15 @@ export class SchedulerV1 {
       });
     });
 
-    if (mappingFailed) {
+    const hasUnrepairedConflict = draft.geoHealthIssues.some(g => g.code === 'UNREPAIRED_TIME_CONFLICT');
+
+    if (mappingFailed || hasUnrepairedConflict) {
        draft.geographicReadiness = 'FAILED';
-    } else if (hasBasecampWarning || gpsActs === 0 || totalActsGeo === 0) {
+    } else if (gpsActs === 0 || totalActsGeo === 0) {
        draft.geographicReadiness = 'INSUFFICIENT_DATA';
     } else if (generatedSegments === 0 && totalActsGeo > 1) {
        draft.geographicReadiness = 'INSUFFICIENT_DATA';
-    } else if (gpsActs < totalActsGeo) {
+    } else if (gpsActs < totalActsGeo || hasBasecampWarning) {
        draft.geographicReadiness = 'PARTIAL';
     } else {
        draft.geographicReadiness = 'READY';
@@ -453,18 +514,18 @@ export class SchedulerV1 {
     const flight = input.arrivalFlight!;
     const localStr = flight.arrivalLocalDateTime;
     if (!localStr) return -1;
-    
+
     const dateStr = localStr.split('T')[0];
     const day = draft.days.find(d => d.date === dateStr);
-    
+
     if (!day) return -1;
 
     const flightMs = this.parseMs(localStr.split('T')[1]);
-    
+
     day.activities.push({
       id: `arr-flight`, type: 'flight', title: `Chegada do Voo ${flight.flightNumber}`,
       startTime: `${dateStr}T${this.toTimeStr(flightMs)}`,
-      endTime: `${dateStr}T${this.toTimeStr(flightMs + 1800000)}`, 
+      endTime: `${dateStr}T${this.toTimeStr(flightMs + 1800000)}`,
       isFixed: true, source: 'flight', reason: 'Aterrissagem confirmada'
     });
 
@@ -485,7 +546,7 @@ export class SchedulerV1 {
     });
 
     const isAfter3pm = transitEndMs >= 15 * 3600000;
-    
+
     // Luggage Decision
     const hotelEndMs = transitEndMs + (30 * 60000);
     if (!isAfter3pm) {
@@ -494,7 +555,7 @@ export class SchedulerV1 {
          location: input.basecamp?.name,
          startTime: `${dateStr}T${this.toTimeStr(transitEndMs)}`,
          endTime: `${dateStr}T${this.toTimeStr(hotelEndMs)}`,
-         isFixed: false, isDecisionPending: true, source: 'hotel', 
+         isFixed: false, isDecisionPending: true, source: 'hotel',
          reason: input.basecamp ? 'Opção sugerida: consultar hotel. Alternativa: locker externo.' : 'Decisão pendente: locker ou hotel?'
        });
        // Optional Rest Block
@@ -505,7 +566,7 @@ export class SchedulerV1 {
          endTime: `${dateStr}T${this.toTimeStr(restEndMs)}`,
          isFixed: false, isEstimatedTime: true, source: 'logistics', reason: 'Recuperação de energia sugerida'
        });
-       
+
        // Add Check-in Window Reminder
        day.activities.push({
          id: `arr-checkin`, type: 'hotel', title: 'Check-in disponível (Estimado)',
@@ -514,7 +575,7 @@ export class SchedulerV1 {
          endTime: `${dateStr}T15:30:00`,
          isFixed: false, isEstimatedTime: true, isWindow: true, source: 'hotel', reason: 'A partir das 15:00'
        });
-       
+
        return new Date(dateStr).getTime() + restEndMs;
     } else {
        day.activities.push({
@@ -522,7 +583,7 @@ export class SchedulerV1 {
          location: input.basecamp?.name,
          startTime: `${dateStr}T${this.toTimeStr(transitEndMs)}`,
          endTime: `${dateStr}T${this.toTimeStr(hotelEndMs)}`,
-         isFixed: false, isEstimatedTime: true, source: 'hotel', 
+         isFixed: false, isEstimatedTime: true, source: 'hotel',
          reason: 'Horário compatível com check-in'
        });
        return new Date(dateStr).getTime() + hotelEndMs;
@@ -533,13 +594,13 @@ export class SchedulerV1 {
     const flight = input.departureFlight!;
     const localStr = flight.departureLocalDateTime;
     if (!localStr) return -1;
-    
+
     const dateStr = localStr.split('T')[0];
     const day = draft.days.find(d => d.date === dateStr);
     if (!day) return -1;
 
     const flightMs = this.parseMs(localStr.split('T')[1]);
-    
+
     day.activities.push({
       id: `dep-flight`, type: 'flight', title: `Partida do Voo ${flight.flightNumber}`,
       startTime: `${dateStr}T${this.toTimeStr(flightMs - 1800000)}`,
@@ -604,7 +665,7 @@ export class SchedulerV1 {
     let added = 0;
 
     let lastGeoPoint: GeoPoint | null = null;
-    
+
     // Find the last known location to use as origin
     for (let i = currentActivities.length - 1; i >= 0; i--) {
       const act = currentActivities[i];
@@ -616,7 +677,7 @@ export class SchedulerV1 {
          break;
       }
     }
-    
+
     if (!lastGeoPoint && input.basecamp?.lat && input.basecamp?.lng) {
        lastGeoPoint = { latitude: input.basecamp.lat, longitude: input.basecamp.lng, source: 'reservation', confidence: 'high' };
     }
@@ -625,36 +686,36 @@ export class SchedulerV1 {
     const getCandidates = (list: any[]) => {
       return list.filter(item => {
         if (usedIds.has(item.id)) return false;
-        
+
         if (isFirstDay && SemanticRules.isHighFriction(item)) return false;
-        
+
         const classif = SemanticRules.getClassification(item);
         if (classif) {
            const { parentRole, semanticRole, foodSubtype } = classif;
            const isMeal = ['lunch', 'dinner', 'flexible_food', 'brunch', 'breakfast'].includes(semanticRole);
            const vote = input.matchVotes[item.id];
            const isLoved = vote === 'love';
-           
+
            // Global Diversity Check
            if (usedGlobal.parent[parentRole] >= SemanticRules.getMaxInstancesPerRole(parentRole) && !isLoved) return false;
            if (foodSubtype && usedGlobal.food[foodSubtype] >= SemanticRules.getMaxInstancesPerFoodSubtype(foodSubtype) && !isLoved) return false;
-           
+
            // Daily Diversity Check
            if (dailyCounts.semantic[semanticRole] >= 1 && !isLoved) return false;
-           
+
            if (parentRole === 'rooftop' && dailyCounts.parent['rooftop'] >= 1) return false; // Max 1 rooftop per day
-           
+
            if (isMeal) {
               // Spacing check
               if (dailyCounts.lastMealMs > 0 && (curr - dailyCounts.lastMealMs) < 3.5 * 3600000) return false; // 3.5 hours between meals
-              
+
               if (isFirstDay) {
                  const mealsToday = ['lunch', 'dinner', 'flexible_food', 'brunch', 'breakfast'].reduce((acc, r) => acc + (dailyCounts.semantic[r] || 0), 0);
                  if (mealsToday >= 1) return false; // Max 1 main meal on arrival day
               }
            }
         }
-        
+
         const windows = SemanticRules.getValidWindows(item, day.date);
         const duration = SemanticRules.getEstimatedDurationMs(item);
         return windows.some(w => curr >= w.startMs && curr + duration <= Math.min(w.endMs, endMs));
@@ -667,21 +728,22 @@ export class SchedulerV1 {
 
       const sortCandidates = async (candidates: any[]) => {
          if (!geoProvider || !lastGeoPoint || candidates.length === 0) return candidates;
-         
+
          const withDist = await Promise.all(candidates.map(async c => {
-            if (!c.location_lat || !c.location_lng) return { c, dist: 99999999 };
-            const dest: GeoPoint = { latitude: Number(c.location_lat), longitude: Number(c.location_lng), source: 'unknown', confidence: 'low' };
+            const coords = c.coordinates || (c.location_lat && c.location_lng ? { lat: c.location_lat, lng: c.location_lng } : undefined);
+            if (!coords) return { c, dist: 99999999 };
+            const dest: GeoPoint = { latitude: Number(coords.lat), longitude: Number(coords.lng), source: 'unknown', confidence: 'low' };
             const est = await geoProvider.getEstimate(lastGeoPoint!, dest);
             return { c, dist: est.distanceMeters };
          }));
-         
+
          withDist.sort((a, b) => a.dist - b.dist);
          return withDist.map(w => w.c);
       };
 
       let pCandidates = getCandidates(priority);
       pCandidates = await sortCandidates(pCandidates);
-      if (pCandidates.length > 0) candidate = pCandidates[0]; 
+      if (pCandidates.length > 0) candidate = pCandidates[0];
       else {
         let sCandidates = getCandidates(secondary);
         sCandidates = await sortCandidates(sCandidates);
@@ -691,36 +753,57 @@ export class SchedulerV1 {
       if (!candidate) {
          curr += 30 * 60000;
          if (curr >= endMs) break;
-         continue; 
+         continue;
       }
 
       const durationMs = SemanticRules.getEstimatedDurationMs(candidate);
 
-      if (curr + durationMs <= endMs) {
-        usedIds.add(candidate.id); 
-        
+      let travelDurationMs = 0;
+      const coords = candidate.coordinates || (candidate.location_lat && candidate.location_lng ? { lat: candidate.location_lat, lng: candidate.location_lng } : undefined);
+
+      if (geoProvider && lastGeoPoint && coords) {
+         const dest: GeoPoint = { latitude: Number(coords.lat), longitude: Number(coords.lng), source: 'unknown', confidence: 'low' };
+         const travelEstimate = await geoProvider.getEstimate(lastGeoPoint, dest);
+         travelDurationMs = (travelEstimate.durationMinutes || 0) * 60000;
+      }
+
+      let proposedStart = curr + travelDurationMs;
+      const windows = SemanticRules.getValidWindows(candidate, day.date);
+      let isValidTime = windows.some(w => proposedStart >= w.startMs && proposedStart + durationMs <= Math.min(w.endMs, endMs));
+
+      if (!isValidTime) {
+         const nextWindow = windows.find(w => w.startMs >= proposedStart && w.startMs + durationMs <= Math.min(w.endMs, endMs));
+         if (nextWindow) {
+             proposedStart = nextWindow.startMs;
+             isValidTime = true;
+         }
+      }
+
+      if (isValidTime && proposedStart + durationMs <= endMs) {
+        usedIds.add(candidate.id);
+
         const classif = SemanticRules.getClassification(candidate);
         if (classif) {
            usedGlobal.parent[classif.parentRole] = (usedGlobal.parent[classif.parentRole] || 0) + 1;
            usedGlobal.semantic[classif.semanticRole] = (usedGlobal.semantic[classif.semanticRole] || 0) + 1;
            if (classif.foodSubtype) usedGlobal.food[classif.foodSubtype] = (usedGlobal.food[classif.foodSubtype] || 0) + 1;
-           
+
            dailyCounts.parent[classif.parentRole] = (dailyCounts.parent[classif.parentRole] || 0) + 1;
            dailyCounts.semantic[classif.semanticRole] = (dailyCounts.semantic[classif.semanticRole] || 0) + 1;
            if (classif.foodSubtype) dailyCounts.food[classif.foodSubtype] = (dailyCounts.food[classif.foodSubtype] || 0) + 1;
-           
+
            const isMeal = ['lunch', 'dinner', 'flexible_food', 'brunch', 'breakfast'].includes(classif.semanticRole);
            if (isMeal) {
-              dailyCounts.lastMealMs = curr + durationMs;
+              dailyCounts.lastMealMs = proposedStart + durationMs;
            }
         }
-        
+
         const vote = input.matchVotes[candidate.id];
         let reason = 'Sugestão estimada';
         if (vote === 'yes') reason = 'Match (Yes) - Estimativa';
         if (vote === 'love') reason = 'Match (Love) - Estimativa';
 
-        const coords = candidate.coordinates || (candidate.location_lat && candidate.location_lng ? { lat: candidate.location_lat, lng: candidate.location_lng } : undefined);
+        curr = proposedStart; // Leave gap for travel
 
         day.activities.push({
           id: candidate.id,
@@ -738,13 +821,18 @@ export class SchedulerV1 {
           geoSource: coords ? 'database' : undefined,
           geoConfidence: coords ? 'high' : undefined
         });
-        curr += durationMs + (30 * 60000);
+        curr += durationMs + (30 * 60000); // 30 min buffer after activity
         added++;
         if (coords) {
            lastGeoPoint = { latitude: Number(coords.lat), longitude: Number(coords.lng), source: 'unknown', confidence: 'low' };
         }
       } else {
-        break; 
+        // If candidate doesn't fit, just skip it this round.
+        // We will push curr forward so we don't infinite loop on same spot if no candidates fit
+        if (candidate === (pCandidates.length > 0 ? pCandidates[0] : null) || candidate === (sCandidates && sCandidates.length > 0 ? sCandidates[0] : null)) {
+            // We just let the while loop fail to add anything, so break
+            break;
+        }
       }
     }
 
