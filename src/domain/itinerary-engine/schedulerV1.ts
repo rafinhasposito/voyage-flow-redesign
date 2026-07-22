@@ -15,10 +15,13 @@ export interface ScheduledActivity {
   isEstimatedTime?: boolean; // For engine-suggested times
   isDecisionPending?: boolean; // For luggage decisions
   isWindow?: boolean; // Represents a flexible threshold, e.g. "From 15:00"
-  source: 'flight' | 'reservation' | 'engine' | 'logistics' | 'hotel' | 'transit';
+  source: 'flight' | 'reservation' | 'engine' | 'logistics' | 'hotel' | 'transit' | 'catalog';
   reason?: string;
   clusterId?: string; // Phase C Geographic cluster
   routeEstimate?: RouteSegment; // If this is a transit activity
+  sourceExperienceId?: string;
+  geoSource?: string;
+  geoConfidence?: string;
 }
 
 export interface DaySchedule {
@@ -404,10 +407,23 @@ export class SchedulerV1 {
       });
     });
 
-    if (hasBasecampWarning || gpsActs === 0 || totalActsGeo === 0) {
+    // We use the same getSituation logic to see if mapping failed
+    let mappingFailed = false;
+    draft.days.forEach(day => {
+      day.activities.forEach(act => {
+        if (act.type === 'experience') {
+           const origItem = input.catalog.find(c => c.id === act.sourceExperienceId || c.id === act.id);
+           if (!origItem) mappingFailed = true;
+        }
+      });
+    });
+
+    if (mappingFailed) {
+       draft.geographicReadiness = 'FAILED';
+    } else if (hasBasecampWarning || gpsActs === 0 || totalActsGeo === 0) {
        draft.geographicReadiness = 'INSUFFICIENT_DATA';
     } else if (generatedSegments === 0 && totalActsGeo > 1) {
-       draft.geographicReadiness = 'FAILED';
+       draft.geographicReadiness = 'INSUFFICIENT_DATA';
     } else if (gpsActs < totalActsGeo) {
        draft.geographicReadiness = 'PARTIAL';
     } else {
@@ -704,23 +720,28 @@ export class SchedulerV1 {
         if (vote === 'yes') reason = 'Match (Yes) - Estimativa';
         if (vote === 'love') reason = 'Match (Love) - Estimativa';
 
+        const coords = candidate.coordinates || (candidate.location_lat && candidate.location_lng ? { lat: candidate.location_lat, lng: candidate.location_lng } : undefined);
+
         day.activities.push({
           id: candidate.id,
+          sourceExperienceId: candidate.id,
           type: 'experience',
           title: candidate.name || candidate.title,
           startTime: `${day.date}T${this.toTimeStr(curr)}`,
           endTime: `${day.date}T${this.toTimeStr(curr + durationMs)}`,
-          location: candidate.address || candidate.location,
-          coordinates: candidate.location_lat && candidate.location_lng ? { lat: Number(candidate.location_lat), lng: Number(candidate.location_lng) } : undefined,
+          location: candidate.address || candidate.neighborhood || candidate.location,
+          coordinates: coords ? { lat: Number(coords.lat), lng: Number(coords.lng) } : undefined,
           isFixed: false,
           isEstimatedTime: true,
           source: 'engine',
-          reason: reason
+          reason: reason,
+          geoSource: coords ? 'database' : undefined,
+          geoConfidence: coords ? 'high' : undefined
         });
         curr += durationMs + (30 * 60000);
         added++;
-        if (candidate.location_lat && candidate.location_lng) {
-           lastGeoPoint = { latitude: Number(candidate.location_lat), longitude: Number(candidate.location_lng), source: 'unknown', confidence: 'low' };
+        if (coords) {
+           lastGeoPoint = { latitude: Number(coords.lat), longitude: Number(coords.lng), source: 'unknown', confidence: 'low' };
         }
       } else {
         break; 

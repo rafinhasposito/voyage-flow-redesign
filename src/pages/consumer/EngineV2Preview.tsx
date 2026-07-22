@@ -355,12 +355,18 @@ export default function EngineV2Preview() {
                                  </div>
                               )}
 
-                              {!act.coordinates && !act.isWindow && act.type !== 'flight' && (
-                                 <div className="mt-2 pt-2 border-t border-red-50 flex items-center gap-2 text-xs font-mono text-red-500 bg-red-50 p-2 rounded">
-                                   <AlertTriangle className="w-3 h-3 shrink-0" />
-                                   Deslocamento não calculado - Motivo: coordenadas ausentes
-                                 </div>
-                              )}
+                              {(() => {
+                                 const isRoutable = !act.isWindow && act.type !== 'flight' && act.source !== 'logistics' && act.source !== 'transit' && !act.id.includes('luggage') && !act.id.includes('rest');
+                                 if (isRoutable && !act.coordinates) {
+                                    return (
+                                      <div className="mt-2 pt-2 border-t border-red-50 flex items-center gap-2 text-xs font-mono text-red-500 bg-red-50 p-2 rounded">
+                                        <AlertTriangle className="w-3 h-3 shrink-0" />
+                                        Deslocamento não calculado - Motivo: coordenadas ausentes
+                                      </div>
+                                    );
+                                 }
+                                 return null;
+                              })()}
                             </>
                           )}
                         </div>

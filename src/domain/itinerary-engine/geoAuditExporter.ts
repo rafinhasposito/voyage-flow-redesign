@@ -49,42 +49,54 @@ export class GeoAuditExporter {
       else missing++;
     }
 
+    let mappingFailures = 0;
+
     const usedExpIds = new Set<string>();
     draft.days.forEach(d => {
       d.activities.forEach(a => {
         if (a.type === 'experience') {
-           usedExpIds.add(a.id);
-           const catItem = inputData.catalog.find(c => c.id === a.id);
-           const situation = getSituation(a.coordinates?.lat, a.coordinates?.lng);
+           const origId = a.sourceExperienceId || a.id;
+           usedExpIds.add(origId);
+           const catItem = inputData.catalog.find(c => c.id === origId);
            
+           let situation = getSituation(a.coordinates?.lat, a.coordinates?.lng);
+           
+           if (!catItem) {
+              situation = 'mapping_failed';
+           }
+
            const actData = {
-             id: a.id,
+             id: origId,
+             activityId: a.id,
              name: a.title,
              type: 'Experience',
              address: catItem?.address || 'Não preenchido',
              neighborhood: catItem?.neighborhood || 'Não preenchido',
              lat: a.coordinates?.lat,
              lng: a.coordinates?.lng,
-             origin: 'catalog',
+             origin: a.geoSource || 'catalog',
+             confidence: a.geoConfidence || 'unknown',
              situation,
              diagnostics: {
                catalogFields: {
                  location_lat: catItem?.location_lat,
                  location_lng: catItem?.location_lng,
                  latitude: catItem?.latitude,
-                 longitude: catItem?.longitude
+                 longitude: catItem?.longitude,
+                 coordinates: catItem?.coordinates
                },
                normalizedFields: {
-                 lat: catItem?.location_lat || catItem?.latitude,
-                 lng: catItem?.location_lng || catItem?.longitude
+                 lat: catItem?.coordinates?.lat || catItem?.location_lat || catItem?.latitude,
+                 lng: catItem?.coordinates?.lng || catItem?.location_lng || catItem?.longitude
                },
                finalCoordinates: a.coordinates,
-               reasonIfMissing: situation !== 'valid_gps' ? 'Coordenadas ausentes no banco ou InputBuilder.' : null
+               reasonIfMissing: situation === 'mapping_failed' ? 'Falha no mapping. Origem não encontrada no catálogo.' : situation !== 'valid_gps' ? 'Coordenadas ausentes no banco ou InputBuilder.' : null
              }
            };
 
            if (situation === 'valid_gps') valid++;
            else if (situation === 'invalid_gps') invalid++;
+           else if (situation === 'mapping_failed') mappingFailures++;
            else missing++;
 
            exportData.draftActivities.push(actData);
@@ -97,6 +109,7 @@ export class GeoAuditExporter {
     exportData.summary.validGps = valid;
     exportData.summary.missingGps = missing;
     exportData.summary.invalidGps = invalid;
+    exportData.summary.mappingFailures = mappingFailures;
     exportData.summary.coveragePercent = exportData.summary.totalEntities > 0 ? Math.round((valid / exportData.summary.totalEntities) * 100) : 0;
     
     let possibleSegments = 0;
