@@ -1,7 +1,5 @@
-import { TripEngineInputV1, FixedAnchor, FlightSegment, Basecamp } from './contracts';
+import { TripEngineInputV1, FixedAnchor, FlightSegment } from './contracts';
 import { SemanticRules } from './semanticRules';
-import { GeoRoutingProvider, LocalDeterministicGeoProvider } from './geoProvider';
-import { GeoPoint, RouteSegment, GeoHealthIssue } from './geoContracts';
 
 export interface ScheduledActivity {
   id: string;
@@ -15,10 +13,8 @@ export interface ScheduledActivity {
   isEstimatedTime?: boolean; // For engine-suggested times
   isDecisionPending?: boolean; // For luggage decisions
   isWindow?: boolean; // Represents a flexible threshold, e.g. "From 15:00"
-  source: 'flight' | 'reservation' | 'engine' | 'logistics' | 'hotel' | 'transit';
+  source: 'flight' | 'reservation' | 'engine' | 'logistics' | 'hotel';
   reason?: string;
-  clusterId?: string; // Phase C Geographic cluster
-  routeEstimate?: RouteSegment; // If this is a transit activity
 }
 
 export interface DaySchedule {
@@ -32,39 +28,16 @@ export interface ItineraryDraftV1 {
   days: DaySchedule[];
   unassigned: any[];
   overallWarnings: string[];
-  geoHealthIssues: GeoHealthIssue[];
-  temporalReadiness: boolean;
-  semanticReadiness: boolean;
-  geographicReadiness: boolean;
-  integrationReadiness: boolean;
 }
 
 export class SchedulerV1 {
-  static async generate(input: TripEngineInputV1, geoProvider?: GeoRoutingProvider): Promise<ItineraryDraftV1> {
+  static generate(input: TripEngineInputV1): ItineraryDraftV1 {
     const draft: ItineraryDraftV1 = {
       tripId: input.tripId,
       days: [],
       unassigned: [],
-      overallWarnings: [],
-      geoHealthIssues: [],
-      temporalReadiness: false,
-      semanticReadiness: false,
-      geographicReadiness: false,
-      integrationReadiness: false
+      overallWarnings: []
     };
-
-    
-    let hasBasecampGps = false;
-    if (input.basecamp) {
-      if (input.basecamp.lat && input.basecamp.lng) hasBasecampGps = true;
-      else draft.geoHealthIssues.push({ code: 'BASECAMP_GPS_MISSING', severity: 'warning', message: 'Basecamp não possui coordenadas GPS' });
-    }
-
-    input.fixedReservations.forEach(r => {
-       if (!r.coordinates?.lat || !r.coordinates?.lng) {
-          draft.geoHealthIssues.push({ code: 'FIXED_ANCHOR_GPS_MISSING', severity: 'warning', message: `Reserva fixa ${r.type} não possui GPS`, affectedIds: [r.id] });
-       }
-    });
 
     if (!input.startDate || !input.endDate) {
       draft.overallWarnings.push("Datas da viagem indefinidas. Roteiro não gerado.");
@@ -155,7 +128,7 @@ export class SchedulerV1 {
     const usedGlobalCounts = { parent: usedParentRoles, semantic: usedSemanticRoles, food: usedFoodSubtypes };
 
     // 4. Fill gaps with Semantic Rules
-    for (const day of draft.days) {
+    draft.days.forEach(day => {
       let dayStartMs = 9 * 3600000;
       let dayEndMs = 21 * 3600000;
 
@@ -165,19 +138,19 @@ export class SchedulerV1 {
       // Strict pre-trip check
       if (tripStartMs !== -1 && absoluteDayStart + dayEndMs < tripStartMs) {
          day.warnings.push("Pré-viagem. Nenhuma atividade programada.");
-         continue; 
+         return; 
       }
       
       // Strict post-trip check
       if (tripEndMs !== -1 && absoluteDayStart >= tripEndMs) {
          day.warnings.push("Pós-viagem. Nenhuma atividade programada.");
-         continue;
+         return;
       }
       
       // Missing departure flight blocks the last day to prevent fake assumptions
       if (tripEndMs === -1 && absoluteDayStart === new Date(input.endDate).getTime()) {
          day.warnings.push("Planejamento incompleto: informe sua partida para liberar atividades com segurança.");
-         continue;
+         return;
       }
 
       // Arrival day adjustment
@@ -208,7 +181,7 @@ export class SchedulerV1 {
         const actStartMs = this.parseMs(act.startTime.split('T')[1]);
         
         if (currentMs < actStartMs) {
-           currentMs = await this.fillWindow(day, currentMs, actStartMs, priorityItems, secondaryItems, usedIds, usedGlobalCounts, dailyCounts, input, isFirstDay, geoProvider, day.activities);
+           currentMs = this.fillWindow(day, currentMs, actStartMs, priorityItems, secondaryItems, usedIds, usedGlobalCounts, dailyCounts, input, isFirstDay);
         }
         
         const actEndMs = this.parseMs(act.endTime.split('T')[1]);
@@ -216,9 +189,9 @@ export class SchedulerV1 {
       }
 
       if (currentMs < dayEndMs) {
-        await this.fillWindow(day, currentMs, dayEndMs, priorityItems, secondaryItems, usedIds, usedGlobalCounts, dailyCounts, input, isFirstDay, geoProvider, day.activities);
+        this.fillWindow(day, currentMs, dayEndMs, priorityItems, secondaryItems, usedIds, usedGlobalCounts, dailyCounts, input, isFirstDay);
       }
-    }
+    });
 
     // 5. Final Sorting and Overlap Detection
     draft.days.forEach(day => {
@@ -326,69 +299,6 @@ export class SchedulerV1 {
           }
        }
     });
-
-
-    // 7. Inject Route Segments
-    if (geoProvider) {
-      for (const day of draft.days) {
-         const newActs: ScheduledActivity[] = [];
-         let lastGeoAct: ScheduledActivity | null = null;
-         
-         for (const act of day.activities) {
-            if (act.isWindow) {
-               newActs.push(act);
-               continue;
-            }
-            
-            let actGeo: GeoPoint | null = null;
-            if (act.coordinates?.lat && act.coordinates?.lng) {
-               actGeo = { latitude: act.coordinates.lat, longitude: act.coordinates.lng, source: 'unknown', confidence: 'low' };
-            } else if (act.location && input.basecamp?.name && act.location === input.basecamp.name && input.basecamp.lat && input.basecamp.lng) {
-               actGeo = { latitude: input.basecamp.lat, longitude: input.basecamp.lng, source: 'reservation', confidence: 'high' };
-            }
-            
-            if (lastGeoAct && actGeo && lastGeoAct.coordinates) {
-               // We need a segment
-               const origin: GeoPoint = { latitude: lastGeoAct.coordinates.lat!, longitude: lastGeoAct.coordinates.lng!, source: 'unknown', confidence: 'low' };
-               const estimate = await geoProvider.getEstimate(origin, actGeo);
-               
-               if (estimate.distanceMeters > 50) {
-                 const segment: RouteSegment = {
-                    fromActivityId: lastGeoAct.id,
-                    toActivityId: act.id,
-                    estimate,
-                    departureTime: lastGeoAct.endTime,
-                    arrivalTime: act.startTime
-                 };
-                 newActs.push({
-                    id: `transit-${lastGeoAct.id}-${act.id}`,
-                    type: 'logistics',
-                    title: `Deslocamento (${estimate.mode === 'walk' ? 'A pé' : 'Transporte'})`,
-                    startTime: lastGeoAct.endTime,
-                    endTime: act.startTime, // Assuming flexible transit
-                    isFixed: false,
-                    isEstimatedTime: true,
-                    source: 'transit',
-                    reason: `Estimativa geográfica (${estimate.durationMinutes} min / ${estimate.distanceMeters} m)`,
-                    routeEstimate: segment
-                 });
-               }
-            }
-            
-            newActs.push(act);
-            if (actGeo) {
-               act.coordinates = { lat: actGeo.latitude, lng: actGeo.longitude };
-               lastGeoAct = act;
-            }
-         }
-         day.activities = newActs;
-      }
-    }
-    
-    draft.temporalReadiness = draft.overallWarnings.length === 0;
-    draft.semanticReadiness = !draft.days.some(d => d.warnings.length > 0);
-    draft.geographicReadiness = draft.geoHealthIssues.filter(g => g.severity === 'critical').length === 0;
-    draft.integrationReadiness = draft.temporalReadiness && draft.semanticReadiness && draft.geographicReadiness;
 
     return draft;
   }
@@ -541,7 +451,7 @@ export class SchedulerV1 {
     return new Date(dateStr).getTime() + luggageStartMs;
   }
 
-  private static async fillWindow(
+  private static fillWindow(
     day: DaySchedule,
     startMs: number,
     endMs: number,
@@ -551,32 +461,11 @@ export class SchedulerV1 {
     usedGlobal: { parent: Record<string, number>, semantic: Record<string, number>, food: Record<string, number> },
     dailyCounts: { parent: Record<string, number>, semantic: Record<string, number>, food: Record<string, number>, lastMealMs: number },
     input: TripEngineInputV1,
-    isFirstDay: boolean,
-    geoProvider: GeoRoutingProvider | undefined,
-    currentActivities: ScheduledActivity[]
-  ): Promise<number> {
+    isFirstDay: boolean
+  ): number {
     let curr = startMs;
     let maxPaceActs = input.pace === 'relaxed' ? 2 : input.pace === 'intense' ? 4 : 3;
     let added = 0;
-
-    let lastGeoPoint: GeoPoint | null = null;
-    
-    // Find the last known location to use as origin
-    for (let i = currentActivities.length - 1; i >= 0; i--) {
-      const act = currentActivities[i];
-      if (act.coordinates?.lat && act.coordinates?.lng) {
-         lastGeoPoint = { latitude: act.coordinates.lat, longitude: act.coordinates.lng, source: 'unknown', confidence: 'low' };
-         break;
-      } else if (act.location && input.basecamp?.name && act.location === input.basecamp.name && input.basecamp.lat && input.basecamp.lng) {
-         lastGeoPoint = { latitude: input.basecamp.lat, longitude: input.basecamp.lng, source: 'reservation', confidence: 'high' };
-         break;
-      }
-    }
-    
-    if (!lastGeoPoint && input.basecamp?.lat && input.basecamp?.lng) {
-       lastGeoPoint = { latitude: input.basecamp.lat, longitude: input.basecamp.lng, source: 'reservation', confidence: 'high' };
-    }
-
 
     const getCandidates = (list: any[]) => {
       return list.filter(item => {
@@ -620,27 +509,10 @@ export class SchedulerV1 {
     while (curr < endMs && added < maxPaceActs) {
       let candidate = null;
 
-
-      const sortCandidates = async (candidates: any[]) => {
-         if (!geoProvider || !lastGeoPoint || candidates.length === 0) return candidates;
-         
-         const withDist = await Promise.all(candidates.map(async c => {
-            if (!c.location_lat || !c.location_lng) return { c, dist: 99999999 };
-            const dest: GeoPoint = { latitude: Number(c.location_lat), longitude: Number(c.location_lng), source: 'unknown', confidence: 'low' };
-            const est = await geoProvider.getEstimate(lastGeoPoint!, dest);
-            return { c, dist: est.distanceMeters };
-         }));
-         
-         withDist.sort((a, b) => a.dist - b.dist);
-         return withDist.map(w => w.c);
-      };
-
-      let pCandidates = getCandidates(priority);
-      pCandidates = await sortCandidates(pCandidates);
+      const pCandidates = getCandidates(priority);
       if (pCandidates.length > 0) candidate = pCandidates[0]; 
       else {
-        let sCandidates = getCandidates(secondary);
-        sCandidates = await sortCandidates(sCandidates);
+        const sCandidates = getCandidates(secondary);
         if (sCandidates.length > 0) candidate = sCandidates[0];
       }
 
@@ -683,7 +555,6 @@ export class SchedulerV1 {
           startTime: `${day.date}T${this.toTimeStr(curr)}`,
           endTime: `${day.date}T${this.toTimeStr(curr + durationMs)}`,
           location: candidate.address || candidate.location,
-          coordinates: candidate.location_lat && candidate.location_lng ? { lat: Number(candidate.location_lat), lng: Number(candidate.location_lng) } : undefined,
           isFixed: false,
           isEstimatedTime: true,
           source: 'engine',
@@ -691,9 +562,6 @@ export class SchedulerV1 {
         });
         curr += durationMs + (30 * 60000);
         added++;
-        if (candidate.location_lat && candidate.location_lng) {
-           lastGeoPoint = { latitude: Number(candidate.location_lat), longitude: Number(candidate.location_lng), source: 'unknown', confidence: 'low' };
-        }
       } else {
         break; 
       }

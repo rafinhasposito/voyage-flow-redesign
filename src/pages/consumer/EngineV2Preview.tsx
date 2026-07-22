@@ -7,6 +7,7 @@ import { EngineInputBuilder } from '@/domain/itinerary-engine/inputBuilder';
 import { InputHealthValidator, TripEngineInputHealth } from '@/domain/itinerary-engine/inputHealth';
 import { SchedulerV1, ItineraryDraftV1, DaySchedule, ScheduledActivity } from '@/domain/itinerary-engine/schedulerV1';
 import { TripEngineInputV1 } from '@/domain/itinerary-engine/contracts';
+import { LocalDeterministicGeoProvider } from '@/domain/itinerary-engine/geoProvider';
 import { Loader2, ArrowLeft, AlertTriangle, CheckCircle, Info, Plane, Hotel, MapPin, Calendar, Clock, BarChart } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
@@ -36,7 +37,8 @@ export default function EngineV2Preview() {
       const healthResult = InputHealthValidator.validate(input);
       setHealth(healthResult);
 
-      const itineraryDraft = SchedulerV1.generate(input);
+      const geoProvider = new LocalDeterministicGeoProvider();
+      const itineraryDraft = await SchedulerV1.generate(input, geoProvider);
       setDraft(itineraryDraft);
 
     } catch (err: any) {
@@ -68,6 +70,7 @@ export default function EngineV2Preview() {
   const renderActivityIcon = (act: ScheduledActivity) => {
     if (act.type === 'flight') return <Plane className="w-5 h-5 text-indigo-500" />;
     if (act.type === 'hotel') return <Hotel className="w-5 h-5 text-fuchsia-500" />;
+    if (act.source === 'transit') return <Info className="w-5 h-5 text-sky-500" />;
     if (act.isFixed) return <Calendar className="w-5 h-5 text-amber-500" />;
     return <MapPin className="w-5 h-5 text-lime-500" />;
   };
@@ -129,6 +132,14 @@ export default function EngineV2Preview() {
                    }
                 });
              });
+             
+             draft.geoHealthIssues?.forEach(g => {
+                if (g.severity === 'critical') {
+                   integrationBlocked = true;
+                   hasCriticals = true;
+                   blockReasons.push(`[GEO_CRITICAL] ${g.message}`);
+                }
+             });
              if (draft.overallWarnings.some(w => w.includes('Planejamento incompleto'))) {
                 integrationBlocked = true;
              }
@@ -172,6 +183,23 @@ export default function EngineV2Preview() {
                     {health?.warnings.length === 0 && <li className="text-slate-400">Nenhum warning.</li>}
                   </ul>
                </div>
+               {draft?.geoHealthIssues && draft.geoHealthIssues.length > 0 && (
+                 <div className="md:col-span-2">
+                    <h3 className="font-bold text-sm text-sky-800 bg-sky-50 p-2 rounded mb-2 flex items-center justify-between">
+                       <span>Geo Health Issues ({draft.geoHealthIssues.length})</span>
+                       <span className="text-xs font-mono px-2 py-1 bg-white rounded border border-sky-100">
+                         {draft.geographicReadiness ? 'Ready' : 'Not Ready'}
+                       </span>
+                    </h3>
+                    <ul className="space-y-2 text-sm">
+                      {draft.geoHealthIssues.map((g, i) => (
+                        <li key={`geo-${i}`} className={`flex gap-2 ${g.severity === 'critical' ? 'text-red-700 font-bold' : 'text-sky-700'}`}>
+                           <MapPin className="w-4 h-4 shrink-0" /> [{g.code}] {g.message}
+                        </li>
+                      ))}
+                    </ul>
+                 </div>
+               )}
             </div>
           </section>
         )})()}
@@ -295,6 +323,14 @@ export default function EngineV2Preview() {
                              <div className="mt-3 pt-3 border-t border-slate-50 text-xs text-slate-400 font-medium">
                                <Info className="inline w-3 h-3 mr-1 -mt-0.5" />
                                {act.reason}
+                             </div>
+                          )}
+                          
+                          {act.routeEstimate && (
+                             <div className="mt-2 pt-2 border-t border-slate-100 flex items-center gap-4 text-xs font-mono text-sky-700 bg-sky-50 p-2 rounded">
+                               <div>🚗 {act.routeEstimate.estimate.distanceMeters}m</div>
+                               <div>⏱ {act.routeEstimate.estimate.durationMinutes} min</div>
+                               <div>({act.routeEstimate.estimate.mode})</div>
                              </div>
                           )}
                         </div>

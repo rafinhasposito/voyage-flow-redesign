@@ -34,7 +34,7 @@ async function runTests() {
   mockCatalog.forEach(c => input.matchVotes[c.id] = 'yes');
   input.matchVotes["press"] = "maybe"; // Will be used for Repair Pass test
 
-  const draft = SchedulerV1.generate(input);
+  const draft = await SchedulerV1.generate(input);
   
   const getScheduledStartTime = (id: string) => {
      let st = '';
