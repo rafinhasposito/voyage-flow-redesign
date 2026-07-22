@@ -78,9 +78,7 @@ export default function EngineV2Preview() {
       
       healthResult?.warnings.forEach(w => currentWarnings.push(w.message));
       
-      if (itineraryDraft.overallWarnings.some(w => w.includes('Planejamento incompleto'))) {
-         integrationBlocked = true;
-      }
+      itineraryDraft.overallWarnings.forEach(w => currentWarnings.push(w));
       
       currentWarnings = [...new Set(currentWarnings)];
       setPendingWarnings(currentWarnings);

@@ -41,17 +41,17 @@ describe('EngineV2Preview Gate UI', () => {
       confidence: 'high'
     } as any);
     
-    // Mock Scheduler to return a valid draft with 1 warning
+    // Mock Scheduler to return a valid draft with 1 warning and 1 overallWarning
     vi.spyOn(SchedulerV1, 'generate').mockResolvedValue({
       days: [
         {
           dayNumber: 1,
           date: '2026-10-10',
           activities: [],
-          warnings: ['Basecamp sem GPS'] // 1 Warning to trigger REVIEW_WITH_WARNINGS
+          warnings: ['Basecamp sem GPS'] // 1 Warning
         }
       ],
-      overallWarnings: [],
+      overallWarnings: ['Planejamento incompleto: Voo de partida ausente'], // 1 Overall Warning
       geoHealthIssues: [],
       geographicReadiness: 'PARTIAL',
       providerUsed: 'local_fallback',
@@ -107,8 +107,11 @@ describe('EngineV2Preview Gate UI', () => {
     expect(finalBtn).toHaveProperty('disabled', true);
 
     // 6. Check the warning checkboxes
-    const warningCheckbox = screen.getByLabelText(/Estou ciente de que Basecamp sem GPS/i);
-    fireEvent.click(warningCheckbox);
+    const warningCheckbox1 = screen.getByLabelText(/Estou ciente de que Basecamp sem GPS/i);
+    fireEvent.click(warningCheckbox1);
+
+    const warningCheckbox2 = screen.getByLabelText(/Estou ciente de que Planejamento incompleto: Voo de partida ausente/i);
+    fireEvent.click(warningCheckbox2);
     
     const rollbackCheckbox = screen.getByLabelText(/Estou ciente de que esta aplicação de desenvolvimento não possui rollback persistente/i);
     fireEvent.click(rollbackCheckbox);
@@ -144,6 +147,7 @@ describe('EngineV2Preview Gate UI', () => {
     });
     
     fireEvent.click(screen.getByLabelText(/Estou ciente de que Basecamp sem GPS/i));
+    fireEvent.click(screen.getByLabelText(/Estou ciente de que Planejamento incompleto: Voo de partida ausente/i));
     fireEvent.click(screen.getByLabelText(/Estou ciente de que esta aplicação de desenvolvimento não possui rollback persistente/i));
     
     fireEvent.click(screen.getByText('Aprovar com ressalvas e aplicar ao Trip Space'));
