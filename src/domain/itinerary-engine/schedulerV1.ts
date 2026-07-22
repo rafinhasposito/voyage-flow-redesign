@@ -4,8 +4,8 @@ export interface ScheduledActivity {
   id: string;
   type: string;
   title: string;
-  startTime: string; // ISO string local or UTC
-  endTime: string; // ISO string
+  startTime: string; // "YYYY-MM-DDTHH:mm:00" local format
+  endTime: string; // "YYYY-MM-DDTHH:mm:00" local format
   location?: string;
   coordinates?: { lat: number; lng: number };
   isFixed: boolean;
@@ -40,14 +40,18 @@ export class SchedulerV1 {
       return draft;
     }
 
-    const sDate = new Date(input.startDate);
-    const eDate = new Date(input.endDate);
-    const diffDays = Math.ceil((eDate.getTime() - sDate.getTime()) / (1000 * 3600 * 24)) + 1;
+    const [sYear, sMonth, sDay] = input.startDate.split('-').map(Number);
+    const [eYear, eMonth, eDay] = input.endDate.split('-').map(Number);
+    const sDateObj = new Date(sYear, sMonth - 1, sDay);
+    const eDateObj = new Date(eYear, eMonth - 1, eDay);
+    const diffDays = Math.round((eDateObj.getTime() - sDateObj.getTime()) / (1000 * 3600 * 24)) + 1;
 
     for (let i = 0; i < diffDays; i++) {
-      const current = new Date(sDate.getTime() + i * 86400000);
+      const current = new Date(sYear, sMonth - 1, sDay + i);
+      const pad = (n: number) => n.toString().padStart(2, '0');
+      const dateStr = `${current.getFullYear()}-${pad(current.getMonth() + 1)}-${pad(current.getDate())}`;
       draft.days.push({
-        date: current.toISOString().split('T')[0],
+        date: dateStr,
         activities: [],
         warnings: []
       });
@@ -56,21 +60,37 @@ export class SchedulerV1 {
     // Insert Flights
     if (input.arrivalFlight) {
       this.insertFlightAnchor(draft, input.arrivalFlight, 'arrival');
+    } else {
+      draft.overallWarnings.push("Voo de chegada não identificado. O roteiro não possui âncora inicial.");
     }
+    
     if (input.departureFlight) {
       this.insertFlightAnchor(draft, input.departureFlight, 'departure');
+    } else {
+      draft.overallWarnings.push("Voo de partida não identificado. O roteiro não possui âncora final.");
     }
 
     // Insert Fixed Reservations
     input.fixedReservations.forEach(res => {
       const day = draft.days.find(d => d.date === res.date);
       if (day) {
+        // Parse local hour from start time
+        let sTime = res.startTime;
+        let eTime = res.endTime;
+        if (sTime.includes('Z')) {
+           // Basic fallback if still in ISO UTC
+           sTime = sTime.replace('Z', '');
+        }
+        if (eTime.includes('Z')) {
+           eTime = eTime.replace('Z', '');
+        }
+
         day.activities.push({
           id: res.id,
           type: res.type,
           title: `Reserva: ${res.type}`,
-          startTime: res.startTime,
-          endTime: res.endTime,
+          startTime: sTime,
+          endTime: eTime,
           location: res.location,
           coordinates: res.coordinates,
           isFixed: true,
@@ -84,8 +104,8 @@ export class SchedulerV1 {
 
     // Determine availability windows per day
     draft.days.forEach(day => {
-      // Sort activities by start time
-      day.activities.sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime());
+      // Sort activities by start time alphabetically since they are YYYY-MM-DDTHH:mm:ss
+      day.activities.sort((a, b) => a.startTime.localeCompare(b.startTime));
     });
 
     // Fill gaps with Match 'yes' and 'maybe'
@@ -93,8 +113,7 @@ export class SchedulerV1 {
     // Filter out avoidances / 'no' votes
     const validCatalog = catalog.filter(item => {
       const vote = input.matchVotes[item.id];
-      if (vote === 'no') return false;
-      // Also filter by avoidances if categories were mapped
+      if (vote === 'no' || vote === 'dislike') return false;
       return true;
     });
 
@@ -102,44 +121,51 @@ export class SchedulerV1 {
     const priorityItems = validCatalog.filter(item => ['yes', 'love'].includes(input.matchVotes[item.id]));
     const secondaryItems = validCatalog.filter(item => !['yes', 'love'].includes(input.matchVotes[item.id]));
 
-    let priorityIdx = 0;
-    let secondaryIdx = 0;
+    // Global Used IDs
+    const usedIds = new Set<string>();
+
+    const pad = (n: number) => n.toString().padStart(2, '0');
 
     // A simple deterministic pass
-    // Start at 09:00, end at 21:00
+    // Start at 09:00, end at 21:00 (Local semantics)
     draft.days.forEach(day => {
-      const dayStart = new Date(`${day.date}T09:00:00Z`); // Mocking local as Z for simple diff logic
-      const dayEnd = new Date(`${day.date}T21:00:00Z`);
+      const [dy, dm, dd] = day.date.split('-').map(Number);
+      // We will use local MS counter for the day from 00:00 to 23:59 purely for gap math
+      // 09:00 is 9 * 3600000 ms from start of day
+      const dayStartMs = 9 * 3600000;
+      const dayEndMs = 21 * 3600000;
 
-      let currentTime = dayStart.getTime();
+      let currentMs = dayStartMs;
 
-      // We inject items between fixed activities
       for (const act of day.activities) {
         if (act.isFixed) {
-          const actStart = new Date(act.startTime).getTime();
-          // Fill from currentTime to actStart
-          currentTime = this.fillWindow(day, currentTime, actStart, priorityItems, secondaryItems, priorityIdx, secondaryIdx, input);
-          priorityIdx = this.updateIdx(day.activities, priorityItems);
-          secondaryIdx = this.updateIdx(day.activities, secondaryItems);
-          currentTime = new Date(act.endTime).getTime() + (30 * 60000); // 30 min buffer after
+          // parse act.startTime local string to ms from 00:00
+          const timePart = act.startTime.split('T')[1] || "00:00:00";
+          const [h, m, s] = timePart.split(':').map(Number);
+          const actStartMs = (h * 3600000) + (m * 60000);
+          
+          currentMs = this.fillWindow(day, currentMs, actStartMs, priorityItems, secondaryItems, usedIds, input);
+          
+          const endPart = act.endTime.split('T')[1] || "00:00:00";
+          const [eh, em, es] = endPart.split(':').map(Number);
+          const actEndMs = (eh * 3600000) + (em * 60000);
+          
+          currentMs = actEndMs + (30 * 60000); // 30 min buffer after
         }
       }
 
-      // Fill remaining day
-      if (currentTime < dayEnd.getTime()) {
-        this.fillWindow(day, currentTime, dayEnd.getTime(), priorityItems, secondaryItems, priorityIdx, secondaryIdx, input);
-        priorityIdx = this.updateIdx(day.activities, priorityItems);
-        secondaryIdx = this.updateIdx(day.activities, secondaryItems);
+      if (currentMs < dayEndMs) {
+        this.fillWindow(day, currentMs, dayEndMs, priorityItems, secondaryItems, usedIds, input);
       }
     });
 
-    // Verify overlaps (simple check)
+    // Verify overlaps
     draft.days.forEach(day => {
-      day.activities.sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime());
+      day.activities.sort((a, b) => a.startTime.localeCompare(b.startTime));
       for (let i = 0; i < day.activities.length - 1; i++) {
         const a = day.activities[i];
         const b = day.activities[i+1];
-        if (new Date(a.endTime).getTime() > new Date(b.startTime).getTime()) {
+        if (a.endTime > b.startTime) {
            day.warnings.push(`Sobreposição detectada entre ${a.title} e ${b.title}`);
         }
       }
@@ -149,30 +175,49 @@ export class SchedulerV1 {
   }
 
   private static insertFlightAnchor(draft: ItineraryDraftV1, flight: FlightSegment, type: 'arrival' | 'departure') {
-    const datetimeStr = type === 'arrival' ? flight.arrivalLocalDateTime : flight.departureLocalDateTime;
-    const instant = type === 'arrival' ? flight.arrivalInstant : flight.departureInstant;
-    if (!datetimeStr && !instant) return;
-
-    const dateObj = new Date(instant || datetimeStr);
-    const dateStr = dateObj.toISOString().split('T')[0];
-
+    // Determine the local datetime string
+    // departureLocalDateTime is often YYYY-MM-DDTHH:mm:00
+    const localStr = type === 'arrival' ? flight.arrivalLocalDateTime : flight.departureLocalDateTime;
+    if (!localStr) {
+      draft.overallWarnings.push(`Voo ${flight.flightNumber} sem horário local definido. Omissão de âncora.`);
+      return;
+    }
+    
+    // localStr format: YYYY-MM-DDTHH:mm:00 (no Z)
+    const dateStr = localStr.split('T')[0];
     const day = draft.days.find(d => d.date === dateStr);
+
     if (day) {
-      const bufferMs = type === 'arrival' ? 2 * 3600000 : 3 * 3600000; // 2h after arrival, 3h before departure
+      // Calculate buffer purely via string math or simple hour math
+      const timePart = localStr.split('T')[1] || "00:00:00";
+      const [h, m] = timePart.split(':').map(Number);
+      const flightMs = (h * 3600000) + (m * 60000);
+
+      const bufferMs = type === 'arrival' ? 2 * 3600000 : 3 * 3600000;
       
-      const st = type === 'arrival' ? dateObj.getTime() : dateObj.getTime() - bufferMs;
-      const et = type === 'arrival' ? dateObj.getTime() + bufferMs : dateObj.getTime();
+      const stMs = type === 'arrival' ? flightMs : flightMs - bufferMs;
+      const etMs = type === 'arrival' ? flightMs + bufferMs : flightMs;
+
+      const pad = (n: number) => n.toString().padStart(2, '0');
+      const toTime = (ms: number) => {
+         const d = new Date(ms); // using unix epoch just for formatting 00:00 UTC
+         const hrs = Math.floor(ms / 3600000);
+         const mins = Math.floor((ms % 3600000) / 60000);
+         return `${pad(Math.max(0, Math.min(23, hrs)))}:${pad(Math.max(0, Math.min(59, mins)))}:00`;
+      };
 
       day.activities.push({
         id: `flight-${type}`,
         type: 'flight',
         title: type === 'arrival' ? `Chegada do Voo ${flight.flightNumber}` : `Partida do Voo ${flight.flightNumber}`,
-        startTime: new Date(st).toISOString(),
-        endTime: new Date(et).toISOString(),
+        startTime: `${dateStr}T${toTime(stMs)}`,
+        endTime: `${dateStr}T${toTime(etMs)}`,
         isFixed: true,
         source: 'flight',
         reason: 'Restrição Logística Absoluta'
       });
+    } else {
+       draft.overallWarnings.push(`O voo ${flight.flightNumber} ocorre em ${dateStr}, que está fora das datas da viagem.`);
     }
   }
 
@@ -182,44 +227,61 @@ export class SchedulerV1 {
     endMs: number,
     priority: any[],
     secondary: any[],
-    pIdx: number,
-    sIdx: number,
+    usedIds: Set<string>,
     input: TripEngineInputV1
   ): number {
     let curr = startMs;
     const maxPaceActs = input.pace === 'relaxed' ? 2 : input.pace === 'intense' ? 4 : 3;
     let added = 0;
 
+    const [dy, dm, dd] = day.date.split('-');
+
     while (curr < endMs && added < maxPaceActs) {
       let candidate = null;
       let isPriority = false;
 
-      // Unassigned priority item
-      const pCand = priority.find(p => !day.activities.some(a => a.id === p.id) && !input.flexibleReservations.some(r => r.id === p.id));
+      // Find unused priority
+      const pCand = priority.find(p => !usedIds.has(p.id));
       if (pCand) {
         candidate = pCand;
         isPriority = true;
       } else {
-        const sCand = secondary.find(s => !day.activities.some(a => a.id === s.id) && !input.flexibleReservations.some(r => r.id === s.id));
+        const sCand = secondary.find(s => !usedIds.has(s.id));
         if (sCand) candidate = sCand;
       }
 
       if (!candidate) break;
 
-      // Assuming 2 hours duration for generated items
-      const durationMs = 2 * 3600000; 
+      const durationMins = candidate.durationHours ? candidate.durationHours * 60 : 120;
+      const durationMs = durationMins * 60000;
+
       if (curr + durationMs <= endMs) {
+        usedIds.add(candidate.id); // Mark globally used
+        
+        const pad = (n: number) => n.toString().padStart(2, '0');
+        const toTime = (ms: number) => {
+           const hrs = Math.floor(ms / 3600000);
+           const mins = Math.floor((ms % 3600000) / 60000);
+           return `${pad(Math.max(0, Math.min(23, hrs)))}:${pad(Math.max(0, Math.min(59, mins)))}:00`;
+        };
+
+        const vote = input.matchVotes[candidate.id];
+        let reason = 'Sugestão da IA';
+        if (vote === 'yes') reason = 'Match Confirmado (Yes)';
+        if (vote === 'love') reason = 'Match Favorito (Love)';
+        if (vote === 'maybe') reason = 'Sugestão Aberta (Maybe)';
+
         day.activities.push({
           id: candidate.id,
           type: 'experience',
           title: candidate.name || candidate.title,
-          startTime: new Date(curr).toISOString(),
-          endTime: new Date(curr + durationMs).toISOString(),
+          startTime: `${day.date}T${toTime(curr)}`,
+          endTime: `${day.date}T${toTime(curr + durationMs)}`,
           location: candidate.address,
           coordinates: candidate.lat && candidate.lng ? { lat: candidate.lat, lng: candidate.lng } : undefined,
           isFixed: false,
           source: 'engine',
-          reason: isPriority ? 'Favoritado pelo usuário (Match Yes)' : 'Sugestão da IA (Talvez/Aberto)'
+          reason: reason
         });
         curr += durationMs + (30 * 60000); // 30m travel buffer
         added++;
@@ -229,9 +291,5 @@ export class SchedulerV1 {
     }
 
     return curr;
-  }
-
-  private static updateIdx(activities: ScheduledActivity[], sourceArr: any[]) {
-     return 0; // The logic uses .find to exclude already added, so idx isn't strictly needed if we scan
   }
 }

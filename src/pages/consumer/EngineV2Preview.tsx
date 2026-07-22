@@ -6,7 +6,8 @@ import { ExperienceRepository } from '@/repositories/ExperienceRepository';
 import { EngineInputBuilder } from '@/domain/itinerary-engine/inputBuilder';
 import { InputHealthValidator, TripEngineInputHealth } from '@/domain/itinerary-engine/inputHealth';
 import { SchedulerV1, ItineraryDraftV1, DaySchedule, ScheduledActivity } from '@/domain/itinerary-engine/schedulerV1';
-import { Loader2, ArrowLeft, AlertTriangle, CheckCircle, Info, Plane, Hotel, MapPin, Calendar, Clock } from 'lucide-react';
+import { TripEngineInputV1 } from '@/domain/itinerary-engine/contracts';
+import { Loader2, ArrowLeft, AlertTriangle, CheckCircle, Info, Plane, Hotel, MapPin, Calendar, Clock, BarChart } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
 export default function EngineV2Preview() {
@@ -16,6 +17,7 @@ export default function EngineV2Preview() {
   
   const [health, setHealth] = useState<TripEngineInputHealth | null>(null);
   const [draft, setDraft] = useState<ItineraryDraftV1 | null>(null);
+  const [inputData, setInputData] = useState<TripEngineInputV1 | null>(null);
 
   const generatePreview = async () => {
     setLoading(true);
@@ -26,17 +28,14 @@ export default function EngineV2Preview() {
       const trip = await TripRepository.getTripById(tripId);
       const reservations = await TripWalletRepository.getReservations(tripId);
       
-      // Fetch some catalog data for filling gaps (Experiences)
-      const catalog = await ExperienceRepository.getPublishedExperiencesByDestination(trip.destination);
+      const catalog = await ExperienceRepository.getByDestination(trip.destination);
       
-      // Build Input
       const input = EngineInputBuilder.build(trip, reservations, catalog);
+      setInputData(input);
       
-      // Validate Input Health
       const healthResult = InputHealthValidator.validate(input);
       setHealth(healthResult);
 
-      // Generate Draft if ready or even if not ready (to show what happens)
       const itineraryDraft = SchedulerV1.generate(input);
       setDraft(itineraryDraft);
 
@@ -72,6 +71,33 @@ export default function EngineV2Preview() {
     if (act.isFixed) return <Calendar className="w-5 h-5 text-amber-500" />;
     return <MapPin className="w-5 h-5 text-lime-500" />;
   };
+
+  // Build diagnostics
+  const usedIds = new Set<string>();
+  const repeatedIds = new Set<string>();
+  let totalActs = 0;
+  if (draft) {
+    draft.days.forEach(day => {
+      day.activities.forEach(a => {
+        if (a.type === 'experience') {
+          totalActs++;
+          if (usedIds.has(a.id)) repeatedIds.add(a.id);
+          usedIds.add(a.id);
+        }
+      });
+    });
+  }
+
+  const voteStats = { yes: 0, love: 0, maybe: 0, no: 0, open: 0 };
+  if (inputData) {
+    Object.values(inputData.matchVotes).forEach(v => {
+      if (v === 'yes') voteStats.yes++;
+      else if (v === 'love') voteStats.love++;
+      else if (v === 'maybe') voteStats.maybe++;
+      else if (v === 'no' || v === 'dislike') voteStats.no++;
+    });
+    voteStats.open = inputData.catalog.length - (voteStats.yes + voteStats.love + voteStats.maybe + voteStats.no);
+  }
 
   return (
     <div className="min-h-screen bg-slate-50 p-6 md:p-10 font-sans">
@@ -114,10 +140,60 @@ export default function EngineV2Preview() {
           </section>
         )}
 
+        {inputData && (
+          <section className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
+             <h2 className="text-xl font-bold text-slate-800 mb-4 flex items-center gap-2">
+               <BarChart className="w-5 h-5 text-indigo-500" /> Diagnóstico do Algoritmo
+             </h2>
+             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 text-sm">
+                <div>
+                   <strong className="block text-slate-500 uppercase text-xs">Datas</strong>
+                   <div>Original: {inputData.startDate} a {inputData.endDate}</div>
+                   <div>Geradas: {draft?.days.length} dias ({draft?.days[0]?.date} a {draft?.days[draft?.days.length-1]?.date})</div>
+                </div>
+                <div>
+                   <strong className="block text-slate-500 uppercase text-xs">Voo de Chegada</strong>
+                   {inputData.arrivalFlight ? 
+                      <div>{inputData.arrivalFlight.flightNumber} ({inputData.arrivalFlight.arrivalLocalDateTime})</div> : 
+                      <div className="text-amber-600">Não identificado</div>
+                   }
+                   <strong className="block text-slate-500 uppercase text-xs mt-2">Voo de Partida</strong>
+                   {inputData.departureFlight ? 
+                      <div>{inputData.departureFlight.flightNumber} ({inputData.departureFlight.departureLocalDateTime})</div> : 
+                      <div className="text-amber-600">Não identificado</div>
+                   }
+                </div>
+                <div>
+                   <strong className="block text-slate-500 uppercase text-xs">Basecamp</strong>
+                   {inputData.basecamp ? 
+                      <div>{inputData.basecamp.name} {inputData.basecamp.lat ? '(GPS OK)' : <span className="text-amber-600">(Sem GPS)</span>}</div> :
+                      <div className="text-red-600">Nenhum hotel configurado</div>
+                   }
+                </div>
+                <div>
+                   <strong className="block text-slate-500 uppercase text-xs">Match Votes Encontrados</strong>
+                   <div>Yes: {voteStats.yes} | Love: {voteStats.love}</div>
+                   <div>Maybe: {voteStats.maybe} | No: {voteStats.no}</div>
+                   <div>Sem voto (Elegíveis): {voteStats.open}</div>
+                </div>
+                <div>
+                   <strong className="block text-slate-500 uppercase text-xs">Deduplicação</strong>
+                   <div>Experiências geradas: {totalActs}</div>
+                   <div>Experiências únicas: {usedIds.size}</div>
+                   {repeatedIds.size > 0 ? (
+                      <div className="text-red-600 font-bold">Atenção: {repeatedIds.size} repetições indevidas!</div>
+                   ) : (
+                      <div className="text-lime-600">Nenhuma repetição detectada</div>
+                   )}
+                </div>
+             </div>
+          </section>
+        )}
+
         {draft && (
           <section className="space-y-6">
             <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
-               <h2 className="text-xl font-bold text-slate-800 mb-2">Itinerary Draft</h2>
+               <h2 className="text-xl font-bold text-slate-800 mb-2">Itinerary Draft V1</h2>
                {draft.overallWarnings.length > 0 && (
                  <div className="mb-4 p-3 bg-amber-50 rounded-lg text-sm text-amber-800 border border-amber-200">
                    <strong>Avisos Gerais:</strong>
@@ -128,10 +204,13 @@ export default function EngineV2Preview() {
                )}
             </div>
 
-            {draft.days.map((day: DaySchedule, i: number) => (
+            {draft.days.map((day: DaySchedule, i: number) => {
+              const [dy, dm, dd] = day.date.split('-').map(Number);
+              const dateObj = new Date(dy, dm - 1, dd);
+              return (
               <div key={day.date} className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
                 <div className="flex items-center justify-between border-b border-slate-100 pb-4 mb-4">
-                  <h3 className="text-lg font-bold text-slate-800">Dia {i + 1} - {new Date(day.date).toLocaleDateString('pt-BR')}</h3>
+                  <h3 className="text-lg font-bold text-slate-800">Dia {i + 1} - {dateObj.toLocaleDateString('pt-BR')}</h3>
                 </div>
 
                 {day.warnings.length > 0 && (
@@ -142,8 +221,8 @@ export default function EngineV2Preview() {
 
                 <div className="space-y-4 relative before:absolute before:inset-0 before:ml-[1.125rem] before:-translate-x-px md:before:mx-auto md:before:translate-x-0 before:h-full before:w-0.5 before:bg-gradient-to-b before:from-transparent before:via-slate-200 before:to-transparent">
                   {day.activities.map((act, actIdx) => {
-                    const st = new Date(act.startTime).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
-                    const et = new Date(act.endTime).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+                    const st = act.startTime.split('T')[1]?.substring(0, 5) || act.startTime;
+                    const et = act.endTime.split('T')[1]?.substring(0, 5) || act.endTime;
                     
                     return (
                       <div key={`${act.id}-${actIdx}`} className="relative flex items-center justify-between md:justify-normal md:odd:flex-row-reverse group is-active">
@@ -182,7 +261,7 @@ export default function EngineV2Preview() {
                   )}
                 </div>
               </div>
-            ))}
+            )})}
           </section>
         )}
       </div>

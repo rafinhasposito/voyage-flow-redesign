@@ -50,8 +50,21 @@ export class EngineInputBuilder {
       });
     });
 
-    const arrivalFlight = flightSegments.length > 0 ? flightSegments[0] : undefined;
-    const departureFlight = flightSegments.length > 1 ? flightSegments[flightSegments.length - 1] : undefined;
+    // A better flight mapping logic
+    let arrivalFlight: FlightSegment | undefined = undefined;
+    let departureFlight: FlightSegment | undefined = undefined;
+
+    if (flightSegments.length > 0) {
+      // Find the flight that arrives closest to startDate
+      const sDate = trip.start_date; // YYYY-MM-DD
+      const eDate = trip.end_date;
+      
+      arrivalFlight = flightSegments.find(f => f.arrivalLocalDateTime.startsWith(sDate));
+      if (!arrivalFlight && flightSegments.length > 0) arrivalFlight = flightSegments[0]; // Fallback
+
+      departureFlight = flightSegments.find(f => f.departureLocalDateTime.startsWith(eDate));
+      if (!departureFlight && flightSegments.length > 1) departureFlight = flightSegments[flightSegments.length - 1]; // Fallback
+    }
 
     // Fixed & Flexible Reservations
     const fixedReservations: FixedAnchor[] = [];
@@ -61,10 +74,8 @@ export class EngineInputBuilder {
       if (['flight', 'hotel'].includes(r.type)) return;
       
       if (r.is_fixed && r.start_at && r.end_at) {
-        // Extract local time (HH:MM) from start_at for the anchor
-        // Note: For a robust system, we should use local_datetime if available in structured_data
-        const sTime = new Date(r.start_at).toISOString(); // Fallback, we'll refine this in scheduler
-        const eTime = new Date(r.end_at).toISOString();
+        let sTime = r.structured_data?.start_local_datetime || r.start_at;
+        let eTime = r.structured_data?.end_local_datetime || r.end_at;
         
         fixedReservations.push({
           id: r.id!,
@@ -72,7 +83,7 @@ export class EngineInputBuilder {
           date: sTime.split('T')[0],
           startTime: sTime,
           endTime: eTime,
-          duration: (new Date(eTime).getTime() - new Date(sTime).getTime()) / 60000,
+          duration: (new Date(eTime.replace('Z','')).getTime() - new Date(sTime.replace('Z','')).getTime()) / 60000,
           location: r.location_name,
           coordinates: r.latitude && r.longitude ? { lat: r.latitude, lng: r.longitude } : undefined,
           isLocked: true,
@@ -88,6 +99,8 @@ export class EngineInputBuilder {
         });
       }
     });
+
+    const matchVotes = preferences.matchVotes || preferences.match_votes || trip.match_votes || {};
 
     return {
       engineVersion: '1.0.0',
@@ -105,7 +118,7 @@ export class EngineInputBuilder {
       travelProfile: preferences.travelProfile || 'classic',
       pace: trip.pace || 'balanced',
       budget: trip.budget_level || 'balanced',
-      matchVotes: preferences.matchVotes || {},
+      matchVotes: matchVotes,
       avoidances: preferences.avoidances || [],
       accessibilityNeeds: [],
       basecamp,
