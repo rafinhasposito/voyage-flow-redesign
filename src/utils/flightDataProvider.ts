@@ -9,12 +9,14 @@ export interface FlightSearchResult {
     terminal?: string;
     gate?: string;
     scheduledTime: string;
+    timezone?: string;
   };
   arrival: {
     iataCode: string;
     terminal?: string;
     gate?: string;
     scheduledTime: string;
+    timezone?: string;
   };
   status: 'SCHEDULED' | 'ACTIVE' | 'DELAYED' | 'CANCELLED' | 'LANDED' | 'UNKNOWN';
   duration?: string;
