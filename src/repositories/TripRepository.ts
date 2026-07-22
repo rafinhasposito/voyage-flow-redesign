@@ -143,16 +143,18 @@ export class TripRepository {
         }
 
         // Preservação de intenção e reservas
+        const getStableId = (act: any) => act.reservationId || act.sourceExperienceId || act.id || act.experience?.id;
+        
         const currentFixedIds = new Set<string>();
         if (Array.isArray(current.itinerary)) {
             current.itinerary.forEach((day: any) => {
                 if (day.activities && Array.isArray(day.activities)) {
                     day.activities.forEach((act: any) => {
-                        if (act.isFixed || act.manualLock) currentFixedIds.add(act.id);
+                        if (act.isFixed || act.manualLock) currentFixedIds.add(getStableId(act));
                     });
                 } else if (day.attractions && Array.isArray(day.attractions)) {
                     day.attractions.forEach((act: any) => {
-                         if (act.manualMetadata?.locked) currentFixedIds.add(act.id);
+                         if (act.manualMetadata?.locked || act.is_must_see) currentFixedIds.add(getStableId(act));
                     });
                 }
             });
@@ -162,7 +164,7 @@ export class TripRepository {
         payload.forEach((item: any) => {
              if (item.activities && Array.isArray(item.activities)) {
                   item.activities.forEach((act: any) => {
-                       if (act.isFixed || act.manualLock) payloadFixedIds.add(act.id);
+                       if (act.isFixed || act.manualLock) payloadFixedIds.add(getStableId(act));
                   });
              }
         });
@@ -178,10 +180,14 @@ export class TripRepository {
             .update({ itinerary: payload })
             .eq('id', tripId)
             .eq('user_id', user.id)
+            .eq('updated_at', expectedVersion)
             .select()
             .single();
 
         if (error) {
+             if (error.code === 'PGRST116') {
+                 throw new Error("ITINERARY_CHANGED_SINCE_PREVIEW");
+             }
              throw new Error("PERSISTENCE_FAILED: " + error.message);
         }
 
@@ -189,6 +195,11 @@ export class TripRepository {
         const readback = await this.getTripById(tripId);
         if (!readback.itinerary || readback.itinerary.length !== payload.length) {
              throw new Error("READBACK_MISMATCH");
+        }
+        if (metadata && metadata._isMetadata) {
+             if (readback.itinerary[0]?.draftHash !== metadata.draftHash) {
+                 throw new Error("READBACK_MISMATCH");
+             }
         }
         
         return { status: 'APPLIED', data: readback };
