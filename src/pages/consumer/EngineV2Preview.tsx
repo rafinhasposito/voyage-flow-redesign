@@ -148,8 +148,6 @@ export default function EngineV2Preview() {
                <h1 className="text-3xl font-extrabold text-slate-800">Engine V2 Preview</h1>
             </div>
             <p className="text-slate-500 ml-11">Este é um draft isolado. Nada foi salvo no banco oficial trips.itinerary.</p>
-           </div>
-            <p className="text-slate-500 ml-11">Este é um draft isolado. Nada foi salvo no banco oficial trips.itinerary.</p>
           </div>
           <div className="flex gap-4">
             <Button onClick={generatePreview} variant="outline" className="text-slate-700">Recalcular Draft</Button>
