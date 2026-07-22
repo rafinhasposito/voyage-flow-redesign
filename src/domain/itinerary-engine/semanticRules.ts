@@ -34,11 +34,11 @@ export class SemanticRules {
     const role = (experience.experienceRole || '').toLowerCase();
     const bestTime = (experience.bestTime || '').toLowerCase();
 
-    if (role === 'dinner' || cat === 'dinner' || tags.includes('dinner') || tags.includes('jantar')) {
+    if (role === 'dinner' || cat === 'dinner' || (tags.includes('dinner') && !tags.includes('fast_food')) || tags.includes('jantar')) {
       return [{ startMs: 18 * 3600000, endMs: 23 * 3600000 }];
     }
     
-    if (role === 'lunch' || cat === 'lunch' || tags.includes('lunch') || tags.includes('almoço')) {
+    if (role === 'lunch' || cat === 'lunch' || (tags.includes('lunch') && !tags.includes('fast_food')) || tags.includes('almoço')) {
       return [{ startMs: 11 * 3600000 + 1800000, endMs: 15 * 3600000 }]; 
     }
 
@@ -50,8 +50,17 @@ export class SemanticRules {
       return [{ startMs: 10 * 3600000, endMs: 14 * 3600000 }];
     }
 
+    if (tags.includes('fast_food') || tags.includes('pizza') || role === 'flexible_food' || title.includes('shake shack') || title.includes('pizza')) {
+      return [{ startMs: 11 * 3600000 + 1800000, endMs: 22 * 3600000 }]; // 11:30 to 22:00
+    }
+
+    // Daytime specific rooftops
+    if (tags.includes('rooftop_day_view') || title.includes('edge') || title.includes('summit')) {
+      return [{ startMs: 9 * 3600000, endMs: 18 * 3600000 }];
+    }
+
     if (tags.includes('nightlife') || tags.includes('rooftop') || tags.includes('bar') || tags.includes('club') || cat === 'nightlife') {
-      return [{ startMs: 19 * 3600000, endMs: 26 * 3600000 }]; 
+      return [{ startMs: 18 * 3600000, endMs: 26 * 3600000 }]; // Shifted back to 18:00
     }
 
     if (tags.includes('sunrise') || tags.includes('nascer do sol')) {
@@ -79,21 +88,45 @@ export class SemanticRules {
   }
 
   static getEstimatedDurationMs(experience: any): number {
-    if (experience.durationHours) {
-       return experience.durationHours * 3600000;
-    }
+    let duration = 0;
     
     const cat = (experience.category || '').toLowerCase();
     const tags = (experience.tags || []).map((t: string) => t.toLowerCase());
     const title = (experience.title || experience.name || '').toLowerCase();
 
-    if (cat === 'show' || tags.includes('broadway') || title.includes('broadway')) return 3 * 3600000;
-    if (cat === 'museum' || tags.includes('museum')) return 2.5 * 3600000; 
-    if (tags.includes('dinner')) return 2 * 3600000; 
-    if (tags.includes('lunch') || tags.includes('brunch')) return 1.5 * 3600000; 
-    if (tags.includes('breakfast') || cat === 'cafe') return 1 * 3600000; 
+    if (experience.durationHours) {
+       duration = experience.durationHours * 3600000;
+    } else if (cat === 'show' || tags.includes('broadway') || title.includes('broadway')) {
+       duration = 3 * 3600000;
+    } else if (cat === 'museum' || tags.includes('museum')) {
+       duration = 2.5 * 3600000; 
+    } else if (tags.includes('dinner')) {
+       duration = 2 * 3600000; 
+    } else if (tags.includes('lunch') || tags.includes('brunch')) {
+       duration = 1.5 * 3600000; 
+    } else if (tags.includes('breakfast') || cat === 'cafe') {
+       duration = 1 * 3600000; 
+    } else if (tags.includes('helicopter') || title.includes('helicopter')) {
+       duration = 1 * 3600000; // Even if flight is 15min, ops take 1h
+    } else {
+       duration = 2 * 3600000; 
+    }
 
-    return 2 * 3600000; 
+    // Minimum buffer: Nothing should take less than 1 hour in a real itinerary logistically
+    return Math.max(duration, 3600000); 
+  }
+
+  static isHighFriction(experience: any): boolean {
+    const cat = (experience.category || '').toLowerCase();
+    const tags = (experience.tags || []).map((t: string) => t.toLowerCase());
+    const title = (experience.title || experience.name || '').toLowerCase();
+
+    if (tags.includes('helicopter') || title.includes('helicopter')) return true;
+    if (cat === 'show' || tags.includes('broadway') || title.includes('broadway')) return true;
+    if (tags.includes('tour') && tags.includes('boat')) return true;
+    if (title.includes('summit') || title.includes('edge') || tags.includes('panoramic_view')) return true;
+
+    return false;
   }
 
   static getExperienceRole(experience: any): string | null {

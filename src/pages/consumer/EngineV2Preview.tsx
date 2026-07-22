@@ -114,11 +114,32 @@ export default function EngineV2Preview() {
           <Button onClick={generatePreview} className="bg-slate-900 text-white">Recalcular Draft</Button>
         </header>
 
-        {health && (
+        {(health || draft) && (() => {
+          let hasCriticals = health ? health.critical.length > 0 : false;
+          let integrationBlocked = !health?.isReadyForIntegration || hasCriticals;
+          let blockReasons: string[] = [];
+
+          if (draft) {
+             draft.days.forEach(d => {
+                d.warnings.forEach(w => {
+                   if (w.includes('TEMPORAL_OVERLAP')) {
+                      integrationBlocked = true;
+                      hasCriticals = true;
+                      blockReasons.push(w);
+                   }
+                });
+             });
+             if (draft.overallWarnings.some(w => w.includes('Planejamento incompleto'))) {
+                integrationBlocked = true;
+             }
+          }
+
+          return (
           <section className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
-            {health.critical.length > 0 ? (
-               <div className="bg-red-600 text-white p-4 rounded-xl mb-6 shadow-md flex items-center justify-center font-black text-xl tracking-wide">
-                 DRAFT NÃO PRONTO PARA INTEGRAÇÃO
+            {integrationBlocked ? (
+               <div className="bg-red-600 text-white p-4 rounded-xl mb-6 shadow-md flex flex-col items-center justify-center font-black tracking-wide">
+                 <span className="text-xl">AINDA NÃO PRONTO PARA INTEGRAÇÃO</span>
+                 <span className="text-sm font-medium mt-1">DRAFT VÁLIDO PARA REVISÃO</span>
                </div>
             ) : (
                <div className="bg-lime-600 text-white p-4 rounded-xl mb-6 shadow-md flex items-center justify-center font-black text-xl tracking-wide">
@@ -127,28 +148,29 @@ export default function EngineV2Preview() {
             )}
             
             <h2 className="text-xl font-bold text-slate-800 mb-4 flex items-center gap-2">
-               {health.ready ? <CheckCircle className="w-6 h-6 text-lime-500" /> : <AlertTriangle className="w-6 h-6 text-red-500" />}
-               Input Health: {health.confidence.toUpperCase()} CONFIDENCE
+               {health?.ready ? <CheckCircle className="w-6 h-6 text-lime-500" /> : <AlertTriangle className="w-6 h-6 text-red-500" />}
+               Input Health: {health?.confidence.toUpperCase()} CONFIDENCE
             </h2>
             
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                <div>
-                  <h3 className="font-bold text-sm text-red-800 bg-red-50 p-2 rounded mb-2">Critical Issues ({health.critical.length})</h3>
+                  <h3 className="font-bold text-sm text-red-800 bg-red-50 p-2 rounded mb-2">Critical Issues ({(health?.critical.length || 0) + blockReasons.length})</h3>
                   <ul className="space-y-2 text-sm text-red-700">
-                    {health.critical.map((c, i) => <li key={i} className="flex gap-2"><AlertTriangle className="w-4 h-4 shrink-0" /> {c.message}</li>)}
-                    {health.critical.length === 0 && <li className="text-slate-400">Nenhum problema crítico.</li>}
+                    {health?.critical.map((c, i) => <li key={`hc-${i}`} className="flex gap-2"><AlertTriangle className="w-4 h-4 shrink-0" /> {c.message}</li>)}
+                    {blockReasons.map((r, i) => <li key={`dr-${i}`} className="flex gap-2"><AlertTriangle className="w-4 h-4 shrink-0" /> {r}</li>)}
+                    {(health?.critical.length === 0 && blockReasons.length === 0) && <li className="text-slate-400">Nenhum problema crítico.</li>}
                   </ul>
                </div>
                <div>
-                  <h3 className="font-bold text-sm text-amber-800 bg-amber-50 p-2 rounded mb-2">Warnings ({health.warnings.length})</h3>
+                  <h3 className="font-bold text-sm text-amber-800 bg-amber-50 p-2 rounded mb-2">Warnings ({health?.warnings.length || 0})</h3>
                   <ul className="space-y-2 text-sm text-amber-700">
-                    {health.warnings.map((w, i) => <li key={i} className="flex gap-2"><Info className="w-4 h-4 shrink-0" /> {w.message}</li>)}
-                    {health.warnings.length === 0 && <li className="text-slate-400">Nenhum warning.</li>}
+                    {health?.warnings.map((w, i) => <li key={i} className="flex gap-2"><Info className="w-4 h-4 shrink-0" /> {w.message}</li>)}
+                    {health?.warnings.length === 0 && <li className="text-slate-400">Nenhum warning.</li>}
                   </ul>
                </div>
             </div>
           </section>
-        )}
+        )})()}
 
         {inputData && (
           <section className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
@@ -248,7 +270,8 @@ export default function EngineV2Preview() {
                           
                           <div className="flex gap-2 flex-wrap mt-2">
                              {act.isFixed && <span className="text-[10px] font-bold uppercase tracking-wider text-amber-600 bg-amber-50 px-2 py-0.5 rounded border border-amber-200">FIXA</span>}
-                             {act.isEstimatedTime && <span className="text-[10px] font-bold uppercase tracking-wider text-blue-600 bg-blue-50 px-2 py-0.5 rounded border border-blue-200">⏰ ESTIMADO</span>}
+                             {act.isWindow && <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">A PARTIR DE</span>}
+                             {act.isEstimatedTime && !act.isWindow && <span className="text-[10px] font-bold uppercase tracking-wider text-blue-600 bg-blue-50 px-2 py-0.5 rounded border border-blue-200">⏰ ESTIMADO</span>}
                              {act.isDecisionPending && <span className="text-[10px] font-bold uppercase tracking-wider text-purple-600 bg-purple-50 px-2 py-0.5 rounded border border-purple-200 flex items-center gap-1"><AlertTriangle className="w-3 h-3" /> DECISÃO PENDENTE</span>}
                              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-600 bg-slate-100 px-2 py-0.5 rounded border border-slate-200">
                                {act.source}

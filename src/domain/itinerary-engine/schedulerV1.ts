@@ -12,6 +12,7 @@ export interface ScheduledActivity {
   isFixed: boolean;
   isEstimatedTime?: boolean; // For engine-suggested times
   isDecisionPending?: boolean; // For luggage decisions
+  isWindow?: boolean; // Represents a flexible threshold, e.g. "From 15:00"
   source: 'flight' | 'reservation' | 'engine' | 'logistics' | 'hotel';
   reason?: string;
 }
@@ -129,6 +130,7 @@ export class SchedulerV1 {
       let dayEndMs = 21 * 3600000;
 
       const absoluteDayStart = new Date(day.date).getTime();
+      const isFirstDay = tripStartMs !== -1 && tripStartMs >= absoluteDayStart && tripStartMs < absoluteDayStart + 86400000;
       
       // Strict pre-trip check
       if (tripStartMs !== -1 && absoluteDayStart + dayEndMs < tripStartMs) {
@@ -149,7 +151,7 @@ export class SchedulerV1 {
       }
 
       // Arrival day adjustment
-      if (tripStartMs !== -1 && tripStartMs >= absoluteDayStart && tripStartMs < absoluteDayStart + 86400000) {
+      if (isFirstDay) {
          const arrivalEndMsOfDay = tripStartMs - absoluteDayStart;
          if (arrivalEndMsOfDay > dayStartMs) dayStartMs = arrivalEndMsOfDay;
       }
@@ -162,21 +164,45 @@ export class SchedulerV1 {
 
       let currentMs = dayStartMs;
 
-      for (const act of day.activities) {
-        if (act.isFixed || act.source === 'logistics' || act.source === 'hotel') {
-          const actStartMs = this.parseMs(act.startTime.split('T')[1]);
-          
-          if (currentMs < actStartMs) {
-             currentMs = this.fillWindow(day, currentMs, actStartMs, priorityItems, secondaryItems, usedIds, usedRolesCount, input);
-          }
-          
-          const actEndMs = this.parseMs(act.endTime.split('T')[1]);
-          currentMs = actEndMs + (30 * 60000); // 30 min buffer
+      // Extract only blocking activities for the loop
+      const blockingActs = day.activities.filter(a => !a.isWindow && (a.isFixed || a.source === 'logistics' || a.source === 'hotel'));
+      blockingActs.sort((a, b) => a.startTime.localeCompare(b.startTime));
+
+      for (const act of blockingActs) {
+        const actStartMs = this.parseMs(act.startTime.split('T')[1]);
+        
+        if (currentMs < actStartMs) {
+           currentMs = this.fillWindow(day, currentMs, actStartMs, priorityItems, secondaryItems, usedIds, usedRolesCount, input, isFirstDay);
         }
+        
+        const actEndMs = this.parseMs(act.endTime.split('T')[1]);
+        currentMs = actEndMs + (30 * 60000); // 30 min buffer
       }
 
       if (currentMs < dayEndMs) {
-        this.fillWindow(day, currentMs, dayEndMs, priorityItems, secondaryItems, usedIds, usedRolesCount, input);
+        this.fillWindow(day, currentMs, dayEndMs, priorityItems, secondaryItems, usedIds, usedRolesCount, input, isFirstDay);
+      }
+    });
+
+    // 5. Final Sorting and Overlap Detection
+    draft.days.forEach(day => {
+      day.activities.sort((a, b) => {
+        // If times are exactly equal, Windows go first
+        if (a.startTime === b.startTime) {
+           if (a.isWindow && !b.isWindow) return -1;
+           if (!a.isWindow && b.isWindow) return 1;
+        }
+        return a.startTime.localeCompare(b.startTime);
+      });
+
+      // Overlap check ignores isWindow
+      const nonWindowActs = day.activities.filter(a => !a.isWindow);
+      for (let i = 0; i < nonWindowActs.length - 1; i++) {
+        const a = nonWindowActs[i];
+        const b = nonWindowActs[i+1];
+        if (a.endTime > b.startTime) {
+           day.warnings.push(`[TEMPORAL_OVERLAP] Conflito detectado entre ${a.title} e ${b.title}`);
+        }
       }
     });
 
@@ -249,16 +275,16 @@ export class SchedulerV1 {
          id: `arr-rest`, type: 'logistics', title: 'Pausa / Café / Descanso',
          startTime: `${dateStr}T${this.toTimeStr(hotelEndMs)}`,
          endTime: `${dateStr}T${this.toTimeStr(restEndMs)}`,
-         isFixed: false, isEstimatedTime: true, source: 'engine', reason: 'Recuperação de energia sugerida'
+         isFixed: false, isEstimatedTime: true, source: 'logistics', reason: 'Recuperação de energia sugerida'
        });
        
        // Add Check-in Window Reminder
        day.activities.push({
-         id: `arr-checkin`, type: 'hotel', title: 'Janela de Check-in liberada',
+         id: `arr-checkin`, type: 'hotel', title: 'Check-in disponível (Estimado)',
          location: input.basecamp?.name,
          startTime: `${dateStr}T15:00:00`,
          endTime: `${dateStr}T15:30:00`,
-         isFixed: false, isEstimatedTime: true, source: 'hotel', reason: 'Retorno opcional'
+         isFixed: false, isEstimatedTime: true, isWindow: true, source: 'hotel', reason: 'A partir das 15:00'
        });
        
        return new Date(dateStr).getTime() + restEndMs;
@@ -324,7 +350,7 @@ export class SchedulerV1 {
         location: input.basecamp?.name,
         startTime: `${dateStr}T11:00:00`,
         endTime: `${dateStr}T11:30:00`,
-        isFixed: false, isEstimatedTime: true, source: 'hotel', reason: 'Aviso: liberar o quarto'
+        isFixed: false, isEstimatedTime: true, isWindow: true, source: 'hotel', reason: 'Até as 11:00'
       });
     }
 
@@ -339,7 +365,8 @@ export class SchedulerV1 {
     secondary: any[],
     usedIds: Set<string>,
     usedRolesCount: Record<string, number>,
-    input: TripEngineInputV1
+    input: TripEngineInputV1,
+    isFirstDay: boolean
   ): number {
     let curr = startMs;
     let maxPaceActs = input.pace === 'relaxed' ? 2 : input.pace === 'intense' ? 4 : 3;
@@ -348,6 +375,8 @@ export class SchedulerV1 {
     const getCandidates = (list: any[]) => {
       return list.filter(item => {
         if (usedIds.has(item.id)) return false;
+        
+        if (isFirstDay && SemanticRules.isHighFriction(item)) return false;
         
         // Diversity check
         const role = SemanticRules.getExperienceRole(item);

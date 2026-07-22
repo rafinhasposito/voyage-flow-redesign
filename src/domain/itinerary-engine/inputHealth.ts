@@ -8,6 +8,8 @@ export interface HealthIssue {
 
 export interface TripEngineInputHealth {
   ready: boolean;
+  isReadyForReview: boolean;
+  isReadyForIntegration: boolean;
   critical: HealthIssue[];
   warnings: HealthIssue[];
   missingCriticalData: string[];
@@ -103,16 +105,24 @@ export class InputHealthValidator {
       }
     });
 
-    const isReady = critical.length === 0;
-    const confidence = isReady && warnings.length === 0 ? 'high' : isReady && warnings.length < 3 ? 'medium' : 'low';
-
-    return {
-      ready: isReady,
-      critical,
-      warnings,
+    const health: TripEngineInputHealth = {
+      ready: critical.length === 0,
+      isReadyForReview: true, // Always ready for review if the draft renders, can be updated later if needed
+      isReadyForIntegration: false, // Default false until proven ready
+      critical: critical,
+      warnings: warnings,
       missingCriticalData: missingCritical,
       missingOptionalData: missingOptional,
-      confidence
+      confidence: critical.length > 0 ? 'low' : warnings.length > 0 ? 'medium' : 'high'
     };
+
+    // Calculate Integration Readiness
+    if (health.critical.length > 0 || !input.departureFlight || !input.arrivalFlight) {
+       health.isReadyForIntegration = false;
+    } else {
+       health.isReadyForIntegration = true;
+    }
+
+    return health;
   }
 }
