@@ -107,4 +107,90 @@ export class TripRepository {
 
         if (error) throw error;
     }
+
+    static async applyApprovedItineraryDraft(tripId: string, payload: any[], expectedVersion: string) {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) throw new Error("Usuário não autenticado");
+
+        const current = await this.getTripById(tripId);
+
+        // Concurrency control
+        if (current.updated_at !== expectedVersion) {
+            throw new Error("ITINERARY_CHANGED_SINCE_PREVIEW");
+        }
+
+        // Idempotency check via deterministic hash
+        // Using basic string hash as crypto might not be available in browser environment directly if this is called from client
+        // Wait, TripRepository is client side! We can't use crypto module. We can use a simple hash function or subtle crypto.
+        // A simple string-based hash:
+        const payloadStr = JSON.stringify(payload);
+        let draftHash = 0;
+        for (let i = 0; i < payloadStr.length; i++) {
+            const char = payloadStr.charCodeAt(i);
+            draftHash = ((draftHash << 5) - draftHash) + char;
+            draftHash = draftHash & draftHash; // Convert to 32bit integer
+        }
+        const hashStr = draftHash.toString();
+
+        const metadata = payload[0];
+        if (metadata && metadata._isMetadata) {
+             if (current.itinerary && current.itinerary.length > 0 && current.itinerary[0]?._isMetadata) {
+                  if (current.itinerary[0].draftHash === hashStr) {
+                       return { status: 'ALREADY_APPLIED', data: current };
+                  }
+             }
+             metadata.draftHash = hashStr;
+        }
+
+        // Preservação de intenção e reservas
+        const currentFixedIds = new Set<string>();
+        if (Array.isArray(current.itinerary)) {
+            current.itinerary.forEach((day: any) => {
+                if (day.activities && Array.isArray(day.activities)) {
+                    day.activities.forEach((act: any) => {
+                        if (act.isFixed || act.manualLock) currentFixedIds.add(act.id);
+                    });
+                } else if (day.attractions && Array.isArray(day.attractions)) {
+                    day.attractions.forEach((act: any) => {
+                         if (act.manualMetadata?.locked) currentFixedIds.add(act.id);
+                    });
+                }
+            });
+        }
+        
+        const payloadFixedIds = new Set<string>();
+        payload.forEach((item: any) => {
+             if (item.activities && Array.isArray(item.activities)) {
+                  item.activities.forEach((act: any) => {
+                       if (act.isFixed || act.manualLock) payloadFixedIds.add(act.id);
+                  });
+             }
+        });
+        
+        for (const id of currentFixedIds) {
+             if (!payloadFixedIds.has(id)) {
+                  throw new Error(`BLOCKED_BY_CONFLICT: item protegido (id: ${id}) foi removido.`);
+             }
+        }
+
+        const { data, error } = await supabase
+            .from('trips')
+            .update({ itinerary: payload })
+            .eq('id', tripId)
+            .eq('user_id', user.id)
+            .select()
+            .single();
+
+        if (error) {
+             throw new Error("PERSISTENCE_FAILED: " + error.message);
+        }
+
+        // Readback
+        const readback = await this.getTripById(tripId);
+        if (!readback.itinerary || readback.itinerary.length !== payload.length) {
+             throw new Error("READBACK_MISMATCH");
+        }
+        
+        return { status: 'APPLIED', data: readback };
+    }
 }
