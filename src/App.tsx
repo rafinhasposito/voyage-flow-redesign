@@ -19,6 +19,7 @@ import TripOnboardingContainer from "./pages/consumer/TripOnboarding/TripOnboard
 import TripWallet from "./pages/consumer/TripWallet/TripWallet";
 import TripWorkspace from "./pages/consumer/Workspace/TripWorkspace";
 import TripSpacePage from "./pages/consumer/TripSpace/TripSpacePage";
+import EngineV2Preview from "./pages/consumer/EngineV2Preview";
 
 import { AdminAuthProvider } from "./contexts/AdminAuthProvider";
 import ProtectedAdminRoute from "./components/admin/ProtectedAdminRoute";
@@ -100,6 +101,11 @@ const App = () => {
           <Route path="/viagens/:tripId/roteiro" element={
             <ConsumerAuthProvider>
               <TripSpacePage />
+            </ConsumerAuthProvider>
+          } />
+          <Route path="/viagens/:tripId/engine-preview" element={
+            <ConsumerAuthProvider>
+              <EngineV2Preview />
             </ConsumerAuthProvider>
           } />
           
