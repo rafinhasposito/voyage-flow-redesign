@@ -247,3 +247,7 @@ Backend comercial — Congelado
 - **Contexto:** A Engine V2 gerava cronogramas cegos e falhava ao alocar itens incompatíveis (ex: rooftops diurnos no limite de noturnos), resultando em violações de restrições de diversidade e sobreposição, dependendo puramente do Validation Gate para denunciar o problema.
 - **Decisão:** Implementamos uma arquitetura de classificação hierárquica baseada em `parentRole` (família principal) e `semanticRole` (função temporal/operacional específica). O Scheduler foi refatorado para ser **Constraint-Aware**, impedindo a alocação de itens que violam limites globais e diários de diversidade antes mesmo de inseri-los. Adicionalmente, implementamos um **Repair Pass** que atua logo antes da validação final para higienizar qualquer resquício de excesso (por exemplo, remover o item de menor prioridade quando limites de refeições ou rooftops são excedidos).
 - **Por quê:** O Validation Gate não deve ser um mecanismo de planejamento primário, mas sim a última rede de segurança. O roteiro deve ser autossuficiente e estruturalmente seguro de nascença, respeitando os limites semânticos absolutos da viagem.
+
+## 12. GeoRoutingProvider
+- **O que foi decidido:** Utilizar um provider local determinístico.
+- **Por quê:** Nenhum fornecedor externo deve entrar no domínio inicialmente. Haversine é utilizado somente para fallback e clustering, sempre com baixa confiança obrigatória, mantendo a arquitetura agnóstica.

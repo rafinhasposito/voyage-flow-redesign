@@ -232,3 +232,13 @@ Este documento acompanha as fases do projeto de forma macro, definindo o que já
 - Revisão de estados vazios
 - Responsividade e Acessibilidade (B2B e B2C)
 
+
+
+### Fase C - Inteligência Geográfica
+- Branch `feature/itinerary-engine-v2-geography`
+- Provider local determinístico implementado.
+- Separação entre distância aproximada e rota real garantida.
+- Regras da Fase B preservadas (Testes de regressão assíncronos passando).
+- Contrato assíncrono do Scheduler aplicado.
+- **Fase C aguardando validação visual.**
+- API externa, merge e Trip Space ainda bloqueados.

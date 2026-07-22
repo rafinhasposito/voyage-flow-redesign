@@ -167,3 +167,10 @@ Backend comercial — Congelado
   - Logística base de chegada e partida mapeadas em `availability_windows` transparentes. Diferenciação visual e estrutural entre estimado e confirmado.
   - Limitações: A Engine ainda age de forma puramente cronológica.
 - **Fase C (Geografia e Roteamento API):** Próximo marco. Agrupamento por bairro (Clustering Baseado em Distância), matriz de distâncias (Google Maps) e horários oficiais.
+
+
+## Atualizações - Fase C (Inteligência Geográfica)
+- **Status:** Fase C aguardando validação visual.
+- **Branch:** feature/itinerary-engine-v2-geography
+- **Implementações:** Provider local determinístico, separação entre distância aproximada e rota real, preservação das regras da Fase B, contrato assíncrono do Scheduler.
+- **Bloqueios Atuais:** API externa, merge e Trip Space ainda bloqueados.
