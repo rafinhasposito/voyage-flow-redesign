@@ -116,6 +116,16 @@ export default function EngineV2Preview() {
 
         {health && (
           <section className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
+            {health.critical.length > 0 ? (
+               <div className="bg-red-600 text-white p-4 rounded-xl mb-6 shadow-md flex items-center justify-center font-black text-xl tracking-wide">
+                 DRAFT NÃO PRONTO PARA INTEGRAÇÃO
+               </div>
+            ) : (
+               <div className="bg-lime-600 text-white p-4 rounded-xl mb-6 shadow-md flex items-center justify-center font-black text-xl tracking-wide">
+                 DRAFT PRONTO PARA INTEGRAÇÃO
+               </div>
+            )}
+            
             <h2 className="text-xl font-bold text-slate-800 mb-4 flex items-center gap-2">
                {health.ready ? <CheckCircle className="w-6 h-6 text-lime-500" /> : <AlertTriangle className="w-6 h-6 text-red-500" />}
                Input Health: {health.confidence.toUpperCase()} CONFIDENCE
@@ -237,8 +247,10 @@ export default function EngineV2Preview() {
                           {act.location && <div className="text-sm text-slate-500 mb-2">{act.location}</div>}
                           
                           <div className="flex gap-2 flex-wrap mt-2">
-                             {act.isFixed && <span className="text-[10px] font-bold uppercase tracking-wider text-amber-600 bg-amber-50 px-2 py-0.5 rounded">FIXA</span>}
-                             <span className="text-[10px] font-bold uppercase tracking-wider text-slate-600 bg-slate-100 px-2 py-0.5 rounded">
+                             {act.isFixed && <span className="text-[10px] font-bold uppercase tracking-wider text-amber-600 bg-amber-50 px-2 py-0.5 rounded border border-amber-200">FIXA</span>}
+                             {act.isEstimatedTime && <span className="text-[10px] font-bold uppercase tracking-wider text-blue-600 bg-blue-50 px-2 py-0.5 rounded border border-blue-200">⏰ ESTIMADO</span>}
+                             {act.isDecisionPending && <span className="text-[10px] font-bold uppercase tracking-wider text-purple-600 bg-purple-50 px-2 py-0.5 rounded border border-purple-200 flex items-center gap-1"><AlertTriangle className="w-3 h-3" /> DECISÃO PENDENTE</span>}
+                             <span className="text-[10px] font-bold uppercase tracking-wider text-slate-600 bg-slate-100 px-2 py-0.5 rounded border border-slate-200">
                                {act.source}
                              </span>
                           </div>

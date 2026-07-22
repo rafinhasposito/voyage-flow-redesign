@@ -3,14 +3,16 @@ import { SemanticRules } from './semanticRules';
 
 export interface ScheduledActivity {
   id: string;
-  type: string;
+  type: string; // 'flight' | 'logistics' | 'hotel' | 'experience'
   title: string;
   startTime: string; // "YYYY-MM-DDTHH:mm:00" local format
   endTime: string; // "YYYY-MM-DDTHH:mm:00" local format
   location?: string;
   coordinates?: { lat: number; lng: number };
   isFixed: boolean;
-  source: 'flight' | 'reservation' | 'engine' | 'logistics';
+  isEstimatedTime?: boolean; // For engine-suggested times
+  isDecisionPending?: boolean; // For luggage decisions
+  source: 'flight' | 'reservation' | 'engine' | 'logistics' | 'hotel';
   reason?: string;
 }
 
@@ -66,13 +68,13 @@ export class SchedulerV1 {
     if (input.arrivalFlight) {
       tripStartMs = this.injectArrivalLogistics(draft, input);
     } else {
-      draft.overallWarnings.push("Voo de chegada não identificado. Confiança reduzida.");
+      draft.overallWarnings.push("Voo de chegada não identificado.");
     }
     
     if (input.departureFlight) {
       tripEndMs = this.injectDepartureLogistics(draft, input);
     } else {
-      draft.overallWarnings.push("Voo de partida não identificado. Confiança reduzida.");
+      draft.overallWarnings.push("Voo de partida não identificado. Último dia bloqueado por segurança.");
     }
 
     // 2. Insert Fixed Reservations
@@ -84,17 +86,9 @@ export class SchedulerV1 {
         if (sTime.includes('Z')) sTime = sTime.replace('Z', '');
         if (eTime.includes('Z')) eTime = eTime.replace('Z', '');
 
-        // Check bounds
         const actStartMs = this.parseMs(sTime.split('T')[1]);
         const absoluteActMs = new Date(day.date).getTime() + actStartMs;
         
-        if (tripStartMs !== -1 && absoluteActMs < tripStartMs) {
-           day.warnings.push(`Reserva fixa '${res.type}' ocorre antes da chegada no destino.`);
-        }
-        if (tripEndMs !== -1 && absoluteActMs > tripEndMs) {
-           day.warnings.push(`Reserva fixa '${res.type}' ocorre após a partida do destino.`);
-        }
-
         day.activities.push({
           id: res.id,
           type: res.type,
@@ -107,8 +101,6 @@ export class SchedulerV1 {
           source: 'reservation',
           reason: 'Reserva confirmada preexistente'
         });
-      } else {
-        draft.overallWarnings.push(`Reserva fixa ${res.id} está fora do período da viagem.`);
       }
     });
 
@@ -129,32 +121,40 @@ export class SchedulerV1 {
     const secondaryItems = validCatalog.filter(item => !['yes', 'love'].includes(input.matchVotes[item.id]));
 
     const usedIds = new Set<string>();
+    const usedRolesCount: Record<string, number> = {};
 
     // 4. Fill gaps with Semantic Rules
     draft.days.forEach(day => {
-      // Find valid operational window for the day
       let dayStartMs = 9 * 3600000;
       let dayEndMs = 21 * 3600000;
 
-      // If it's a day before arrival flight, SKIP entirely
       const absoluteDayStart = new Date(day.date).getTime();
+      
+      // Strict pre-trip check
       if (tripStartMs !== -1 && absoluteDayStart + dayEndMs < tripStartMs) {
          day.warnings.push("Pré-viagem. Nenhuma atividade programada.");
-         return; // Skip day
+         return; 
       }
       
-      if (tripEndMs !== -1 && absoluteDayStart > tripEndMs) {
+      // Strict post-trip check
+      if (tripEndMs !== -1 && absoluteDayStart >= tripEndMs) {
          day.warnings.push("Pós-viagem. Nenhuma atividade programada.");
          return;
       }
+      
+      // Missing departure flight blocks the last day to prevent fake assumptions
+      if (tripEndMs === -1 && absoluteDayStart === new Date(input.endDate).getTime()) {
+         day.warnings.push("Planejamento incompleto: informe sua partida para liberar atividades com segurança.");
+         return;
+      }
 
-      // If arrival day, dayStartMs becomes the end of the arrival logistics
+      // Arrival day adjustment
       if (tripStartMs !== -1 && tripStartMs >= absoluteDayStart && tripStartMs < absoluteDayStart + 86400000) {
          const arrivalEndMsOfDay = tripStartMs - absoluteDayStart;
          if (arrivalEndMsOfDay > dayStartMs) dayStartMs = arrivalEndMsOfDay;
       }
 
-      // If departure day, dayEndMs becomes the start of the departure logistics
+      // Departure day adjustment
       if (tripEndMs !== -1 && tripEndMs >= absoluteDayStart && tripEndMs < absoluteDayStart + 86400000) {
          const depStartMsOfDay = tripEndMs - absoluteDayStart;
          if (depStartMsOfDay < dayEndMs) dayEndMs = depStartMsOfDay;
@@ -163,32 +163,20 @@ export class SchedulerV1 {
       let currentMs = dayStartMs;
 
       for (const act of day.activities) {
-        if (act.isFixed || act.source === 'logistics' || act.source === 'flight') {
+        if (act.isFixed || act.source === 'logistics' || act.source === 'hotel') {
           const actStartMs = this.parseMs(act.startTime.split('T')[1]);
           
           if (currentMs < actStartMs) {
-             this.fillWindow(day, currentMs, actStartMs, priorityItems, secondaryItems, usedIds, input);
+             currentMs = this.fillWindow(day, currentMs, actStartMs, priorityItems, secondaryItems, usedIds, usedRolesCount, input);
           }
           
           const actEndMs = this.parseMs(act.endTime.split('T')[1]);
-          currentMs = actEndMs + (30 * 60000); // 30 min buffer after any fixed act
+          currentMs = actEndMs + (30 * 60000); // 30 min buffer
         }
       }
 
       if (currentMs < dayEndMs) {
-        this.fillWindow(day, currentMs, dayEndMs, priorityItems, secondaryItems, usedIds, input);
-      }
-    });
-
-    // Verify overlaps
-    draft.days.forEach(day => {
-      day.activities.sort((a, b) => a.startTime.localeCompare(b.startTime));
-      for (let i = 0; i < day.activities.length - 1; i++) {
-        const a = day.activities[i];
-        const b = day.activities[i+1];
-        if (a.endTime > b.startTime) {
-           day.warnings.push(`Sobreposição detectada entre ${a.title} e ${b.title}`);
-        }
+        this.fillWindow(day, currentMs, dayEndMs, priorityItems, secondaryItems, usedIds, usedRolesCount, input);
       }
     });
 
@@ -219,49 +207,72 @@ export class SchedulerV1 {
 
     const flightMs = this.parseMs(localStr.split('T')[1]);
     
-    // Chain: 
-    // 1. Flight Landing
     day.activities.push({
       id: `arr-flight`, type: 'flight', title: `Chegada do Voo ${flight.flightNumber}`,
       startTime: `${dateStr}T${this.toTimeStr(flightMs)}`,
-      endTime: `${dateStr}T${this.toTimeStr(flightMs + 1800000)}`, // 30m block for UI
-      isFixed: true, source: 'flight', reason: 'Aterrissagem'
+      endTime: `${dateStr}T${this.toTimeStr(flightMs + 1800000)}`, 
+      isFixed: true, source: 'flight', reason: 'Aterrissagem confirmada'
     });
 
-    // 2. Immigration & Baggage
-    const immEndMs = flightMs + (90 * 60000); // +1.5h
+    const immEndMs = flightMs + (90 * 60000);
     day.activities.push({
       id: `arr-imm`, type: 'logistics', title: `Imigração e Desembarque`,
       startTime: `${dateStr}T${this.toTimeStr(flightMs + 1800000)}`,
       endTime: `${dateStr}T${this.toTimeStr(immEndMs)}`,
-      isFixed: true, source: 'logistics', reason: 'Estimativa'
+      isFixed: false, isEstimatedTime: true, source: 'logistics', reason: 'Estimativa base'
     });
 
-    // 3. Transit to Basecamp
-    const transitEndMs = immEndMs + (60 * 60000); // +1h
+    const transitEndMs = immEndMs + (60 * 60000);
     day.activities.push({
-      id: `arr-transit`, type: 'logistics', title: `Deslocamento para ${input.basecamp?.name || 'Hospedagem'}`,
+      id: `arr-transit`, type: 'logistics', title: `Deslocamento para ${input.basecamp?.name || 'Região Central'}`,
       startTime: `${dateStr}T${this.toTimeStr(immEndMs)}`,
       endTime: `${dateStr}T${this.toTimeStr(transitEndMs)}`,
-      isFixed: true, source: 'logistics', reason: 'Estimativa'
+      isFixed: false, isEstimatedTime: true, source: 'logistics', reason: 'Estimativa base'
     });
 
-    // 4. Drop Luggage / Checkin
-    const hotelEndMs = transitEndMs + (30 * 60000); // +30m
     const isAfter3pm = transitEndMs >= 15 * 3600000;
-    day.activities.push({
-      id: `arr-hotel`, type: 'hotel', title: isAfter3pm ? 'Check-in e Acomodação' : 'Guarda de Bagagem',
-      location: input.basecamp?.name,
-      coordinates: input.basecamp?.lat ? { lat: input.basecamp.lat, lng: input.basecamp.lng } : undefined,
-      startTime: `${dateStr}T${this.toTimeStr(transitEndMs)}`,
-      endTime: `${dateStr}T${this.toTimeStr(hotelEndMs)}`,
-      isFixed: true, source: 'hotel', 
-      reason: input.basecamp ? (isAfter3pm ? 'Janela de Check-in liberada' : 'Confirmar política de lockers') : 'Hospedagem desconhecida, locker sugerido'
-    });
-
-    // Return absolute MS when the traveler is finally free to do activities
-    const absoluteMs = new Date(dateStr).getTime() + hotelEndMs;
-    return absoluteMs;
+    
+    // Luggage Decision
+    const hotelEndMs = transitEndMs + (30 * 60000);
+    if (!isAfter3pm) {
+       day.activities.push({
+         id: `arr-luggage`, type: 'hotel', title: 'Decisão: Guarda de Bagagem',
+         location: input.basecamp?.name,
+         startTime: `${dateStr}T${this.toTimeStr(transitEndMs)}`,
+         endTime: `${dateStr}T${this.toTimeStr(hotelEndMs)}`,
+         isFixed: false, isDecisionPending: true, source: 'hotel', 
+         reason: input.basecamp ? 'Opção sugerida: consultar hotel. Alternativa: locker externo.' : 'Decisão pendente: locker ou hotel?'
+       });
+       // Optional Rest Block
+       const restEndMs = hotelEndMs + (60 * 60000);
+       day.activities.push({
+         id: `arr-rest`, type: 'logistics', title: 'Pausa / Café / Descanso',
+         startTime: `${dateStr}T${this.toTimeStr(hotelEndMs)}`,
+         endTime: `${dateStr}T${this.toTimeStr(restEndMs)}`,
+         isFixed: false, isEstimatedTime: true, source: 'engine', reason: 'Recuperação de energia sugerida'
+       });
+       
+       // Add Check-in Window Reminder
+       day.activities.push({
+         id: `arr-checkin`, type: 'hotel', title: 'Janela de Check-in liberada',
+         location: input.basecamp?.name,
+         startTime: `${dateStr}T15:00:00`,
+         endTime: `${dateStr}T15:30:00`,
+         isFixed: false, isEstimatedTime: true, source: 'hotel', reason: 'Retorno opcional'
+       });
+       
+       return new Date(dateStr).getTime() + restEndMs;
+    } else {
+       day.activities.push({
+         id: `arr-hotel`, type: 'hotel', title: 'Check-in e Acomodação',
+         location: input.basecamp?.name,
+         startTime: `${dateStr}T${this.toTimeStr(transitEndMs)}`,
+         endTime: `${dateStr}T${this.toTimeStr(hotelEndMs)}`,
+         isFixed: false, isEstimatedTime: true, source: 'hotel', 
+         reason: 'Horário compatível com check-in'
+       });
+       return new Date(dateStr).getTime() + hotelEndMs;
+    }
   }
 
   private static injectDepartureLogistics(draft: ItineraryDraftV1, input: TripEngineInputV1): number {
@@ -271,13 +282,10 @@ export class SchedulerV1 {
     
     const dateStr = localStr.split('T')[0];
     const day = draft.days.find(d => d.date === dateStr);
-    
     if (!day) return -1;
 
     const flightMs = this.parseMs(localStr.split('T')[1]);
     
-    // Departure Chain (backwards)
-    // 1. Flight Departure
     day.activities.push({
       id: `dep-flight`, type: 'flight', title: `Partida do Voo ${flight.flightNumber}`,
       startTime: `${dateStr}T${this.toTimeStr(flightMs - 1800000)}`,
@@ -285,49 +293,42 @@ export class SchedulerV1 {
       isFixed: true, source: 'flight', reason: 'Decolagem'
     });
 
-    // 2. Airport Anticipation (3 hours prior)
     const airportArrivalMs = flightMs - (3 * 3600000);
     day.activities.push({
       id: `dep-airport`, type: 'logistics', title: `Procedimentos de Embarque`,
       startTime: `${dateStr}T${this.toTimeStr(airportArrivalMs)}`,
       endTime: `${dateStr}T${this.toTimeStr(flightMs - 1800000)}`,
-      isFixed: true, source: 'logistics', reason: 'Antecedência recomendada'
+      isFixed: false, isEstimatedTime: true, source: 'logistics', reason: 'Antecedência recomendada (3h)'
     });
 
-    // 3. Transit to Airport (1h)
     const transitStartMs = airportArrivalMs - (60 * 60000);
     day.activities.push({
       id: `dep-transit`, type: 'logistics', title: `Deslocamento para Aeroporto`,
       startTime: `${dateStr}T${this.toTimeStr(transitStartMs)}`,
       endTime: `${dateStr}T${this.toTimeStr(airportArrivalMs)}`,
-      isFixed: true, source: 'logistics', reason: 'Estimativa'
+      isFixed: false, isEstimatedTime: true, source: 'logistics', reason: 'Estimativa base'
     });
 
-    // 4. Luggage Retrieval from Hotel (30m)
     const luggageStartMs = transitStartMs - (30 * 60000);
     day.activities.push({
       id: `dep-luggage`, type: 'hotel', title: `Recuperação de Bagagens`,
       location: input.basecamp?.name,
-      coordinates: input.basecamp?.lat ? { lat: input.basecamp.lat, lng: input.basecamp.lng } : undefined,
       startTime: `${dateStr}T${this.toTimeStr(luggageStartMs)}`,
       endTime: `${dateStr}T${this.toTimeStr(transitStartMs)}`,
-      isFixed: true, source: 'hotel', reason: 'Retorno ao Basecamp'
+      isFixed: false, isDecisionPending: true, source: 'hotel', reason: 'Decisão: retornar à base ou locker?'
     });
 
-    // Also add mandatory Check-out at 11:00 AM (if the user departs after 11AM)
     if (luggageStartMs > 11 * 3600000) {
       day.activities.push({
-        id: `dep-checkout`, type: 'hotel', title: `Check-out Obrigatório`,
+        id: `dep-checkout`, type: 'hotel', title: `Janela de Check-out`,
         location: input.basecamp?.name,
         startTime: `${dateStr}T11:00:00`,
         endTime: `${dateStr}T11:30:00`,
-        isFixed: true, source: 'hotel', reason: 'Limite padrão de hospedagem'
+        isFixed: false, isEstimatedTime: true, source: 'hotel', reason: 'Aviso: liberar o quarto'
       });
     }
 
-    // Return absolute MS of when the traveler must STOP doing activities to start departure logistics
-    const absoluteMs = new Date(dateStr).getTime() + luggageStartMs;
-    return absoluteMs;
+    return new Date(dateStr).getTime() + luggageStartMs;
   }
 
   private static fillWindow(
@@ -337,41 +338,38 @@ export class SchedulerV1 {
     priority: any[],
     secondary: any[],
     usedIds: Set<string>,
+    usedRolesCount: Record<string, number>,
     input: TripEngineInputV1
   ): number {
     let curr = startMs;
     let maxPaceActs = input.pace === 'relaxed' ? 2 : input.pace === 'intense' ? 4 : 3;
     let added = 0;
 
-    // Filter available candidates by SEMANTIC TIME MATCH
     const getCandidates = (list: any[]) => {
       return list.filter(item => {
         if (usedIds.has(item.id)) return false;
         
+        // Diversity check
+        const role = SemanticRules.getExperienceRole(item);
+        if (role && usedRolesCount[role] >= SemanticRules.getMaxInstancesPerRole(role)) return false;
+        
         const windows = SemanticRules.getValidWindows(item, day.date);
         const duration = SemanticRules.getEstimatedDurationMs(item);
-        
-        // Check if the current time 'curr' fits within any of the valid semantic windows
         return windows.some(w => curr >= w.startMs && curr + duration <= Math.min(w.endMs, endMs));
       });
     };
 
     while (curr < endMs && added < maxPaceActs) {
       let candidate = null;
-      let isPriority = false;
 
-      // Unused priority that FITS semantically
       const pCandidates = getCandidates(priority);
-      if (pCandidates.length > 0) {
-        candidate = pCandidates[0]; // naive pick, could be sorted by matchScore
-        isPriority = true;
-      } else {
+      if (pCandidates.length > 0) candidate = pCandidates[0]; 
+      else {
         const sCandidates = getCandidates(secondary);
         if (sCandidates.length > 0) candidate = sCandidates[0];
       }
 
       if (!candidate) {
-         // No semantic match fits in this current gap. Advance time by 30 mins to seek next window.
          curr += 30 * 60000;
          if (curr >= endMs) break;
          continue; 
@@ -380,12 +378,17 @@ export class SchedulerV1 {
       const durationMs = SemanticRules.getEstimatedDurationMs(candidate);
 
       if (curr + durationMs <= endMs) {
-        usedIds.add(candidate.id); // Mark globally used
+        usedIds.add(candidate.id); 
+        
+        const role = SemanticRules.getExperienceRole(candidate);
+        if (role) {
+           usedRolesCount[role] = (usedRolesCount[role] || 0) + 1;
+        }
         
         const vote = input.matchVotes[candidate.id];
-        let reason = 'Sugestão (Horário Compatível)';
-        if (vote === 'yes') reason = 'Match (Yes) - Horário Ideal';
-        if (vote === 'love') reason = 'Match (Love) - Horário Ideal';
+        let reason = 'Sugestão estimada';
+        if (vote === 'yes') reason = 'Match (Yes) - Estimativa';
+        if (vote === 'love') reason = 'Match (Love) - Estimativa';
 
         day.activities.push({
           id: candidate.id,
@@ -393,13 +396,13 @@ export class SchedulerV1 {
           title: candidate.name || candidate.title,
           startTime: `${day.date}T${this.toTimeStr(curr)}`,
           endTime: `${day.date}T${this.toTimeStr(curr + durationMs)}`,
-          location: candidate.address,
-          coordinates: candidate.lat && candidate.lng ? { lat: candidate.lat, lng: candidate.lng } : undefined,
+          location: candidate.address || candidate.location,
           isFixed: false,
+          isEstimatedTime: true,
           source: 'engine',
           reason: reason
         });
-        curr += durationMs + (30 * 60000); // 30m travel buffer
+        curr += durationMs + (30 * 60000);
         added++;
       } else {
         break; 
