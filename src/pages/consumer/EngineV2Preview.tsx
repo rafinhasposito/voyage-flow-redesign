@@ -145,6 +145,35 @@ export default function EngineV2Preview() {
              }
           }
 
+          let providerName = "LocalDeterministicGeoProvider";
+          let providerSource = "local_fallback";
+          let providerConfidence = "low";
+          
+          let eligibleGps = 0;
+          if (inputData) {
+            inputData.catalog.forEach(c => {
+              if (c.location_lat && c.location_lng) eligibleGps++;
+            });
+          }
+          
+          let draftGps = 0;
+          let draftNoGps = 0;
+          let routeSegments = 0;
+          if (draft) {
+            draft.days.forEach(d => {
+              d.activities.forEach(a => {
+                if (a.source === 'transit') routeSegments++;
+                else if (['experience', 'hotel', 'flight', 'reservation'].includes(a.type)) {
+                  if (a.coordinates) draftGps++;
+                  else draftNoGps++;
+                }
+              });
+            });
+          }
+          
+          let gpsCoverage = draftGps + draftNoGps > 0 ? Math.round((draftGps / (draftGps + draftNoGps)) * 100) : 0;
+          let geoReadiness = draft?.geographicReadiness || 'FAILED';
+
           return (
           <section className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
             {hasCriticals ? (
@@ -187,9 +216,6 @@ export default function EngineV2Preview() {
                  <div className="md:col-span-2">
                     <h3 className="font-bold text-sm text-sky-800 bg-sky-50 p-2 rounded mb-2 flex items-center justify-between">
                        <span>Geo Health Issues ({draft.geoHealthIssues.length})</span>
-                       <span className="text-xs font-mono px-2 py-1 bg-white rounded border border-sky-100">
-                         {draft.geographicReadiness ? 'Ready' : 'Not Ready'}
-                       </span>
                     </h3>
                     <ul className="space-y-2 text-sm">
                       {draft.geoHealthIssues.map((g, i) => (
@@ -256,18 +282,6 @@ export default function EngineV2Preview() {
 
         {draft && (
           <section className="space-y-6">
-            <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
-               <h2 className="text-xl font-bold text-slate-800 mb-2">Itinerary Draft V1</h2>
-               {draft.overallWarnings.length > 0 && (
-                 <div className="mb-4 p-3 bg-amber-50 rounded-lg text-sm text-amber-800 border border-amber-200">
-                   <strong>Avisos Gerais:</strong>
-                   <ul className="list-disc pl-5 mt-1">
-                     {draft.overallWarnings.map((w, i) => <li key={i}>{w}</li>)}
-                   </ul>
-                 </div>
-               )}
-            </div>
-
             {draft.days.map((day: DaySchedule, i: number) => {
               const [dy, dm, dd] = day.date.split('-').map(Number);
               const dateObj = new Date(dy, dm - 1, dd);
@@ -277,13 +291,7 @@ export default function EngineV2Preview() {
                   <h3 className="text-lg font-bold text-slate-800">Dia {i + 1} - {dateObj.toLocaleDateString('pt-BR')}</h3>
                 </div>
 
-                {day.warnings.length > 0 && (
-                  <div className="mb-4 p-3 bg-red-50 text-red-800 rounded-lg text-sm font-medium">
-                    {day.warnings.map((w, wi) => <div key={wi}>{w}</div>)}
-                  </div>
-                )}
-
-                <div className="space-y-4 relative before:absolute before:inset-0 before:ml-[1.125rem] before:-translate-x-px md:before:mx-auto md:before:translate-x-0 before:h-full before:w-0.5 before:bg-gradient-to-b before:from-transparent before:via-slate-200 before:to-transparent">
+                <div className="space-y-4">
                   {day.activities.map((act, actIdx) => {
                     const st = act.startTime.split('T')[1]?.substring(0, 5) || act.startTime;
                     const et = act.endTime ? act.endTime.split('T')[1]?.substring(0, 5) || act.endTime : null;
@@ -297,41 +305,60 @@ export default function EngineV2Preview() {
                           act.isFixed ? 'bg-amber-50/50 border-amber-200' :
                           act.isWindow ? 'bg-slate-50 border-slate-200' :
                           act.isEstimatedTime ? 'bg-blue-50/30 border-blue-100' :
+                          act.source === 'transit' ? 'bg-sky-50 border-sky-200' :
                           'bg-white border-slate-200'
                         }`}>
-                          <div className="flex items-center justify-between space-x-2 mb-1">
-                            <div className="font-bold text-slate-800">{act.title}</div>
-                            {act.isWindow ? (
-                               <time className="font-mono text-xs font-medium text-slate-500 bg-slate-100 px-2 py-1 rounded-full border border-slate-200">A partir das {st}</time>
-                            ) : (
-                               <time className="font-mono text-xs font-medium text-indigo-500 bg-indigo-50 px-2 py-1 rounded-full">{st} - {et}</time>
-                            )}
-                          </div>
-                          {act.location && <div className="text-sm text-slate-500 mb-2">{act.location}</div>}
                           
-                          <div className="flex gap-2 flex-wrap mt-2">
-                             {act.isFixed && <span className="text-[10px] font-bold uppercase tracking-wider text-amber-600 bg-amber-50 px-2 py-0.5 rounded border border-amber-200">FIXA</span>}
-                             {act.isWindow && <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">A PARTIR DE</span>}
-                             {act.isEstimatedTime && !act.isWindow && <span className="text-[10px] font-bold uppercase tracking-wider text-blue-600 bg-blue-50 px-2 py-0.5 rounded border border-blue-200">⏰ ESTIMADO</span>}
-                             {act.isDecisionPending && <span className="text-[10px] font-bold uppercase tracking-wider text-purple-600 bg-purple-50 px-2 py-0.5 rounded border border-purple-200 flex items-center gap-1"><AlertTriangle className="w-3 h-3" /> DECISÃO PENDENTE</span>}
-                             <span className="text-[10px] font-bold uppercase tracking-wider text-slate-600 bg-slate-100 px-2 py-0.5 rounded border border-slate-200">
-                               {act.source}
-                             </span>
-                          </div>
-                          
-                          {act.reason && (
-                             <div className="mt-3 pt-3 border-t border-slate-50 text-xs text-slate-400 font-medium">
-                               <Info className="inline w-3 h-3 mr-1 -mt-0.5" />
-                               {act.reason}
-                             </div>
-                          )}
-                          
-                          {act.routeEstimate && (
-                             <div className="mt-2 pt-2 border-t border-slate-100 flex items-center gap-4 text-xs font-mono text-sky-700 bg-sky-50 p-2 rounded">
-                               <div>🚗 {act.routeEstimate.estimate.distanceMeters}m</div>
-                               <div>⏱ {act.routeEstimate.estimate.durationMinutes} min</div>
-                               <div>({act.routeEstimate.estimate.mode})</div>
-                             </div>
+                          {act.source === 'transit' ? (
+                            <div>
+                               <div className="font-bold text-sky-900 mb-2">{act.title}</div>
+                               <div className="text-xs text-sky-700 font-mono mb-2">
+                                 {act.routeEstimate?.fromActivityId} &rarr; {act.routeEstimate?.toActivityId}
+                               </div>
+                               <div className="grid grid-cols-2 gap-2 text-sm text-sky-800">
+                                  <div>🚗 {act.routeEstimate?.estimate.distanceMeters}m</div>
+                                  <div>⏱ {act.routeEstimate?.estimate.durationMinutes} min</div>
+                               </div>
+                               <div className="mt-3 pt-3 border-t border-sky-100 text-[10px] text-sky-600 uppercase tracking-wide">
+                                  Provider: local_fallback | Confiança: Baixa
+                               </div>
+                            </div>
+                          ) : (
+                            <>
+                              <div className="flex items-center justify-between space-x-2 mb-1">
+                                <div className="font-bold text-slate-800">{act.title}</div>
+                                {act.isWindow ? (
+                                   <time className="font-mono text-xs font-medium text-slate-500 bg-slate-100 px-2 py-1 rounded-full border border-slate-200">A partir das {st}</time>
+                                ) : (
+                                   <time className="font-mono text-xs font-medium text-indigo-500 bg-indigo-50 px-2 py-1 rounded-full">{st} - {et}</time>
+                                )}
+                              </div>
+                              {act.location && <div className="text-sm text-slate-500 mb-2">{act.location}</div>}
+                              
+                              <div className="flex gap-2 flex-wrap mt-2">
+                                 {act.isFixed && <span className="text-[10px] font-bold uppercase tracking-wider text-amber-600 bg-amber-50 px-2 py-0.5 rounded border border-amber-200">FIXA</span>}
+                                 {act.isWindow && <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">A PARTIR DE</span>}
+                                 {act.isEstimatedTime && !act.isWindow && <span className="text-[10px] font-bold uppercase tracking-wider text-blue-600 bg-blue-50 px-2 py-0.5 rounded border border-blue-200">⏰ ESTIMADO</span>}
+                                 {act.isDecisionPending && <span className="text-[10px] font-bold uppercase tracking-wider text-purple-600 bg-purple-50 px-2 py-0.5 rounded border border-purple-200 flex items-center gap-1"><AlertTriangle className="w-3 h-3" /> DECISÃO PENDENTE</span>}
+                                 <span className="text-[10px] font-bold uppercase tracking-wider text-slate-600 bg-slate-100 px-2 py-0.5 rounded border border-slate-200">
+                                   {act.source}
+                                 </span>
+                              </div>
+                              
+                              {act.reason && (
+                                 <div className="mt-3 pt-3 border-t border-slate-50 text-xs text-slate-400 font-medium">
+                                   <Info className="inline w-3 h-3 mr-1 -mt-0.5" />
+                                   {act.reason}
+                                 </div>
+                              )}
+
+                              {!act.coordinates && !act.isWindow && act.type !== 'flight' && (
+                                 <div className="mt-2 pt-2 border-t border-red-50 flex items-center gap-2 text-xs font-mono text-red-500 bg-red-50 p-2 rounded">
+                                   <AlertTriangle className="w-3 h-3 shrink-0" />
+                                   Deslocamento não calculado - Motivo: coordenadas ausentes
+                                 </div>
+                              )}
+                            </>
                           )}
                         </div>
                       </div>

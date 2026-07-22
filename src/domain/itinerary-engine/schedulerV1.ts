@@ -35,7 +35,8 @@ export interface ItineraryDraftV1 {
   geoHealthIssues: GeoHealthIssue[];
   temporalReadiness: boolean;
   semanticReadiness: boolean;
-  geographicReadiness: boolean;
+  semanticReadiness: boolean;
+  geographicReadiness: 'READY' | 'PARTIAL' | 'INSUFFICIENT_DATA' | 'FAILED';
   integrationReadiness: boolean;
 }
 
@@ -49,7 +50,8 @@ export class SchedulerV1 {
       geoHealthIssues: [],
       temporalReadiness: false,
       semanticReadiness: false,
-      geographicReadiness: false,
+      semanticReadiness: false,
+      geographicReadiness: 'FAILED',
       integrationReadiness: false
     };
 
@@ -385,10 +387,36 @@ export class SchedulerV1 {
       }
     }
     
+    let hasBasecampWarning = draft.geoHealthIssues.some(g => g.code === 'BASECAMP_GPS_MISSING');
+    let totalActsGeo = 0;
+    let gpsActs = 0;
+    let generatedSegments = 0;
+    
+    draft.days.forEach(day => {
+      day.activities.forEach(act => {
+        if (['experience', 'hotel', 'flight', 'reservation'].includes(act.type)) {
+          totalActsGeo++;
+          if (act.coordinates) gpsActs++;
+        }
+        if (act.source === 'transit') {
+          generatedSegments++;
+        }
+      });
+    });
+
+    if (hasBasecampWarning || gpsActs === 0 || totalActsGeo === 0) {
+       draft.geographicReadiness = 'INSUFFICIENT_DATA';
+    } else if (generatedSegments === 0 && totalActsGeo > 1) {
+       draft.geographicReadiness = 'FAILED';
+    } else if (gpsActs < totalActsGeo) {
+       draft.geographicReadiness = 'PARTIAL';
+    } else {
+       draft.geographicReadiness = 'READY';
+    }
+
     draft.temporalReadiness = draft.overallWarnings.length === 0;
     draft.semanticReadiness = !draft.days.some(d => d.warnings.length > 0);
-    draft.geographicReadiness = draft.geoHealthIssues.filter(g => g.severity === 'critical').length === 0;
-    draft.integrationReadiness = draft.temporalReadiness && draft.semanticReadiness && draft.geographicReadiness;
+    draft.integrationReadiness = draft.temporalReadiness && draft.semanticReadiness && (draft.geographicReadiness === 'READY' || draft.geographicReadiness === 'PARTIAL');
 
     return draft;
   }
