@@ -11,6 +11,7 @@ import { LocalDeterministicGeoProvider } from '@/domain/itinerary-engine/geoProv
 import { Loader2, ArrowLeft, AlertTriangle, CheckCircle, Info, Plane, Hotel, MapPin, Calendar, Clock, BarChart } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { GeoAuditPanel } from './GeoAuditPanel';
+import { TripItineraryMapper } from '@/domain/itinerary-engine/mapper';
 
 export default function EngineV2Preview() {
   const { tripId } = useParams();
@@ -20,6 +21,10 @@ export default function EngineV2Preview() {
   const [health, setHealth] = useState<TripEngineInputHealth | null>(null);
   const [draft, setDraft] = useState<ItineraryDraftV1 | null>(null);
   const [inputData, setInputData] = useState<TripEngineInputV1 | null>(null);
+  const [persistedTrip, setPersistedTrip] = useState<any>(null);
+  
+  const [approvalState, setApprovalState] = useState<'IDLE' | 'REVIEW' | 'APPLYING' | 'APPLIED' | 'ALREADY_APPLIED' | 'ITINERARY_CHANGED_SINCE_PREVIEW' | 'PERSISTENCE_FAILED' | 'READBACK_MISMATCH' | 'BLOCKED_BY_CONFLICT'>('IDLE');
+  const [applyError, setApplyError] = useState<string | null>(null);
 
   const generatePreview = async () => {
     setLoading(true);
@@ -28,6 +33,7 @@ export default function EngineV2Preview() {
       if (!tripId) throw new Error("Trip ID is required");
 
       const trip = await TripRepository.getTripById(tripId);
+      setPersistedTrip(trip);
       const reservations = await TripWalletRepository.getReservations(tripId);
       
       const catalog = await ExperienceRepository.getByDestination(trip.destination);
@@ -47,6 +53,34 @@ export default function EngineV2Preview() {
       setError(err.message || 'Erro ao gerar o preview.');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleApplyDraft = async () => {
+    if (!draft || !persistedTrip || !tripId) return;
+    setApprovalState('APPLYING');
+    setApplyError(null);
+    try {
+      const payload = TripItineraryMapper.toPersistedV2(draft, health);
+      const result = await TripRepository.applyApprovedItineraryDraft(tripId, payload, persistedTrip.updated_at);
+      if (result.status === 'ALREADY_APPLIED') {
+        setApprovalState('ALREADY_APPLIED');
+      } else {
+        setApprovalState('APPLIED');
+      }
+    } catch (err: any) {
+      console.error(err);
+      if (err.message.includes('ITINERARY_CHANGED_SINCE_PREVIEW')) {
+         setApprovalState('ITINERARY_CHANGED_SINCE_PREVIEW');
+      } else if (err.message.includes('BLOCKED_BY_CONFLICT')) {
+         setApprovalState('BLOCKED_BY_CONFLICT');
+         setApplyError(err.message);
+      } else if (err.message.includes('READBACK_MISMATCH')) {
+         setApprovalState('READBACK_MISMATCH');
+      } else {
+         setApprovalState('PERSISTENCE_FAILED');
+         setApplyError(err.message);
+      }
     }
   };
 
@@ -114,9 +148,64 @@ export default function EngineV2Preview() {
                <h1 className="text-3xl font-extrabold text-slate-800">Engine V2 Preview</h1>
             </div>
             <p className="text-slate-500 ml-11">Este é um draft isolado. Nada foi salvo no banco oficial trips.itinerary.</p>
+           </div>
+            <p className="text-slate-500 ml-11">Este é um draft isolado. Nada foi salvo no banco oficial trips.itinerary.</p>
           </div>
-          <Button onClick={generatePreview} className="bg-slate-900 text-white">Recalcular Draft</Button>
+          <div className="flex gap-4">
+            <Button onClick={generatePreview} variant="outline" className="text-slate-700">Recalcular Draft</Button>
+            {draft && persistedTrip && (
+              <Button onClick={() => setApprovalState('REVIEW')} className="bg-lime-600 text-white hover:bg-lime-700">
+                Aplicar ao Trip Space
+              </Button>
+            )}
+          </div>
         </header>
+
+        {approvalState === 'REVIEW' && draft && persistedTrip && (
+          <div className="bg-white p-6 rounded-2xl shadow-lg border-2 border-lime-500 mb-8 relative z-50">
+            <h2 className="text-2xl font-black text-slate-800 mb-4">Revisar aplicação ao Trip Space</h2>
+            <div className="grid grid-cols-2 gap-6 mb-6">
+               <div className="bg-slate-50 p-4 rounded-xl border border-slate-200">
+                 <h3 className="font-bold text-slate-700 mb-2">Resumo do Draft</h3>
+                 <ul className="text-sm space-y-1">
+                   <li><strong>Dias:</strong> {draft.days.length}</li>
+                   <li><strong>Experiências:</strong> {draft.days.reduce((acc, d) => acc + d.activities.filter(a => a.type === 'experience').length, 0)}</li>
+                   <li><strong>Reservas Fixas:</strong> {draft.days.reduce((acc, d) => acc + d.activities.filter(a => a.isFixed).length, 0)}</li>
+                   <li><strong>Deslocamentos:</strong> {draft.days.reduce((acc, d) => acc + d.activities.filter(a => a.source === 'transit').length, 0)}</li>
+                   <li><strong>Prontidão:</strong> {draft.geographicReadiness}</li>
+                 </ul>
+               </div>
+               <div className="bg-slate-50 p-4 rounded-xl border border-slate-200">
+                 <h3 className="font-bold text-slate-700 mb-2">Comparação (Impacto)</h3>
+                 <ul className="text-sm space-y-1 text-slate-600">
+                   <li>Versão atual: {new Date(persistedTrip.updated_at).toLocaleString()}</li>
+                   <li>O roteiro anterior será substituído pela versão do Engine.</li>
+                   <li className="text-amber-600 font-semibold mt-2">Atenção: Ações de reversão automática não estão garantidas nesta versão (V2 Foundation).</li>
+                 </ul>
+               </div>
+            </div>
+            <div className="flex gap-4">
+               <Button onClick={handleApplyDraft} className="bg-slate-900 text-white font-bold w-full">
+                 Aprovar e aplicar ao Trip Space
+               </Button>
+               <Button onClick={() => setApprovalState('IDLE')} variant="outline" className="w-1/3">
+                 Cancelar
+               </Button>
+            </div>
+          </div>
+        )}
+
+        {approvalState !== 'IDLE' && approvalState !== 'REVIEW' && (
+           <div className={`p-6 rounded-2xl shadow-sm mb-8 font-bold border-2 ${approvalState === 'APPLYING' ? 'bg-blue-50 border-blue-500 text-blue-800' : approvalState === 'APPLIED' ? 'bg-lime-50 border-lime-500 text-lime-800' : 'bg-red-50 border-red-500 text-red-800'}`}>
+              {approvalState === 'APPLYING' && <div className="flex items-center gap-3"><Loader2 className="w-6 h-6 animate-spin" /> Aplicando Roteiro...</div>}
+              {approvalState === 'APPLIED' && <div className="flex flex-col gap-3"><div className="flex items-center gap-3"><CheckCircle className="w-6 h-6" /> Roteiro persistido com sucesso!</div><Link to={`/app/trips/${tripId}`} className="text-lime-700 underline text-sm font-medium ml-9">Abrir no Trip Space</Link></div>}
+              {approvalState === 'ALREADY_APPLIED' && <div className="flex items-center gap-3"><Info className="w-6 h-6" /> Este exato draft já foi aplicado ao banco. Nenhuma alteração feita.</div>}
+              {approvalState === 'ITINERARY_CHANGED_SINCE_PREVIEW' && <div className="flex items-center gap-3"><AlertTriangle className="w-6 h-6" /> Concorrência: A viagem foi alterada no banco depois que você abriu este preview. Recalcule o draft.</div>}
+              {approvalState === 'BLOCKED_BY_CONFLICT' && <div className="flex items-center gap-3"><AlertTriangle className="w-6 h-6" /> Conflito: O draft removeu ou alterou itens protegidos (reservas fixas). {applyError}</div>}
+              {approvalState === 'READBACK_MISMATCH' && <div className="flex items-center gap-3"><AlertTriangle className="w-6 h-6" /> Erro de Leitura: Os dados foram salvos mas a leitura de confirmação falhou.</div>}
+              {approvalState === 'PERSISTENCE_FAILED' && <div className="flex items-center gap-3"><AlertTriangle className="w-6 h-6" /> Erro de Persistência: {applyError}</div>}
+           </div>
+        )}
 
         {(health || draft) && (() => {
           let hasCriticals = health ? health.critical.length > 0 : false;
