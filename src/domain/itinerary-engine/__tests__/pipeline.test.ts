@@ -4,7 +4,7 @@ import { SchedulerV1 } from '../schedulerV1';
 import { LocalDeterministicGeoProvider } from '../geoProvider';
 
 describe('Engine V2 Phase C Pipeline Integration Test', () => {
-  test('Deve processar dados geográficos reais, propagar coordenadas e gerar RouteSegments', async () => {
+  test('deve retornar PARTIAL quando há segmentos válidos, mas o Basecamp está sem GPS', async () => {
     // 1. Mock do objeto retornado pelo TripRepository
     const mockTrip = {
        id: 'trip-f116cf27',
@@ -103,9 +103,27 @@ describe('Engine V2 Phase C Pipeline Integration Test', () => {
     // Validar se gerou segmento entre os itens do dia (se foram alocados no mesmo dia)
     expect(generatedSegments).toBeGreaterThan(0);
     
-    // Basecamp sem GPS, então readiness será INSUFFICIENT_DATA (com base na correção)
-    expect(draft.geographicReadiness).toBe('INSUFFICIENT_DATA');
+    // Basecamp sem GPS, então readiness será PARTIAL (conforme regra)
+    expect(draft.geographicReadiness).toBe('PARTIAL');
     
     // Se o basecamp tivesse GPS, testaríamos tbm.
+  });
+
+  test('deve retornar INSUFFICIENT_DATA quando Basecamp e atividades estao sem coordenadas e zero segmentos possíveis', async () => {
+    const mockTrip = {
+       id: 'trip-f116cf27', start_date: '2026-08-01', end_date: '2026-08-01', destination: 'New York, USA',
+       preferences: { pace: 'balanced', matchVotes: { 'joes-pizza': 'yes' } }
+    };
+    const mockCatalog = [
+      { id: "joes-pizza", title: "Joe's Pizza", category: "Restaurant", tags: ["pizza"], duration_minutes: 60, location_lat: undefined, location_lng: undefined }
+    ];
+    const mockReservations: any[] = [
+      { type: 'hotel', id: 'fake-hotel', title: 'Hotel', latitude: undefined, longitude: undefined }
+    ];
+    
+    const input = EngineInputBuilder.build(mockTrip, mockReservations, mockCatalog);
+    const draft = await SchedulerV1.generate(input, new LocalDeterministicGeoProvider());
+    
+    expect(draft.geographicReadiness).toBe('INSUFFICIENT_DATA');
   });
 });
