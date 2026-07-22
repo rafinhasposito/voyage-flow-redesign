@@ -63,9 +63,10 @@ Este documento acompanha as fases do projeto de forma macro, definindo o que já
   - IA Concierge contextual ativa.
 
 - [ ] **Fase 6.4 - Bloco D (Modo Viagem Mobile)**
-  - Acesso aos Passes Offline e mapas básicos. serviços auxiliares em `StorageService` e `ExperienceService`.
-  - Bug do SWR (Retorno do cache vazio com Fallback) corrigido: SWR bloqueia renderização com await se o cache está invalidado.
-  - Teste manual E2E de criação e edição aprovado.
+  - [x] **Bloco D0 (Aprovação e Persistência Controlada do Roteiro):** Concluído. Trip Space agora exibe roteiros gerados pela Engine V2, com aprovação explícita, verificação de concorrência e preservação de reservas. O banco está persistindo de forma controlada (`trips.itinerary`).
+  - [ ] Acesso aos Passes Offline e mapas básicos. serviços auxiliares em `StorageService` e `ExperienceService`.
+  - [ ] Bug do SWR (Retorno do cache vazio com Fallback) corrigido: SWR bloqueia renderização com await se o cache está invalidado.
+  - [ ] Teste manual E2E de criação e edição aprovado.
 
 - [x] **Fase 5.1 - Cadastro de Massa Real (Concluída)**
   - O usuário fará o cadastro manual (via Admin UI) das 5 a 10 atrações reais que cobrem os diferentes cenários e perfis da Engine.

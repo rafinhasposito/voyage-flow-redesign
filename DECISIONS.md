@@ -263,3 +263,10 @@ Backend comercial — Congelado
   - Corrigir nomes vazios nos avisos `DUPLICATE_GEOPOINT_REVIEW_REQUIRED`.
   - Revisar registros que compartilham coordenadas exatas.
   - Avaliar API provider externo.
+
+## 29. Persistência do Roteiro (Bloco D0)
+- **Decisão:** A gravação do roteiro gerado pela Engine V2 (Draft) na coluna `trips.itinerary` ocorre por meio de aprovação explícita ("Aplicar ao Trip Space"), com conversão para `PersistedTripItineraryV2` e salvaguardas rigorosas.
+- **Justificativa:** O roteiro gerado pela IA não deve sobrescrever silenciosamente o roteiro oficial do usuário. Ao separar a visualização (Preview) da aplicação (Commit), damos controle ao usuário. A persistência é protegida por:
+  - **Concorrência (Optimistic Locking):** O sistema verifica a `updated_at` atual da viagem antes de salvar. Se a viagem foi alterada no meio tempo, a escrita falha (`ITINERARY_CHANGED_SINCE_PREVIEW`).
+  - **Idempotência:** Um hash do draft é embutido nos metadados. Se o Trip Space já contiver exatamente esse hash, a escrita retorna um status limpo (`ALREADY_APPLIED`) sem sujar o banco.
+  - **Preservação:** O Mapper e o Repositório validam rigidamente a existência de itens fixos (`isFixed`, `manualLock`). Se um item protegido for removido do Draft acidentalmente, a persistência aborta imediatamente (`BLOCKED_BY_CONFLICT`), garantindo a segurança de reservas financeiras e decisões manuais do viajante.

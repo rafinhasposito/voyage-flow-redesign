@@ -144,6 +144,7 @@ Elaborada proposta de infraestrutura (Edge Functions e SQL migrations locais) pa
 * MUDANÇA DE PRIORIDADE URGENTE: O admin foi congelado. Foco 100% na jornada do viajante.
 * Objetivo: Ter o app funcional em 13 dias para viagem real do criador.
 * Bloco B & C Integrados e Funcionais: A jornada completa do usuário final está fechada. Engine, Match, DNA, e Roteiro gerado inteligentemente persistem via Supabase (Trips e TripWallet). Endurecimentos de concorrência e idempotência aplicados.
+* Bloco D0 (Aprovação e Persistência Controlada do Roteiro) Concluído: Implementado fluxo explícito de aprovação onde o roteiro draft gerado pela Engine V2 é convertido (TripDraft -> PersistedTripItineraryV2) e salvo em `trips.itinerary`. A persistência é protegida por concorrência (validação de versão) e idempotência (draftHash). Reservas fixas (isFixed, manualLock) são protegidas e bloqueiam remoção silenciosa. O Trip Space já consome o array `PersistedTripItineraryV2` diretamente, finalizando a integração D0. Sem implementação de mapas ou modo offline nesta etapa.
 
 6. TRIP-READY-1 — Jornada funcional do viajante (Prioridade Máxima)
 7. ADMIN-2B.2B — Congelada temporariamente
