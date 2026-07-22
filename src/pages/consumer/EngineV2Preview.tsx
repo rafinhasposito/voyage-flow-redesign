@@ -10,6 +10,7 @@ import { TripEngineInputV1 } from '@/domain/itinerary-engine/contracts';
 import { LocalDeterministicGeoProvider } from '@/domain/itinerary-engine/geoProvider';
 import { Loader2, ArrowLeft, AlertTriangle, CheckCircle, Info, Plane, Hotel, MapPin, Calendar, Clock, BarChart } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { GeoAuditPanel } from './GeoAuditPanel';
 
 export default function EngineV2Preview() {
   const { tripId } = useParams();
@@ -229,6 +230,8 @@ export default function EngineV2Preview() {
             </div>
           </section>
         )})()}
+
+        <GeoAuditPanel inputData={inputData} draft={draft} tripId={tripId} />
 
         {inputData && (
           <section className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
