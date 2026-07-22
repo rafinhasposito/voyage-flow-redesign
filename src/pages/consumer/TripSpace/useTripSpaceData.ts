@@ -8,14 +8,20 @@ import { TripSpaceViewModel } from '@/types/tripSpace.types';
 import { buildTripSpaceViewModel } from '@/utils/tripSpaceAdapter';
 
 export function useTripSpaceData(tripId?: string) {
-  const { user } = useConsumerAuth();
+  const { user, isLoading: authLoading } = useConsumerAuth();
   const [data, setData] = useState<TripSpaceViewModel | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [activeDay, setActiveDay] = useState(1);
 
   const reloadData = async () => {
-    if (!tripId || !user) return;
+    if (authLoading) return;
+    if (!tripId || !user) {
+      setError("Autenticação necessária. Faça login para acessar sua viagem.");
+      setLoading(false);
+      return;
+    }
+    
     try {
       setLoading(true);
       setError(null);
@@ -64,7 +70,7 @@ export function useTripSpaceData(tripId?: string) {
 
   useEffect(() => {
     reloadData();
-  }, [tripId, user]);
+  }, [tripId, user, authLoading]);
 
   return {
     data,

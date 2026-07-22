@@ -35,13 +35,32 @@ export class TripRepository {
     }
 
     static async getTripById(tripId: string) {
-        const { data, error } = await supabase
+        const { data: { session } } = await supabase.auth.getSession();
+        const { data: { user } } = await supabase.auth.getUser();
+        
+        const { data, error, status } = await supabase
             .from('trips')
             .select('*')
-            .eq('id', tripId)
-            .single();
-        if (error) throw error;
-        return data;
+            .eq('id', tripId);
+            
+        if (error) {
+            console.error("[DIAGNOSTICS] Supabase error:", error.message, "Status:", status);
+            throw error;
+        }
+
+        if (!data || data.length === 0) {
+            console.error(`[DIAGNOSTICS] getTripById: Sessão existe? ${!!session}. User ID existe? ${!!user?.id}. TripId: ${tripId}. Linhas visíveis: 0.`);
+            if (user?.id) {
+                console.error(`[DIAGNOSTICS] User.id ativo: ${user.id.substring(0,4)}...${user.id.substring(user.id.length-4)}`);
+            }
+            throw new Error(`Viagem não encontrada. Verifique se a viagem pertence ao usuário ativo ou se existe sessão.`);
+        }
+
+        if (data.length > 1) {
+             console.error(`[DIAGNOSTICS] Múltiplas viagens encontradas com id ${tripId}`);
+        }
+
+        return data[0];
     }
 
     static async createTrip(payload: CreateTripDTO) {

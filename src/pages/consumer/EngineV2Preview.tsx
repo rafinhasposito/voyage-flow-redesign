@@ -8,13 +8,16 @@ import { InputHealthValidator, TripEngineInputHealth } from '@/domain/itinerary-
 import { SchedulerV1, ItineraryDraftV1, DaySchedule, ScheduledActivity } from '@/domain/itinerary-engine/schedulerV1';
 import { TripEngineInputV1 } from '@/domain/itinerary-engine/contracts';
 import { LocalDeterministicGeoProvider } from '@/domain/itinerary-engine/geoProvider';
-import { Loader2, ArrowLeft, AlertTriangle, CheckCircle, Info, Plane, Hotel, MapPin, Calendar, Clock, BarChart } from 'lucide-react';
+import { Loader2, ArrowLeft, AlertTriangle, CheckCircle, Info, Plane, Hotel, MapPin, Calendar, Clock, BarChart, Lock } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { GeoAuditPanel } from './GeoAuditPanel';
 import { TripItineraryMapper } from '@/domain/itinerary-engine/mapper';
+import { useConsumerAuth } from '@/contexts/ConsumerAuthProvider';
 
 export default function EngineV2Preview() {
   const { tripId } = useParams();
+  const { user, isLoading: authLoading } = useConsumerAuth();
+  
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   
@@ -31,6 +34,13 @@ export default function EngineV2Preview() {
   const [applyError, setApplyError] = useState<string | null>(null);
 
   const generatePreview = async () => {
+    if (authLoading) return;
+    if (!user) {
+      setError("Autenticação necessária. Faça login para acessar o planejamento.");
+      setLoading(false);
+      return;
+    }
+
     setLoading(true);
     setError(null);
     try {
@@ -131,8 +141,10 @@ export default function EngineV2Preview() {
   };
 
   useEffect(() => {
-    generatePreview();
-  }, [tripId]);
+    if (!authLoading) {
+       generatePreview();
+    }
+  }, [tripId, authLoading, user]);
 
   if (loading) {
     return <div className="flex h-screen items-center justify-center"><Loader2 className="w-10 h-10 animate-spin text-lime-600" /></div>;

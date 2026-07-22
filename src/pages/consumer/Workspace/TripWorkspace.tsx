@@ -65,9 +65,6 @@ export default function TripWorkspace() {
           });
         });
 
-        // Use local storage default for anything not in DB yet for backward compatibility
-        const baseState = getTravelState();
-
         if (trip.itinerary && Array.isArray(trip.itinerary) && trip.itinerary.length > 0) {
           // Check for V2 format
           let legacyItinerary = trip.itinerary;
@@ -99,13 +96,19 @@ export default function TripWorkspace() {
              }));
           }
 
-          setState({ ...baseState, itinerary: legacyItinerary as any, profile: { ...baseState.profile, days: legacyItinerary.length } });
+          setState({ 
+             itinerary: legacyItinerary as any, 
+             profile: { days: legacyItinerary.length } as any,
+             checklist: [],
+             customExpenses: [],
+             itineraryHistory: []
+          });
         } else {
-          setErrorMessage("O roteiro ainda não foi gerado.");
+          setErrorMessage("O roteiro ainda não foi gerado ou está vazio.");
         }
-      } catch (err) {
+      } catch (err: any) {
         console.error(err);
-        setErrorMessage("Erro ao carregar o roteiro.");
+        setErrorMessage(err.message || "Erro ao carregar o roteiro.");
       } finally {
         setLoading(false);
       }
@@ -410,10 +413,8 @@ export default function TripWorkspace() {
   };
 
   const handleResetItinerary = () => {
-    localStorage.removeItem("viagem_dos_sonhos_state");
-    const freshState = getTravelState();
-    setState(freshState);
-    showSuccess("Roteiro reiniciado para o padrão!");
+    // Local storage is no longer used for itinerary state
+    showSuccess("Ação não suportada para roteiros oficiais. Use o Engine Preview.");
   };
 
   const currentDayData = state.itinerary.find(d => d.dayNumber === activeDay) || state.itinerary[0];
