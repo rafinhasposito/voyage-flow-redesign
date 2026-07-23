@@ -1,4 +1,4 @@
-import { TripEngineInputV1, FlightSegment, FixedAnchor, FlexibleReservation, Basecamp } from './contracts';
+import { TripEngineInputV1, FlightSegment, FixedAnchor, FlexibleReservation, Basecamp, normalizeMatchVote } from './contracts';
 import { TripReservation } from '../../repositories/TripWalletRepository';
 
 export class EngineInputBuilder {
@@ -100,7 +100,16 @@ export class EngineInputBuilder {
       }
     });
 
-    const matchVotes = preferences.matchVotes || preferences.match_votes || trip.match_votes || {};
+    const rawMatchVotes = preferences.matchVotes || preferences.match_votes || trip.match_votes || {};
+    const matchVotes: Record<string, string> = {};
+    for (const [k, v] of Object.entries(rawMatchVotes)) {
+      const result = normalizeMatchVote(v as string);
+      if (result.status === 'NORMALIZED') {
+        matchVotes[k] = result.value;
+      } else if (result.status === 'UNKNOWN') {
+        console.warn(`[EngineInputBuilder] Unknown match vote value for item ${k}: ${result.rawValue}`);
+      }
+    }
 
     return {
       engineVersion: '1.0.0',

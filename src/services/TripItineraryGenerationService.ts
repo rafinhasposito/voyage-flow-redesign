@@ -94,6 +94,36 @@ export class TripItineraryGenerationService {
     return updatedTrip;
   }
 
+  static async generatePreview(tripId: string): Promise<any> {
+    const trip = await TripRepository.getTripById(tripId);
+    if (!trip) throw new Error('Viagem não encontrada.');
+    
+    const reservations = await TripWalletRepository.getReservations(tripId);
+    const rawCatalog = await ExperienceRepository.getByDestination(trip.destination);
+    const catalog = rawCatalog.filter(exp => exp.is_published && exp.type !== 'transport');
+
+    const engineInput = EngineInputBuilder.build(trip, reservations, catalog);
+    const inputHash = this.generateHash(JSON.stringify({
+      preferences: trip.preferences,
+      reservations: reservations.map(r => r.id).join(','),
+      dates: `${trip.start_date}_${trip.end_date}`
+    }));
+
+    const geoProvider = new LocalDeterministicGeoProvider();
+    const draftItinerary = await SchedulerV1.generate(engineInput, geoProvider);
+
+    return {
+      metadata: { inputHash },
+      diagnostics: {
+        eligibleCandidates: catalog.filter(item => {
+          const vote = engineInput.matchVotes[item.id];
+          return vote !== 'REJECT';
+        })
+      },
+      itinerary: draftItinerary.days
+    };
+  }
+
   private static generateHash(str: string): string {
     let hash = 0;
     for (let i = 0; i < str.length; i++) {

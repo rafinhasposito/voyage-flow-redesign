@@ -29,8 +29,15 @@ export class MatchEngine {
     allExperiences: TravelExperience[],
     limit: number = 10
   ): MatchDeck {
-    // We don't want hotels in the deck!
-    const available = allExperiences.filter(e => e.type !== 'hotel' && e.category !== 'Hotel' && e.category !== 'Hospedagem');
+    const existingVotes = tripPreferences?.match_votes || {};
+    
+    // We don't want hotels in the deck, and we exclude already voted items
+    const available = allExperiences.filter(e => 
+      e.type !== 'hotel' && 
+      e.category !== 'Hotel' && 
+      e.category !== 'Hospedagem' &&
+      !existingVotes[e.id]
+    );
     
     const items: MatchDeckItem[] = [];
     const usedIds = new Set<string>();

@@ -84,7 +84,7 @@ export function buildTripSpaceViewModel(
         time: timeStr,
         isBooked: !!att.isBooked || !!att.isFixed || !!att.manualLock || reservations.some((r: any) => r.title?.toLowerCase().includes((att.title || att.name || '').toLowerCase())),
         isLocked: !!att.manualLock || !!att.manualMetadata?.locked,
-        isFixed: !!att.isFixed || !!att.is_must_see,
+        isFixed: !!att.isFixed,
         matchScore: att.matchScore || catExp?.score || undefined
       });
     });

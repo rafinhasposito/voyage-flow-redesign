@@ -77,3 +77,30 @@ export interface TripEngineInputV1 {
   flexibleReservations: FlexibleReservation[];
   catalog: any[]; // Temporarily any, should map to Experience DTO
 }
+
+export type MatchVote = 'LOVE' | 'LIKE' | 'MAYBE' | 'REJECT' | 'PURCHASED';
+
+export type MatchVoteNormalizationResult =
+  | { status: 'NORMALIZED'; value: MatchVote }
+  | { status: 'UNKNOWN'; rawValue: string }
+  | { status: 'MISSING' };
+
+export function normalizeMatchVote(rawValue: string | undefined | null): MatchVoteNormalizationResult {
+  if (!rawValue) return { status: 'MISSING' };
+  
+  const val = String(rawValue).toLowerCase().trim();
+  
+  // Current values
+  if (val === 'yes') return { status: 'NORMALIZED', value: 'LOVE' };
+  if (val === 'no') return { status: 'NORMALIZED', value: 'REJECT' };
+  if (val === 'maybe') return { status: 'NORMALIZED', value: 'MAYBE' };
+  if (val === 'bought') return { status: 'NORMALIZED', value: 'PURCHASED' };
+  
+  // Legacy/other possible values found in previous code bases
+  if (['love', 'loved'].includes(val)) return { status: 'NORMALIZED', value: 'LOVE' };
+  if (['like', 'liked'].includes(val)) return { status: 'NORMALIZED', value: 'LIKE' };
+  if (['dislike', 'reject', 'pass'].includes(val)) return { status: 'NORMALIZED', value: 'REJECT' };
+  if (['purchased', 'reserved'].includes(val)) return { status: 'NORMALIZED', value: 'PURCHASED' };
+  
+  return { status: 'UNKNOWN', rawValue: String(rawValue) };
+}

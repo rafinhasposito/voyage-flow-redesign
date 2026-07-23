@@ -1,7 +1,7 @@
-import assert from 'assert';
-import { InputHealthValidator } from './inputHealth';
-import { ReservationNormalizer } from './reservationNormalizer';
-import { TripEngineInputV1, CompanionshipType, PaceType, BudgetLevel } from './contracts';
+import { describe, it, expect } from 'vitest';
+import { InputHealthValidator } from '../inputHealth';
+import { ReservationNormalizer } from '../reservationNormalizer';
+import { TripEngineInputV1, CompanionshipType, PaceType, BudgetLevel } from '../contracts';
 
 // Dummy builder for valid input
 const createValidInput = (): TripEngineInputV1 => ({
@@ -46,72 +46,75 @@ const createValidInput = (): TripEngineInputV1 => ({
   catalog: []
 });
 
-async function runTests() {
-  console.log('Running Tests...');
-
-  // Test 1: Voo automático válido (All critical data provided)
-  let input = createValidInput();
-  let health = InputHealthValidator.validate(input);
-  assert.strictEqual(health.ready, true);
-  assert.strictEqual(health.critical.length, 0);
-
-  // Test 2: Voo manual válido
-  // Assumed handled by the same struct if dates are present.
-
-  // Test 3 & 4: Voo com scheduledTime ausente (Warning raised in Validator)
-  input = createValidInput();
-  input.flightSegments = [];
-  health = InputHealthValidator.validate(input);
-  assert.strictEqual(health.warnings.some(w => w.field === 'flights'), true);
-
-  // Test 5: Voo sem timezone
-  input = createValidInput();
-  input.flightSegments[0].departureTimezone = undefined;
-  health = InputHealthValidator.validate(input);
-  assert.strictEqual(health.warnings.some(w => w.field === 'flight.timezone'), true);
-
-  // Test 6: Voo com mudança de data durante o trajeto (arrival > departure locally, but still valid)
-
-  // Test 9: Chegada ao destino identificada corretamente
-  const rawReservations = [
-    { type: 'flight', id: '1', title: 'LA8180', structured_data: { origin: 'GRU', destination: 'JFK' }, start_at: '2026-08-01T22:00:00', end_at: '2026-08-02T06:00:00' },
-    { type: 'flight', id: '2', title: 'LA8181', structured_data: { origin: 'JFK', destination: 'GRU' }, start_at: '2026-08-12T18:00:00', end_at: '2026-08-13T06:00:00' }
-  ];
-  const normalized = ReservationNormalizer.normalize(rawReservations, 'JFK');
-  assert.strictEqual(normalized.arrivalFlight?.arrivalAirport, 'JFK');
-  
-  // Test 10: Partida do destino identificada corretamente
-  assert.strictEqual(normalized.departureFlight?.departureAirport, 'JFK');
-
-  // Test 11 & 12: Hotel com/sem coordenadas
-  const rawHotel = { type: 'hotel', id: 'h1', title: 'Hotel Test', latitude: null, longitude: null, structured_data: { is_basecamp: true } };
-  const normalizedHotel = ReservationNormalizer.normalize([rawHotel]);
-  assert.strictEqual(normalizedHotel.basecamp?.lat, null); // mapped safely without inventing coords
-
-  // Test 13: Reserva fixa sem horário
-  input = createValidInput();
-  input.fixedReservations.push({
-    id: 'res1', type: 'show', date: '2026-08-05', startTime: '', endTime: '', duration: 0, isLocked: true, source: 'reservation', confirmationStatus: 'booked'
+describe('Engine A — InputHealth e ReservationNormalizer', () => {
+  it('Test 1: Input válido completo não gera críticos', () => {
+    const input = createValidInput();
+    const health = InputHealthValidator.validate(input);
+    expect(health.ready).toBe(true);
+    expect(health.critical.length).toBe(0);
   });
-  health = InputHealthValidator.validate(input);
-  assert.strictEqual(health.critical.some(c => c.field === 'fixedReservations.time'), true);
 
-  // Test 14: Viagem sem voo
-  input = createValidInput();
-  input.flightSegments = [];
-  health = InputHealthValidator.validate(input);
-  assert.strictEqual(health.ready, true); // Still ready, just warning
-  assert.strictEqual(health.warnings.some(w => w.field === 'flights'), true);
+  it('Test 3-4: Sem voos gera warning flights', () => {
+    const input = createValidInput();
+    input.flightSegments = [];
+    const health = InputHealthValidator.validate(input);
+    expect(health.warnings.some(w => w.field === 'flights')).toBe(true);
+  });
 
-  // Test 15: Datas da viagem inválidas
-  input = createValidInput();
-  input.startDate = '2026-08-12';
-  input.endDate = '2026-08-02'; // End before start
-  health = InputHealthValidator.validate(input);
-  assert.strictEqual(health.critical.some(c => c.field === 'dates'), true);
-  assert.strictEqual(health.ready, false);
+  it('Test 5: Voo sem timezone gera warning flight.timezone', () => {
+    const input = createValidInput();
+    input.flightSegments[0].departureTimezone = undefined;
+    const health = InputHealthValidator.validate(input);
+    expect(health.warnings.some(w => w.field === 'flight.timezone')).toBe(true);
+  });
 
-  console.log('All 15 validations passed successfully!');
-}
+  it('Test 9: Chegada ao destino identificada corretamente', () => {
+    const rawReservations = [
+      { type: 'flight', id: '1', title: 'LA8180', structured_data: { origin: 'GRU', destination: 'JFK' }, start_at: '2026-08-01T22:00:00', end_at: '2026-08-02T06:00:00' },
+      { type: 'flight', id: '2', title: 'LA8181', structured_data: { origin: 'JFK', destination: 'GRU' }, start_at: '2026-08-12T18:00:00', end_at: '2026-08-13T06:00:00' }
+    ];
+    const normalized = ReservationNormalizer.normalize(rawReservations, 'JFK');
+    expect(normalized.arrivalFlight?.arrivalAirport).toBe('JFK');
+  });
 
-runTests().catch(console.error);
+  it('Test 10: Partida do destino identificada corretamente', () => {
+    const rawReservations = [
+      { type: 'flight', id: '1', title: 'LA8180', structured_data: { origin: 'GRU', destination: 'JFK' }, start_at: '2026-08-01T22:00:00', end_at: '2026-08-02T06:00:00' },
+      { type: 'flight', id: '2', title: 'LA8181', structured_data: { origin: 'JFK', destination: 'GRU' }, start_at: '2026-08-12T18:00:00', end_at: '2026-08-13T06:00:00' }
+    ];
+    const normalized = ReservationNormalizer.normalize(rawReservations, 'JFK');
+    expect(normalized.departureFlight?.departureAirport).toBe('JFK');
+  });
+
+  it('Test 11-12: Hotel sem coordenadas não inventa lat/lng', () => {
+    const rawHotel = { type: 'hotel', id: 'h1', title: 'Hotel Test', latitude: null, longitude: null, structured_data: { is_basecamp: true } };
+    const normalizedHotel = ReservationNormalizer.normalize([rawHotel]);
+    expect(normalizedHotel.basecamp?.lat).toBeNull();
+  });
+
+  it('Test 13: Reserva fixa sem horário gera crítico fixedReservations.time', () => {
+    const input = createValidInput();
+    input.fixedReservations.push({
+      id: 'res1', type: 'show', date: '2026-08-05', startTime: '', endTime: '', duration: 0, isLocked: true, source: 'reservation', confirmationStatus: 'booked'
+    });
+    const health = InputHealthValidator.validate(input);
+    expect(health.critical.some(c => c.field === 'fixedReservations.time')).toBe(true);
+  });
+
+  it('Test 14: Viagem sem voo é ready mas com warning', () => {
+    const input = createValidInput();
+    input.flightSegments = [];
+    const health = InputHealthValidator.validate(input);
+    expect(health.ready).toBe(true);
+    expect(health.warnings.some(w => w.field === 'flights')).toBe(true);
+  });
+
+  it('Test 15: Datas invertidas geram crítico dates e ready=false', () => {
+    const input = createValidInput();
+    input.startDate = '2026-08-12';
+    input.endDate = '2026-08-02';
+    const health = InputHealthValidator.validate(input);
+    expect(health.critical.some(c => c.field === 'dates')).toBe(true);
+    expect(health.ready).toBe(false);
+  });
+});

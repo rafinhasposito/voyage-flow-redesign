@@ -173,7 +173,7 @@ export class TripRepository {
                     });
                 } else if (day.attractions && Array.isArray(day.attractions)) {
                     day.attractions.forEach((act: any) => {
-                         if (act.manualMetadata?.locked || act.is_must_see) currentFixedIds.add(getStableId(act));
+                         if (act.manualMetadata?.locked) currentFixedIds.add(getStableId(act));
                     });
                 }
             });
