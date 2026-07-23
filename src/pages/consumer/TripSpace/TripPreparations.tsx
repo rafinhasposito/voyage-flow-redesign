@@ -15,8 +15,18 @@ interface TripPreparationsProps {
   activeTabOverride?: 'checklist' | 'reservations' | 'documents';
 }
 
+const DEFAULT_PREPARATIONS: TripSpaceChecklistItem[] = [
+  { id: 'prep_1', text: 'Emitir autorização de viagem (ESTA / Visto EUA)', completed: true },
+  { id: 'prep_2', text: 'Contratar seguro viagem com cobertura médica ($50k+)', completed: false },
+  { id: 'prep_3', text: 'Configurar cartão internacional (Wise / Nomad)', completed: true },
+  { id: 'prep_4', text: 'Verificar adaptadores de tomada padrão EUA (tipo A/B)', completed: false },
+  { id: 'prep_5', text: 'Comprar chip eSIM com dados móveis ilimitados para NYC', completed: false },
+];
+
 export function TripPreparations({ tripId, checklist: initialChecklist, reservations, documents, onChecklistUpdate, activeTabOverride }: TripPreparationsProps) {
-  const [items, setItems] = useState<TripSpaceChecklistItem[]>(initialChecklist);
+  const [items, setItems] = useState<TripSpaceChecklistItem[]>(() =>
+    (initialChecklist && initialChecklist.length > 0) ? initialChecklist : DEFAULT_PREPARATIONS
+  );
 
   const handleToggleItem = async (id: string) => {
     const nextItems = items.map(item => item.id === id ? { ...item, completed: !item.completed } : item);

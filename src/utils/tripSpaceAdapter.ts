@@ -175,6 +175,19 @@ export function buildTripSpaceViewModel(
     }
   });
 
+  if (savedIdeas.length === 0 && recommendations.length === 0) {
+    FALLBACK_ATTRACTIONS.slice(0, 6).forEach((exp: any) => {
+      recommendations.push({
+        id: exp.id,
+        title: exp.name,
+        category: exp.categoryLabel || exp.category || 'Atração',
+        neighborhood: exp.neighborhood || 'Nova York',
+        photoUrl: exp.image,
+        reason: 'Curadoria Exclusiva Voyage Flow'
+      });
+    });
+  }
+
   // 6. Map Checklist
   const rawChecklist: any[] = Array.isArray(trip.preferences?.checklist) ? trip.preferences.checklist : [];
   const checklist: TripSpaceChecklistItem[] = rawChecklist.map((c: any, idx: number) => ({

@@ -8,6 +8,7 @@ import { DayWorkspace } from './DayWorkspace';
 import { TripContextSidebar } from './TripContextSidebar';
 import { TripCollections } from './TripCollections';
 import { TripPreparations } from './TripPreparations';
+import { TripMapView } from './TripMapView';
 
 export default function TripSpacePage() {
   const { tripId } = useParams<{ tripId: string }>();
@@ -216,10 +217,11 @@ export default function TripSpacePage() {
           )}
 
           {activeModule === 'mapa' && (
-            <div className="bg-white rounded-xl border border-slate-200 p-8 text-center">
-              <h2 className="text-xl font-bold text-slate-800 mb-2">Mapa Completo (Em breve)</h2>
-              <p className="text-sm text-slate-500">Visualização geográfica de todas as atrações.</p>
-            </div>
+            <TripMapView
+              data={data}
+              activeDay={activeDay}
+              onDaySelect={setActiveDay}
+            />
           )}
         </div>
       </div>

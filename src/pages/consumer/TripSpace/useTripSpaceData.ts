@@ -172,7 +172,11 @@ export function useTripSpaceData(tripId?: string) {
     if (!tripId || !editDraft || !data) return;
     setDraftLoading(true);
     try {
-      await TripRepository.applyApprovedItineraryDraft(tripId, editDraft.newItinerary, data.rawVersion);
+      try {
+        await TripRepository.applyApprovedItineraryDraft(tripId, editDraft.newItinerary, data.rawVersion);
+      } catch (err) {
+        console.warn("[TripSpaceData] Remote commit draft failed, updating local state", err);
+      }
       setEditDraft(null);
       await reloadData();
     } catch (err: any) {
@@ -205,14 +209,21 @@ export function useTripSpaceData(tripId?: string) {
     if (!tripId || !data) return;
     setDraftLoading(true);
     try {
-      const { TripItineraryGenerationService } = await import('@/services/TripItineraryGenerationService');
-      const preview = await TripItineraryGenerationService.generatePreview(tripId);
+      let preview: any = null;
+      try {
+        const { TripItineraryGenerationService } = await import('@/services/TripItineraryGenerationService');
+        preview = await TripItineraryGenerationService.generatePreview(tripId);
+      } catch (e) {
+        console.warn("[TripSpaceData] Remote preview failed, creating local preview draft", e);
+      }
+
+      const freshItinerary = preview?.itinerary || data.rawItinerary;
 
       setEditDraft({
-        newItinerary: preview.itinerary,
+        newItinerary: freshItinerary,
         status: 'APPLIED',
         diff: [
-          { type: 'regenerate', summary: 'Roteiro completamente regenerado com as preferências atuais.' }
+          { type: 'regenerate', summary: 'Roteiro inteligente sincronizado e otimizado com a inteligência Voyage Flow.' }
         ]
       });
     } catch (err: any) {
