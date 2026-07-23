@@ -28,6 +28,15 @@ export default function TripSpacePage() {
     window.location.hash = activeModule;
   }, [activeModule]);
 
+  useEffect(() => {
+    const handleHashChange = () => {
+      const hash = window.location.hash.replace('#', '');
+      if (hash) setActiveModule(hash);
+    };
+    window.addEventListener('hashchange', handleHashChange);
+    return () => window.removeEventListener('hashchange', handleHashChange);
+  }, []);
+
   // Handle custom events from child components that don't have direct prop access
   useEffect(() => {
     const handleCreateDraft = (e: any) => {

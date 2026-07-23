@@ -66,9 +66,9 @@ export function TripHeader({ data, onRegenerate }: TripHeaderProps) {
           <div className="relative">
             <button
               onClick={onRegenerate}
-              className="bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 px-5 py-2.5 rounded-full font-bold text-sm flex items-center gap-2 transition-colors shadow-sm cursor-pointer"
+              className="bg-lime-400 hover:bg-lime-500 text-slate-950 border border-lime-500/20 px-5 py-2.5 rounded-full font-extrabold text-sm flex items-center gap-2 transition-all shadow-sm cursor-pointer"
             >
-              <RefreshCw className="w-4 h-4 text-slate-400" />
+              <RefreshCw className="w-4 h-4 text-slate-950" />
               <span>Atualizar roteiro</span>
             </button>
           </div>

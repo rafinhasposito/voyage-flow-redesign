@@ -19,10 +19,16 @@ export function TripSpaceSidebar({ profile, tripId }: TripSpaceSidebarProps) {
   const location = useLocation();
 
   const menuItems = [
-    { id: 'minha_viagem', label: 'Minhas viagens', icon: Compass, to: '/minhas-viagens' },
-    { id: 'roteiro', label: 'Roteiro', icon: Calendar, to: `/viagens/${tripId}/roteiro` },
-    { id: 'carteira', label: 'Carteira e Reservas', icon: Bookmark, to: `/viagens/${tripId}/carteira` },
+    { id: 'minha_viagem', label: 'Minhas viagens', icon: Compass, to: '/minhas-viagens', isHash: false },
+    { id: 'roteiro', label: 'Roteiro', icon: Calendar, to: `#roteiro`, isHash: true },
+    { id: 'descobertas', label: 'Ideias', icon: Heart, to: `#descobertas`, isHash: true },
+    { id: 'carteira', label: 'Reservas', icon: Bookmark, to: `#carteira`, isHash: true },
+    { id: 'preparativos', label: 'Preparativos', icon: FolderCheck, to: `#preparativos`, isHash: true },
+    { id: 'documentos', label: 'Documentos', icon: FileText, to: `#documentos`, isHash: true },
+    { id: 'mapa', label: 'Mapa', icon: Map, to: `#mapa`, isHash: true },
   ];
+
+  const currentHash = location.hash || '#roteiro';
 
   return (
     <aside className="w-64 bg-white border-r border-slate-200 flex flex-col justify-between p-6 shrink-0 min-h-screen sticky top-0 h-screen overflow-y-auto">
@@ -39,7 +45,25 @@ export function TripSpaceSidebar({ profile, tripId }: TripSpaceSidebarProps) {
         <nav className="space-y-1">
           {menuItems.map((item) => {
             const Icon = item.icon;
-            const isActive = location.pathname.includes(item.to);
+            const isActive = item.isHash ? currentHash === item.to : location.pathname === item.to;
+
+            if (item.isHash) {
+              return (
+                <a
+                  key={item.id}
+                  href={item.to}
+                  className={`w-full flex items-center gap-3 px-4 py-3 rounded-2xl font-bold text-sm transition-all ${
+                    isActive
+                      ? 'bg-lime-300 text-slate-950 shadow-sm'
+                      : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
+                  }`}
+                >
+                  <Icon className={`w-4 h-4 ${isActive ? 'text-slate-950' : 'text-slate-400'}`} />
+                  <span>{item.label}</span>
+                </a>
+              );
+            }
+
             return (
               <Link
                 key={item.id}
@@ -59,18 +83,6 @@ export function TripSpaceSidebar({ profile, tripId }: TripSpaceSidebarProps) {
       </div>
 
       <div className="pt-6 border-t border-slate-100 space-y-4">
-        {/* Voyage Premium Card */}
-        <div className="bg-gradient-to-br from-slate-900 to-slate-800 rounded-2xl p-4 text-white relative overflow-hidden">
-          <div className="absolute top-0 right-0 w-20 h-20 bg-lime-400/10 rounded-full blur-xl" />
-          <div className="flex items-center gap-2 text-lime-400 font-extrabold text-xs mb-1">
-            <Sparkles className="w-3.5 h-3.5" />
-            <span>Voyage Premium</span>
-          </div>
-          <p className="text-xs text-slate-300 mb-3">Concierge 24/7 e experiências exclusivas.</p>
-          <button className="bg-lime-400 text-slate-950 px-3 py-1.5 rounded-xl text-xs font-bold hover:bg-lime-500 transition-colors w-full">
-            Saiba mais
-          </button>
-        </div>
 
         {/* Profile Card */}
         <div className="bg-slate-50 border border-slate-200/80 rounded-2xl p-3 flex items-center justify-between">
