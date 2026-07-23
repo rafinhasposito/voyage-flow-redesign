@@ -63,6 +63,54 @@ export function TripCollections({ savedIdeas, recommendations }: TripCollections
           </div>
         )}
       </div>
+
+      {/* Sugestões/Descubra Mais Section */}
+      {recommendations.length > 0 && (
+        <div className="mt-12">
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h2 className="text-xl font-extrabold text-slate-900">Descubra mais</h2>
+              <p className="text-xs text-slate-500 font-medium">Recomendações com alto fit baseadas no seu estilo de viagem.</p>
+            </div>
+          </div>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            {recommendations.map((rec) => (
+              <div key={rec.id} className="bg-white border border-slate-200/80 rounded-2xl p-3 shadow-xs hover:shadow-md transition-shadow group flex flex-col">
+                <div className="relative h-32 rounded-xl overflow-hidden mb-3 bg-slate-100">
+                  {rec.photoUrl ? (
+                    <img src={rec.photoUrl} alt={rec.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform" />
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center text-slate-400 font-bold text-xs">Sem foto</div>
+                  )}
+                  {rec.reason && (
+                    <div className="absolute top-2 left-2 bg-slate-900/80 backdrop-blur-sm text-white text-[10px] font-bold px-2 py-1 rounded-lg">
+                      <Sparkles className="w-3 h-3 inline mr-1" />
+                      Alto Fit
+                    </div>
+                  )}
+                </div>
+                <h4 className="font-extrabold text-slate-900 text-xs truncate">{rec.title}</h4>
+                <p className="text-[11px] text-slate-500 truncate mt-0.5 mb-3">{rec.neighborhood || rec.category}</p>
+                <div className="mt-auto">
+                  <button 
+                    onClick={() => {
+                      const day = window.prompt("Digite o número do dia para adicionar (ex: 1):", "1");
+                      if (day && !isNaN(Number(day))) {
+                         window.dispatchEvent(new CustomEvent('CREATE_EDIT_DRAFT', { 
+                            detail: { action: 'ADD', sourceExperienceId: rec.id, targetDay: Number(day) } 
+                         }));
+                      }
+                    }}
+                    className="w-full text-xs font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 py-2 rounded-xl transition-colors flex items-center justify-center gap-1"
+                  >
+                    <Plus className="w-3.5 h-3.5" /> Adicionar
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </section>
   );
 }
