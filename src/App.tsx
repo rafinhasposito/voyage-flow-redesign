@@ -69,7 +69,7 @@ const App = () => {
             </ConsumerAuthProvider>
           } />
           <Route path="/onboarding" element={<Onboarding />} />
-          <Route path="/app/board" element={<Dashboard />} />
+          <Route path="/app/board" element={<Navigate to="/viagens/e8f37583-d42e-49b9-8e04-042e69f2b09c/roteiro" replace />} />
           <Route path="/app/catalog" element={<Catalog />} />
           <Route path="/app/wallet" element={<Wallet />} />
           

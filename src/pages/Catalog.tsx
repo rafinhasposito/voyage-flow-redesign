@@ -90,7 +90,7 @@ export default function Catalog() {
             </span>
           </Link>
           <nav className="hidden items-center gap-8 text-sm font-medium md:flex">
-            <Link to="/app/board" className="text-slate-600 hover:text-[#0D0E10]">Meu Roteiro</Link>
+            <Link to="/viagens/e8f37583-d42e-49b9-8e04-042e69f2b09c/roteiro" className="text-slate-600 hover:text-[#0D0E10]">Meu Roteiro</Link>
             <Link to="/app/catalog" className="text-[#C5A85C]">Explorar Atrações</Link>
             <Link to="/app/wallet" className="text-slate-600 hover:text-[#0D0E10]">Orçamento & Gastos</Link>
           </nav>

@@ -88,7 +88,7 @@ export default function Onboarding() {
 
     saveTravelState(state);
     showSuccess("Roteiro inteligente gerado com sucesso!");
-    navigate("/app/board");
+    navigate("/viagens/e8f37583-d42e-49b9-8e04-042e69f2b09c/roteiro");
   };
 
   return (
