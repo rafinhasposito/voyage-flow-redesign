@@ -1058,6 +1058,13 @@ export function getTravelState(): TravelState {
     }
   };
 
+  const defaultItinerary: ItineraryDay[] = [
+    { dayNumber: 1, attractions: [ attractions.find(a => a.id === "central-park")!, attractions.find(a => a.id === "the-met")!, attractions.find(a => a.id === "top-of-the-rock")! ].filter(Boolean) },
+    { dayNumber: 2, attractions: [ attractions.find(a => a.id === "high-line")!, attractions.find(a => a.id === "chelsea-market")!, attractions.find(a => a.id === "moma")! ].filter(Boolean) },
+    { dayNumber: 3, attractions: [ attractions.find(a => a.id === "statue-liberty")!, attractions.find(a => a.id === "brooklyn-bridge")!, attractions.find(a => a.id === "joes-pizza")! ].filter(Boolean) },
+    { dayNumber: 4, attractions: [ attractions.find(a => a.id === "soho-shopping")!, attractions.find(a => a.id === "katzs-delicatessen")!, attractions.find(a => a.id === "broadway-show")! ].filter(Boolean) }
+  ];
+
   if (saved) {
     try {
       const state = JSON.parse(saved) as any;
@@ -1065,18 +1072,14 @@ export function getTravelState(): TravelState {
       if (!state.trip) {
         state.trip = migrateTrip(state.profile);
       }
+      if (!state.itinerary || !Array.isArray(state.itinerary) || state.itinerary.length === 0 || !state.itinerary.some((d: any) => d.attractions && d.attractions.length > 0)) {
+        state.itinerary = defaultItinerary;
+      }
       return state as TravelState;
     } catch (e) {
       console.error("Erro ao carregar estado", e);
     }
   }
-
-  const defaultItinerary: ItineraryDay[] = [
-    { dayNumber: 1, attractions: [ attractions.find(a => a.id === "central-park")!, attractions.find(a => a.id === "the-met")!, attractions.find(a => a.id === "top-of-the-rock")! ].filter(Boolean) },
-    { dayNumber: 2, attractions: [ attractions.find(a => a.id === "high-line")!, attractions.find(a => a.id === "chelsea-market")!, attractions.find(a => a.id === "moma")! ].filter(Boolean) },
-    { dayNumber: 3, attractions: [ attractions.find(a => a.id === "statue-liberty")!, attractions.find(a => a.id === "brooklyn-bridge")!, attractions.find(a => a.id === "joes-pizza")! ].filter(Boolean) },
-    { dayNumber: 4, attractions: [ attractions.find(a => a.id === "soho-shopping")!, attractions.find(a => a.id === "katzs-delicatessen")!, attractions.find(a => a.id === "broadway-show")! ].filter(Boolean) }
-  ];
 
   const state: TravelState = {
     profile: DEFAULT_PROFILE,
