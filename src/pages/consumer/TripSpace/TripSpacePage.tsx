@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Loader2, Compass, AlertCircle, Sparkles } from 'lucide-react';
 import { useTripSpaceData } from './useTripSpaceData';
@@ -13,7 +13,19 @@ export default function TripSpacePage() {
   const { tripId } = useParams<{ tripId: string }>();
   const navigate = useNavigate();
 
-  const { data, loading, error, activeDay, setActiveDay, reloadData } = useTripSpaceData(tripId);
+  const { 
+    data, loading, error, activeDay, setActiveDay, reloadData,
+    handleToggleLock, createDraft, commitDraft, clearDraft, editDraft, draftLoading 
+  } = useTripSpaceData(tripId);
+
+  // Handle custom events from child components that don't have direct prop access
+  useEffect(() => {
+    const handleCreateDraft = (e: any) => {
+      if (e.detail) createDraft(e.detail);
+    };
+    window.addEventListener('CREATE_EDIT_DRAFT', handleCreateDraft);
+    return () => window.removeEventListener('CREATE_EDIT_DRAFT', handleCreateDraft);
+  }, [createDraft]);
 
   if (loading) {
     return (
@@ -83,6 +95,12 @@ export default function TripSpacePage() {
             activeDay={activeDay}
             onDayChange={setActiveDay}
             basecamp={data.basecamp}
+            onToggleLock={handleToggleLock}
+            onCreateDraft={createDraft}
+            onCommitDraft={commitDraft}
+            onClearDraft={clearDraft}
+            editDraft={editDraft}
+            draftLoading={draftLoading}
           />
 
           {/* Collections (Saved Ideas & Suggestions) */}

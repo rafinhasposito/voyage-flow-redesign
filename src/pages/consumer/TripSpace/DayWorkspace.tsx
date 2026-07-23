@@ -11,9 +11,18 @@ interface DayWorkspaceProps {
   activeDay: number;
   onDayChange: (dayNum: number) => void;
   basecamp?: TripSpaceBasecamp;
+  onToggleLock?: (activityId: string, isLocked: boolean) => void;
+  onCreateDraft?: (intent: import('@/domain/itinerary-engine/edit-intents').ItineraryEditIntent) => void;
+  onCommitDraft?: () => void;
+  onClearDraft?: () => void;
+  editDraft?: import('@/domain/itinerary-engine/edit-intents').ItineraryEditDraft | null;
+  draftLoading?: boolean;
 }
 
-export function DayWorkspace({ days, activeDay, onDayChange, basecamp }: DayWorkspaceProps) {
+export function DayWorkspace({ 
+  days, activeDay, onDayChange, basecamp, 
+  onToggleLock, onCreateDraft, onCommitDraft, onClearDraft, editDraft, draftLoading 
+}: DayWorkspaceProps) {
   const [selectedStopId, setSelectedStopId] = useState<string | null>(null);
   const [quickNotice, setQuickNotice] = useState<string | null>(null);
 
@@ -156,6 +165,49 @@ export function DayWorkspace({ days, activeDay, onDayChange, basecamp }: DayWork
                           <span>•</span>
                           <span className="text-slate-700">{stop.cost}</span>
                         </div>
+                        
+                        {/* Expanded Actions */}
+                        {isSelected && (
+                          <div className="mt-4 pt-4 border-t border-slate-100 flex items-center gap-2">
+                            <button
+                              onClick={(e) => { e.stopPropagation(); if (stop.isFixed) { setQuickNotice("Itens fixos não podem ser removidos."); return; } onCreateDraft?.({ tripId: '', action: 'REMOVE', activityId: stop.id }); }}
+                              className="p-2 text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+                              title="Remover"
+                            >
+                              <AlertCircle className="w-4 h-4" /> {/* Fallback icon for Trash */}
+                            </button>
+                            <button
+                              onClick={(e) => { e.stopPropagation(); onToggleLock?.(stop.id, !stop.isLocked); }}
+                              className={`p-2 rounded-lg transition-colors ${stop.isLocked ? 'text-purple-600 bg-purple-50' : 'text-slate-500 hover:bg-slate-50'}`}
+                              title={stop.isLocked ? "Destrancar" : "Trancar"}
+                            >
+                              <Info className="w-4 h-4" /> {/* Fallback icon for Lock */}
+                            </button>
+                            <div className="flex-1" />
+                            <button
+                              onClick={(e) => { e.stopPropagation(); if (idx === 0) return; onCreateDraft?.({ tripId: '', action: 'MOVE', activityId: stop.id, sourceDay: currentDay.dayNumber, targetDay: currentDay.dayNumber, targetPosition: idx - 1 }); }}
+                              className="p-2 text-slate-500 hover:bg-slate-50 rounded-lg transition-colors disabled:opacity-30"
+                              disabled={idx === 0}
+                              title="Mover para cima"
+                            >
+                              <ArrowUp className="w-4 h-4" />
+                            </button>
+                            <button
+                              onClick={(e) => { e.stopPropagation(); if (idx === currentDay.stops.length - 1) return; onCreateDraft?.({ tripId: '', action: 'MOVE', activityId: stop.id, sourceDay: currentDay.dayNumber, targetDay: currentDay.dayNumber, targetPosition: idx + 1 }); }}
+                              className="p-2 text-slate-500 hover:bg-slate-50 rounded-lg transition-colors disabled:opacity-30"
+                              disabled={idx === currentDay.stops.length - 1}
+                              title="Mover para baixo"
+                            >
+                              <ArrowDown className="w-4 h-4" />
+                            </button>
+                            <button
+                              onClick={(e) => { e.stopPropagation(); handleQuickAction("Substituir"); }}
+                              className="text-xs font-bold px-3 py-1.5 bg-slate-100 text-slate-700 hover:bg-slate-200 rounded-lg transition-colors"
+                            >
+                              Substituir
+                            </button>
+                          </div>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -197,6 +249,62 @@ export function DayWorkspace({ days, activeDay, onDayChange, basecamp }: DayWork
           </div>
         </div>
       </div>
+
+      {/* Edit Preview Modal */}
+      {editDraft && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-6">
+          <div className="bg-white rounded-[24px] shadow-2xl max-w-lg w-full overflow-hidden flex flex-col max-h-[90vh]">
+            <div className="p-6 border-b border-slate-100 flex items-center justify-between">
+              <div>
+                <h3 className="text-xl font-extrabold text-slate-900">Revisar Alteração</h3>
+                <p className="text-xs font-medium text-slate-500 mt-1">Veja o impacto no seu roteiro</p>
+              </div>
+              <div className="w-10 h-10 bg-amber-100 text-amber-600 rounded-full flex items-center justify-center">
+                <AlertCircle className="w-5 h-5" />
+              </div>
+            </div>
+            
+            <div className="p-6 overflow-y-auto bg-slate-50 flex-1">
+              {editDraft.status !== 'APPLIED' ? (
+                <div className="text-center p-4">
+                  <p className="text-sm font-bold text-red-600 mb-2">A alteração não pode ser aplicada.</p>
+                  <p className="text-xs text-slate-600">{editDraft.status}</p>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  <p className="text-sm font-medium text-slate-700">Seu roteiro foi recalculado. A ordem ou horários podem ter mudado de forma a otimizar sua viagem.</p>
+                  
+                  {editDraft.warnings && editDraft.warnings.length > 0 && (
+                    <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
+                      <p className="text-xs font-bold text-amber-800 mb-2">Avisos do Motor:</p>
+                      <ul className="text-xs text-amber-700 space-y-1 list-disc pl-4">
+                        {editDraft.warnings.map((w: string, i: number) => <li key={i}>{w}</li>)}
+                      </ul>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+            
+            <div className="p-6 border-t border-slate-100 bg-white flex items-center justify-end gap-3">
+              <button 
+                onClick={onClearDraft}
+                className="px-5 py-2.5 text-sm font-bold text-slate-600 hover:bg-slate-50 rounded-xl transition-colors"
+                disabled={draftLoading}
+              >
+                Cancelar
+              </button>
+              <button 
+                onClick={onCommitDraft}
+                disabled={editDraft.status !== 'APPLIED' || draftLoading}
+                className="px-5 py-2.5 text-sm font-extrabold bg-slate-900 text-white hover:bg-slate-800 rounded-xl transition-colors disabled:opacity-50"
+              >
+                {draftLoading ? 'Salvando...' : 'Aprovar Alteração'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </section>
   );
 }
