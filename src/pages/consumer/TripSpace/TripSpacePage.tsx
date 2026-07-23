@@ -169,7 +169,9 @@ export default function TripSpacePage() {
             <div className="max-w-5xl">
               <TripCollections
                 savedIdeas={data.savedIdeas}
+                maybeIdeas={data.maybeIdeas}
                 recommendations={data.recommendations}
+                onAddIdea={(ideaId) => createDraft({ action: 'ADD', experienceId: ideaId, targetDay: activeDay })}
               />
             </div>
           )}
