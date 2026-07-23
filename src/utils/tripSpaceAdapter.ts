@@ -193,8 +193,18 @@ export function buildTripSpaceViewModel(
 
   const travelStyleLabel = trip.preferences?.travel_profile || trip.preferences?.style || 'Cultura & Descoberta';
 
+  // Overview metrics
   const totalStopsCount = days.reduce((acc, d) => acc + d.stops.length, 0);
-  const bookedStopsCount = days.reduce((acc, d) => acc + d.stops.filter(s => s.isBooked).length, 0);
+  const realBookedCount = mappedReservations.length;
+
+  let estimatedBudget: { spent: number; total: number } | undefined = undefined;
+  // If there's real budget data from wallet or trip preferences, we could parse it, but for now we leave undefined to avoid mock
+  if (trip.budget || trip.preferences?.budget) {
+     const tB = trip.budget || trip.preferences?.budget;
+     estimatedBudget = { spent: 0, total: Number(tB) || 0 };
+  }
+
+  const realPace = trip.pace || trip.preferences?.rhythm || trip.preferences?.pace;
 
   return {
     tripId: trip.id,
@@ -219,8 +229,8 @@ export function buildTripSpaceViewModel(
     checklist,
     documents: mappedDocuments,
     profile,
-    estimatedBudget: { spent: 2946, total: 3800 },
-    bookedItemsCount: { booked: bookedStopsCount, total: totalStopsCount },
-    pace: trip.pace || 'Moderado'
+    estimatedBudget,
+    bookedItemsCount: { booked: realBookedCount, total: totalStopsCount },
+    pace: realPace
   };
 }

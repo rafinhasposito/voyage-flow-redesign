@@ -12,7 +12,6 @@ import { TripPreparations } from './TripPreparations';
 export default function TripSpacePage() {
   const { tripId } = useParams<{ tripId: string }>();
   const navigate = useNavigate();
-  const [activeTab, setActiveTab] = useState('minha_viagem');
 
   const { data, loading, error, activeDay, setActiveDay, reloadData } = useTripSpaceData(tripId);
 
@@ -69,8 +68,7 @@ export default function TripSpacePage() {
       {/* 1. Left Sidebar Navigation */}
       <TripSpaceSidebar
         profile={data.profile}
-        activeTab={activeTab}
-        onTabChange={setActiveTab}
+        tripId={data.tripId}
       />
 
       {/* 2. Main Page Layout */}

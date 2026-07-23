@@ -1,5 +1,5 @@
 import React from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { 
   Compass, MapPin, Calendar, Heart, Bookmark, FolderCheck, 
   FileText, Map, Sparkles, Settings, LogOut, ChevronRight, User
@@ -9,23 +9,19 @@ import { useConsumerAuth } from '@/contexts/ConsumerAuthProvider';
 
 interface TripSpaceSidebarProps {
   profile: TripSpaceProfile;
-  activeTab: string;
-  onTabChange: (tab: string) => void;
+  tripId: string;
 }
 
-export function TripSpaceSidebar({ profile, activeTab, onTabChange }: TripSpaceSidebarProps) {
+export function TripSpaceSidebar({ profile, tripId }: TripSpaceSidebarProps) {
   const { signOut } = useConsumerAuth();
   const navigate = useNavigate();
 
+  const location = useLocation();
+
   const menuItems = [
-    { id: 'minha_viagem', label: 'Minha viagem', icon: Compass },
-    { id: 'roteiro', label: 'Roteiro', icon: Calendar },
-    { id: 'ideias', label: 'Ideias', icon: Heart },
-    { id: 'reservas', label: 'Reservas', icon: Bookmark },
-    { id: 'preparativos', label: 'Preparativos', icon: FolderCheck },
-    { id: 'documentos', label: 'Documentos', icon: FileText },
-    { id: 'mapa', label: 'Mapa', icon: Map },
-    { id: 'concierge', label: 'IA Concierge', icon: Sparkles },
+    { id: 'minha_viagem', label: 'Minhas viagens', icon: Compass, to: '/minhas-viagens' },
+    { id: 'roteiro', label: 'Roteiro', icon: Calendar, to: `/viagens/${tripId}/roteiro` },
+    { id: 'carteira', label: 'Carteira e Reservas', icon: Bookmark, to: `/viagens/${tripId}/carteira` },
   ];
 
   return (
@@ -43,11 +39,11 @@ export function TripSpaceSidebar({ profile, activeTab, onTabChange }: TripSpaceS
         <nav className="space-y-1">
           {menuItems.map((item) => {
             const Icon = item.icon;
-            const isActive = activeTab === item.id;
+            const isActive = location.pathname.includes(item.to);
             return (
-              <button
+              <Link
                 key={item.id}
-                onClick={() => onTabChange(item.id)}
+                to={item.to}
                 className={`w-full flex items-center gap-3 px-4 py-3 rounded-2xl font-bold text-sm transition-all ${
                   isActive
                     ? 'bg-lime-300 text-slate-950 shadow-sm'
@@ -56,7 +52,7 @@ export function TripSpaceSidebar({ profile, activeTab, onTabChange }: TripSpaceS
               >
                 <Icon className={`w-4 h-4 ${isActive ? 'text-slate-950' : 'text-slate-400'}`} />
                 <span>{item.label}</span>
-              </button>
+              </Link>
             );
           })}
         </nav>

@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { Link } from 'react-router-dom';
 import { MapPin, Calendar, Users, Plus, RefreshCw, Sparkles, Check } from 'lucide-react';
 import { TripSpaceViewModel } from '@/types/tripSpace.types';
 
@@ -43,25 +44,14 @@ export function TripHeader({ data }: TripHeaderProps) {
 
         {/* Action buttons */}
         <div className="flex items-center gap-3 shrink-0">
-          <button className="bg-lime-400 hover:bg-lime-500 text-slate-950 px-5 py-2.5 rounded-full font-bold text-sm flex items-center gap-2 transition-all shadow-sm">
-            <Plus className="w-4 h-4" />
-            <span>Adicionar ideia</span>
-          </button>
-
           <div className="relative">
-            <button
-              onClick={handleUpdateClick}
+            <Link
+              to={`/viagens/${data.tripId}/engine-preview`}
               className="bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 px-5 py-2.5 rounded-full font-bold text-sm flex items-center gap-2 transition-colors shadow-sm"
             >
               <RefreshCw className="w-4 h-4 text-slate-400" />
               <span>Atualizar roteiro</span>
-            </button>
-
-            {updateNotice && (
-              <div className="absolute right-0 top-full mt-2 w-72 bg-slate-900 text-white text-xs p-3 rounded-2xl shadow-xl z-30 animate-in fade-in zoom-in-95">
-                Atualização inteligente do roteiro estará disponível em breve.
-              </div>
-            )}
+            </Link>
           </div>
         </div>
       </div>

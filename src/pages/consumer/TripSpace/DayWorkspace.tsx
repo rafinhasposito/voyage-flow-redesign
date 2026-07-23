@@ -4,6 +4,7 @@ import {
   ArrowUp, ArrowDown, Shuffle, CloudRain, Navigation, AlertCircle, Info 
 } from 'lucide-react';
 import { TripSpaceDay, TripSpaceStop, TripSpaceBasecamp } from '@/types/tripSpace.types';
+import MapLibreMap from '@/components/MapLibreMap';
 
 interface DayWorkspaceProps {
   days: TripSpaceDay[];
@@ -101,10 +102,22 @@ export function DayWorkspace({ days, activeDay, onDayChange, basecamp }: DayWork
                         <img
                           src={stop.imageUrl}
                           alt={stop.title}
+                          onError={(e) => {
+                            (e.target as HTMLImageElement).onerror = null;
+                            (e.target as HTMLImageElement).src = 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI0MDAiIGhlaWdodD0iNDAwIiB2aWV3Qm94PSIwIDAgMjQgMjQiIGZpbGw9Im5vbmUiIHN0cm9rZT0iI2NidjVkMiIgc3Ryb2tlLXdpZHRoPSIyIiBzdHJva2UtbGluZWNhcD0icm91bmQiIHN0cm9rZS1saW5lam9pbj0icm91bmQiPjxwYXRoIGQ9Ik0xNC41IDIuNUwyIDE1bDEwIDEwIDEyLjUtMTIuNWMuNi0uNiAxLjUtLjYgMi4xIDBsMi44IDIuOGMuNi42LjYgMS41IDAgMi4xTDE3IDI5bC0xNC0xNHoiLz48L3N2Zz4='; // small fallback invisible
+                            (e.target as HTMLImageElement).style.display = 'none'; // Better to just hide it
+                            (e.target as HTMLImageElement).nextElementSibling?.classList.remove('hidden');
+                          }}
                           className="w-20 h-20 rounded-xl object-cover shrink-0"
                         />
                       ) : (
                         <div className="w-20 h-20 rounded-xl bg-slate-100 flex items-center justify-center shrink-0 text-slate-400 font-bold text-xs">
+                          Foto
+                        </div>
+                      )}
+                      {/* Explicit fallback element shown only if image fails */}
+                      {stop.imageUrl && (
+                        <div className="hidden w-20 h-20 rounded-xl bg-slate-100 flex items-center justify-center shrink-0 text-slate-400 font-bold text-xs">
                           Foto
                         </div>
                       )}
@@ -120,8 +133,8 @@ export function DayWorkspace({ days, activeDay, onDayChange, basecamp }: DayWork
                               <CheckCircle2 className="w-3 h-3 text-lime-600" /> Reservado
                             </span>
                           ) : (
-                            <span className="bg-slate-100 text-slate-600 text-[10px] font-extrabold px-2 py-0.5 rounded-full">
-                              {stop.category}
+                            <span className="bg-slate-100 text-slate-600 text-[10px] font-extrabold px-2 py-0.5 rounded-full capitalize">
+                              {stop.category === 'attraction' ? 'Atração' : stop.category === 'engine' ? 'Engine' : stop.category === 'local_fallback' ? 'Local' : stop.category}
                             </span>
                           )}
                         </div>
@@ -163,74 +176,24 @@ export function DayWorkspace({ days, activeDay, onDayChange, basecamp }: DayWork
               </span>
             </div>
 
-            {/* Simulated Map Visual Box */}
-            <div className="relative w-full h-64 bg-slate-100 rounded-2xl overflow-hidden border border-slate-200/60 flex items-center justify-center p-4">
-              <div className="absolute inset-0 opacity-20 bg-[radial-gradient(#000_1px,transparent_1px)] [background-size:16px_16px]" />
-              
-              <div className="relative z-10 text-center space-y-2">
-                <MapPin className="w-8 h-8 text-lime-600 mx-auto animate-bounce" />
-                <p className="text-xs font-bold text-slate-800">
-                  {currentDay?.stops?.length ? `${currentDay.stops.length} paradas no roteiro` : 'Sem pontos no mapa'}
-                </p>
-                <p className="text-[11px] text-slate-500">
-                  {basecamp ? `Basecamp: ${basecamp.name}` : 'Nenhuma hospedagem configurada'}
-                </p>
+            {currentDay?.stops?.some(s => s.lat && s.lng) ? (
+              <div className="relative w-full h-96 bg-slate-100 rounded-2xl overflow-hidden border border-slate-200/60">
+                <MapLibreMap attractions={currentDay.stops.filter(s => s.lat && s.lng).map(s => ({
+                  id: s.id,
+                  name: s.title,
+                  neighborhood: s.neighborhood,
+                  coordinates: { lat: s.lat!, lng: s.lng! }
+                })) as any} />
               </div>
-            </div>
-          </div>
-
-          {/* Quick Adjustments Card */}
-          <div className="bg-white border border-slate-200/80 rounded-[28px] p-5 shadow-xs">
-            <h3 className="font-extrabold text-slate-900 text-sm mb-3">Ajustes rápidos</h3>
-
-            {quickNotice && (
-              <div className="mb-3 p-2.5 bg-slate-900 text-white text-xs rounded-xl flex items-center gap-2 animate-in fade-in">
-                <Info className="w-4 h-4 text-lime-400 shrink-0" />
-                <span>{quickNotice}</span>
+            ) : (
+              <div className="relative w-full h-64 bg-slate-100 rounded-2xl overflow-hidden border border-slate-200/60 flex items-center justify-center p-4">
+                <div className="relative z-10 text-center space-y-2">
+                  <AlertCircle className="w-8 h-8 text-slate-400 mx-auto" />
+                  <p className="text-xs font-bold text-slate-800">Mapa indisponível</p>
+                  <p className="text-[11px] text-slate-500">Coordenadas insuficientes para exibir o mapa deste dia.</p>
+                </div>
               </div>
             )}
-
-            <div className="grid grid-cols-2 gap-2.5">
-              <button
-                disabled
-                className="bg-slate-50 border border-slate-200/60 p-3 rounded-2xl text-left opacity-60 cursor-not-allowed relative"
-              >
-                <span className="absolute top-2 right-2 bg-slate-200 text-slate-700 text-[9px] font-extrabold px-1.5 py-0.5 rounded">Em breve</span>
-                <Shuffle className="w-4 h-4 text-slate-600 mb-1" />
-                <p className="text-xs font-extrabold text-slate-800">Reordenar dia</p>
-                <p className="text-[10px] text-slate-500">Otimizar sequência</p>
-              </button>
-
-              <button
-                disabled
-                className="bg-slate-50 border border-slate-200/60 p-3 rounded-2xl text-left opacity-60 cursor-not-allowed relative"
-              >
-                <span className="absolute top-2 right-2 bg-slate-200 text-slate-700 text-[9px] font-extrabold px-1.5 py-0.5 rounded">Em breve</span>
-                <Shuffle className="w-4 h-4 text-slate-600 mb-1" />
-                <p className="text-xs font-extrabold text-slate-800">Substituir atividade</p>
-                <p className="text-[10px] text-slate-500">Encontrar alternativas</p>
-              </button>
-
-              <button
-                disabled
-                className="bg-slate-50 border border-slate-200/60 p-3 rounded-2xl text-left opacity-60 cursor-not-allowed relative"
-              >
-                <span className="absolute top-2 right-2 bg-slate-200 text-slate-700 text-[9px] font-extrabold px-1.5 py-0.5 rounded">Em breve</span>
-                <CloudRain className="w-4 h-4 text-slate-600 mb-1" />
-                <p className="text-xs font-extrabold text-slate-800">Plano de chuva</p>
-                <p className="text-[10px] text-slate-500">Atividades indoor</p>
-              </button>
-
-              <button
-                disabled
-                className="bg-slate-50 border border-slate-200/60 p-3 rounded-2xl text-left opacity-60 cursor-not-allowed relative"
-              >
-                <span className="absolute top-2 right-2 bg-slate-200 text-slate-700 text-[9px] font-extrabold px-1.5 py-0.5 rounded">Em breve</span>
-                <Navigation className="w-4 h-4 text-slate-600 mb-1" />
-                <p className="text-xs font-extrabold text-slate-800">Otimizar rota</p>
-                <p className="text-[10px] text-slate-500">Menos tempo em trânsito</p>
-              </button>
-            </div>
           </div>
         </div>
       </div>

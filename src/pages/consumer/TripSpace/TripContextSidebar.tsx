@@ -118,40 +118,33 @@ export function TripContextSidebar({ data }: TripContextSidebarProps) {
         <div>
           <div className="flex items-center justify-between text-xs font-bold mb-1.5">
             <span className="text-slate-500 font-medium">Orçamento estimado</span>
-            <span className="text-slate-900">US$ {data.estimatedBudget.spent} de US$ {data.estimatedBudget.total}</span>
+            <span className="text-slate-900">
+              {data.estimatedBudget ? `US$ ${data.estimatedBudget.spent} de US$ ${data.estimatedBudget.total}` : 'Não calculado'}
+            </span>
           </div>
-          <div className="w-full h-2 bg-slate-100 rounded-full overflow-hidden">
-            <div
-              className="h-full bg-lime-400 rounded-full"
-              style={{ width: `${Math.min(100, (data.estimatedBudget.spent / data.estimatedBudget.total) * 100)}%` }}
-            />
-          </div>
+          {data.estimatedBudget && (
+            <div className="w-full h-2 bg-slate-100 rounded-full overflow-hidden">
+              <div
+                className="h-full bg-lime-400 rounded-full"
+                style={{ width: `${Math.min(100, (data.estimatedBudget.spent / data.estimatedBudget.total) * 100)}%` }}
+              />
+            </div>
+          )}
         </div>
 
         <div className="grid grid-cols-2 gap-3 text-xs font-bold">
           <div className="bg-slate-50 p-3 rounded-2xl border border-slate-100">
             <p className="text-slate-400 font-medium text-[10px]">Itens reservados</p>
-            <p className="text-slate-900 font-extrabold mt-0.5">{data.bookedItemsCount.booked} de {data.bookedItemsCount.total}</p>
+            <p className="text-slate-900 font-extrabold mt-0.5">{data.bookedItemsCount?.booked || 0} de {data.bookedItemsCount?.total || 0}</p>
           </div>
 
-          <div className="bg-slate-50 p-3 rounded-2xl border border-slate-100">
-            <p className="text-slate-400 font-medium text-[10px]">Ritmo</p>
-            <p className="text-slate-900 font-extrabold mt-0.5">{data.pace}</p>
-          </div>
+          {data.pace && (
+            <div className="bg-slate-50 p-3 rounded-2xl border border-slate-100">
+              <p className="text-slate-400 font-medium text-[10px]">Ritmo</p>
+              <p className="text-slate-900 font-extrabold mt-0.5">{data.pace}</p>
+            </div>
+          )}
         </div>
-      </div>
-
-      {/* 4. IA Concierge Card */}
-      <div className="bg-gradient-to-br from-purple-900 to-indigo-950 text-white rounded-[28px] p-5 shadow-md relative overflow-hidden">
-        <div className="flex items-center gap-2 text-purple-300 font-extrabold text-xs mb-3">
-          <Sparkles className="w-4 h-4 text-purple-400" />
-          <span>IA Concierge</span>
-        </div>
-
-        <p className="text-xs font-extrabold text-white mb-1">Dica do dia</p>
-        <p className="text-xs text-purple-200 leading-relaxed font-medium">
-          Dica contextual: As atrações do centro de {data.destinationName} são mais tranquilas durante o período da manhã. Chegue cedo para evitar filas.
-        </p>
       </div>
     </aside>
   );
