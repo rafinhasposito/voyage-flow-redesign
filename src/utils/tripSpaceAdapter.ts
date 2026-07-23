@@ -54,11 +54,20 @@ export function buildTripSpaceViewModel(
     
     sourceItems.forEach((att: any, stopIdx: number) => {
       // Find catalog match if experience_id exists
-      const catExp = catalog.find((c: any) => c.id === (att.id || att.experience_id || att.sourceExperienceId));
-      
-      const imageUrl = att.image || att.images?.[0] || att.imageUrl || att.photoUrl || catExp?.image || catExp?.images?.[0] || catExp?.media_urls?.[0];
-      const lat = att.coordinates?.lat ?? att.location_lat ?? att.lat ?? catExp?.coordinates?.lat ?? catExp?.location_lat;
-      const lng = att.coordinates?.lng ?? att.location_lng ?? att.lng ?? catExp?.coordinates?.lng ?? catExp?.location_lng;
+      const matchedFallback = FALLBACK_ATTRACTIONS.find((f: any) =>
+        f.id === (att.id || att.sourceExperienceId || att.experience_id) ||
+        f.name.toLowerCase().includes((att.title || att.name || '').toLowerCase())
+      );
+
+      const categoryDefaultImage =
+        (att.type === 'nature' || att.category === 'nature') ? 'https://images.unsplash.com/photo-1501594907352-04cda38ebc29?w=600&q=80' :
+        (att.type === 'museum' || att.category === 'culture' || att.type === 'culture') ? 'https://images.unsplash.com/photo-1565008447742-97f6f38c985c?w=600&q=80' :
+        (att.type === 'food' || att.category === 'gastronomy') ? 'https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?w=600&q=80' :
+        'https://images.unsplash.com/photo-1534430480872-3498386e7856?w=600&q=80';
+
+      const imageUrl = att.image || att.images?.[0] || att.imageUrl || att.photoUrl || catExp?.image || catExp?.images?.[0] || catExp?.media_urls?.[0] || matchedFallback?.image || categoryDefaultImage;
+      const lat = att.coordinates?.lat ?? att.location_lat ?? att.lat ?? catExp?.coordinates?.lat ?? catExp?.location_lat ?? matchedFallback?.coordinates?.lat;
+      const lng = att.coordinates?.lng ?? att.location_lng ?? att.lng ?? catExp?.coordinates?.lng ?? catExp?.location_lng ?? matchedFallback?.coordinates?.lng;
 
       // Planned start time calculation fallback if missing
       const fallbackHour = 9 + (stopIdx * 3);

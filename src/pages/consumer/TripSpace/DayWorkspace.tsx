@@ -103,29 +103,15 @@ export function DayWorkspace({
 
                     <div className="flex gap-4">
                       {/* Photo Thumbnail */}
-                      {stop.imageUrl ? (
-                        <img
-                          src={stop.imageUrl}
-                          alt={stop.title}
-                          onError={(e) => {
-                            (e.target as HTMLImageElement).onerror = null;
-                            (e.target as HTMLImageElement).src = 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI0MDAiIGhlaWdodD0iNDAwIiB2aWV3Qm94PSIwIDAgMjQgMjQiIGZpbGw9Im5vbmUiIHN0cm9rZT0iI2NidjVkMiIgc3Ryb2tlLXdpZHRoPSIyIiBzdHJva2UtbGluZWNhcD0icm91bmQiIHN0cm9rZS1saW5lam9pbj0icm91bmQiPjxwYXRoIGQ9Ik0xNC41IDIuNUwyIDE1bDEwIDEwIDEyLjUtMTIuNWMuNi0uNiAxLjUtLjYgMi4xIDBsMi44IDIuOGMuNi42LjYgMS41IDAgMi4xTDE3IDI5bC0xNC0xNHoiLz48L3N2Zz4='; // small fallback invisible
-                            (e.target as HTMLImageElement).style.display = 'none'; // Better to just hide it
-                            (e.target as HTMLImageElement).nextElementSibling?.classList.remove('hidden');
-                          }}
-                          className="w-20 h-20 rounded-xl object-cover shrink-0"
-                        />
-                      ) : (
-                        <div className="w-20 h-20 rounded-xl bg-slate-100 flex items-center justify-center shrink-0 text-slate-400 font-bold text-xs">
-                          Foto
-                        </div>
-                      )}
-                      {/* Explicit fallback element shown only if image fails */}
-                      {stop.imageUrl && (
-                        <div className="hidden w-20 h-20 rounded-xl bg-slate-100 flex items-center justify-center shrink-0 text-slate-400 font-bold text-xs">
-                          Foto
-                        </div>
-                      )}
+                      <img
+                        src={stop.imageUrl || 'https://images.unsplash.com/photo-1534430480872-3498386e7856?w=600&q=80'}
+                        alt={stop.title}
+                        onError={(e) => {
+                          (e.target as HTMLImageElement).onerror = null;
+                          (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1534430480872-3498386e7856?w=600&q=80';
+                        }}
+                        className="w-20 h-20 rounded-xl object-cover shrink-0 shadow-xs"
+                      />
 
                       <div className="flex-1 min-w-0">
                         {/* Meta top */}
