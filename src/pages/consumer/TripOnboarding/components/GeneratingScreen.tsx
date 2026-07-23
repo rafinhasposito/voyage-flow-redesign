@@ -79,88 +79,24 @@ export function GeneratingScreen({ trip, destination, onError }: { trip: any, de
 
         stage = 'build_profile';
         const dto = buildTripEngineDTO(trip, reservations);
-
-        // Fluxo Arquitetural Canônico:
-        // 1. MatchEngine -> produz match_deck, votos e afinidades (já armazenados no perfil/dto)
-        // 2. generateSmartItinerary -> produz ItineraryDay[]
-        // 3. TripRepository -> persiste diretamente em trips.itinerary (JSONB)
-
-        // Cálculo seguro de dias usando UTC explícito (YYYY-MM-DD):
-        let calculatedDays = 3;
-        if (trip.start_date && trip.end_date) {
-          const partsStart = trip.start_date.split('-').map(Number);
-          const partsEnd = trip.end_date.split('-').map(Number);
-
-          if (partsStart.length !== 3 || partsEnd.length !== 3 || partsStart.some(isNaN) || partsEnd.some(isNaN)) {
-            throw new Error("Data de viagem inválida.");
-          }
-
-          const utcStart = Date.UTC(partsStart[0], partsStart[1] - 1, partsStart[2]);
-          const utcEnd = Date.UTC(partsEnd[0], partsEnd[1] - 1, partsEnd[2]);
-
-          if (utcEnd < utcStart) {
-            throw new Error("A data de término não pode ser anterior à data de início.");
-          }
-
-          const diffDays = Math.floor((utcEnd - utcStart) / (1000 * 60 * 60 * 24));
-          calculatedDays = diffDays + 1; // Inclui datas de chegada e partida (dias de calendário)
-        }
-
-        const userProfile: UserProfile = {
-          style: dto.companionship as any,
-          interests: [],
-          budget: dto.budget_level === 'high' ? '$$$$' : dto.budget_level === 'low' ? '$' : '$$',
-          days: calculatedDays,
-          startDate: trip.start_date || new Date().toISOString().split('T')[0],
-          passengerName: "Viajante",
-          personaAffinity: { explorador_visual: 0.5, curador_experiencias: 0.5, descobridor: 0.5, aproveitador: 0.5, slow_traveler: 0.5 },
-          tagAffinity: {}, pace: dto.pace as any, companionship: dto.companionship as any, transport: 'public', financial: 'balanced',
-          swipedRightIds: Object.keys(dto.tinder_votes || {}).filter(k => dto.tinder_votes[k] === 'love'),
-          swipedLeftIds: Object.keys(dto.tinder_votes || {}).filter(k => dto.tinder_votes[k] === 'reject'),
-          interactions: []
-        };
-
+        
         stage = 'run_engine';
-        const itinerary = generateSmartItinerary(userProfile, catalog);
-
-        stage = 'validate_itinerary';
-        if (!itinerary || itinerary.length === 0) {
-          throw new Error("Roteiro vazio retornado pela Engine.");
-        }
-
-        stage = 'persist_itinerary';
+        setProgress(60);
+        setStepMsg('Nossa inteligência artificial está processando suas escolhas...');
         
-        const serializedItinerary = JSON.stringify(itinerary);
-        if (!serializedItinerary) {
-          throw new Error('O roteiro não pôde ser serializado.');
+        try {
+            const { TripItineraryGenerationService } = await import('../../../../services/TripItineraryGenerationService');
+            await TripItineraryGenerationService.generateAndPersist(trip.id);
+        } catch (engineErr: any) {
+            console.error("Erro na Engine V2:", engineErr);
+            throw engineErr;
         }
-        const cleanItinerary = JSON.parse(serializedItinerary);
-        
-        console.info('[ITINERARY_PAYLOAD_SUMMARY]', {
-          tripId: trip.id,
-          isArray: Array.isArray(cleanItinerary),
-          dayCount: Array.isArray(cleanItinerary) ? cleanItinerary.length : null,
-          firstDayKeys: Array.isArray(cleanItinerary) && cleanItinerary[0] ? Object.keys(cleanItinerary[0]) : [],
-          serializedBytes: new Blob([serializedItinerary]).size,
-        });
-
-        await TripRepository.updateTripOnboarding(trip.id, { 
-          itinerary: cleanItinerary, 
-          status: 'planning', // Status deve ser canonico de acordo com a migration
-          preferences: { 
-            current_step: 'workspace',
-            is_generating_locked: false,
-            generating_locked_at: null,
-            generation_error: null
-          } 
-        });
 
         stage = 'confirm_persistence';
-        const verifyTrip = await TripRepository.getTripById(trip.id);
-        if (!verifyTrip?.itinerary || !Array.isArray(verifyTrip.itinerary) || verifyTrip.itinerary.length === 0) {
-           throw new Error("O roteiro foi salvo mas não está preenchido no banco (falha silenciosa).");
-        }
-
+        setProgress(90);
+        setStepMsg('Roteiro salvo com sucesso!');
+        await new Promise(r => setTimeout(r, 500));
+        
         const elapsed = Date.now() - start;
         if (elapsed < 2000) {
           await new Promise(resolve => setTimeout(resolve, 2000 - elapsed));
