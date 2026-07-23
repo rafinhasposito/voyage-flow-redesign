@@ -169,7 +169,7 @@ export class SchedulerV1 {
 
       // Strict pre-trip check
       if (tripStartMs !== -1 && absoluteDayStart + dayEndMs < tripStartMs) {
-         day.warnings.push("Pré-viagem. Nenhuma atividade programada.");
+         day.warnings.push("DAY_BEFORE_ARRIVAL");
          continue;
       }
 
@@ -181,16 +181,11 @@ export class SchedulerV1 {
 
       // Missing departure flight blocks the last day to prevent fake assumptions
       if (tripEndMs === -1 && absoluteDayStart === new Date(input.endDate).getTime()) {
-         day.warnings.push("Planejamento incompleto: informe sua partida para liberar atividades com segurança.");
-         continue;
+         day.warnings.push("DEPARTURE_MISSING");
+         // Do not continue. Allow scheduling.
       }
 
-      // If this entire day is strictly before the arrival flight, skip scheduling
-      if (tripStartMs !== -1 && absoluteDayStart + 86400000 < tripStartMs) {
-         day.warnings.push("Dia anterior à chegada do voo.");
-         continue;
-      }
-
+      // Removed redundant check here
       // If this entire day is strictly after the departure flight, skip scheduling
       if (tripEndMs !== -1 && absoluteDayStart > tripEndMs) {
          day.warnings.push("Dia posterior à partida.");
