@@ -1,7 +1,10 @@
-import React, { useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Plane } from 'lucide-react';
 import { format, addDays } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import { Calendar } from '../../../../components/ui/calendar';
+import { Popover, PopoverContent, PopoverTrigger } from '../../../../components/ui/popover';
+import { DateRange } from 'react-day-picker';
 
 interface TripPeriodCardProps {
   startDate: string;
@@ -20,26 +23,34 @@ export default function TripPeriodCard({
   onEndDateChange, 
   calculatedNights 
 }: TripPeriodCardProps) {
-  const startInputRef = useRef<HTMLInputElement>(null);
-  const endInputRef = useRef<HTMLInputElement>(null);
-  
-  const handleStartClick = () => {
-    if (startInputRef.current) {
-      if (typeof startInputRef.current.showPicker === 'function') {
-        startInputRef.current.showPicker();
-      } else {
-        startInputRef.current.focus();
-      }
-    }
-  };
+  const [date, setDate] = useState<DateRange | undefined>();
 
-  const handleEndClick = () => {
-    if (endInputRef.current) {
-      if (typeof endInputRef.current.showPicker === 'function') {
-        endInputRef.current.showPicker();
-      } else {
-        endInputRef.current.focus();
-      }
+  // Sync internal state with external props
+  useEffect(() => {
+    let from: Date | undefined;
+    let to: Date | undefined;
+    if (startDate) {
+      const [year, month, day] = startDate.split('T')[0].split('-');
+      from = new Date(Number(year), Number(month) - 1, Number(day), 12, 0, 0);
+    }
+    if (endDate) {
+      const [year, month, day] = endDate.split('T')[0].split('-');
+      to = new Date(Number(year), Number(month) - 1, Number(day), 12, 0, 0);
+    }
+    setDate({ from, to });
+  }, [startDate, endDate]);
+
+  const handleSelect = (range: DateRange | undefined) => {
+    setDate(range);
+    if (range?.from) {
+      onStartDateChange(format(range.from, 'yyyy-MM-dd'));
+    } else {
+      onStartDateChange('');
+    }
+    if (range?.to) {
+      onEndDateChange(format(range.to, 'yyyy-MM-dd'));
+    } else {
+      onEndDateChange('');
     }
   };
 
@@ -59,7 +70,6 @@ export default function TripPeriodCard({
   const formatDisplayDate = (dateStr: string) => {
     if (!dateStr) return 'Selecionar';
     try {
-      // Create a local date at noon to completely avoid UTC/timezone shifting bugs
       const [year, month, day] = dateStr.split('T')[0].split('-');
       if (!year || !month || !day) return 'Data inválida';
       const localDate = new Date(Number(year), Number(month) - 1, Number(day), 12, 0, 0);
@@ -83,71 +93,64 @@ export default function TripPeriodCard({
 
   return (
     <div className="w-full max-w-2xl mx-auto">
-      <div className="relative bg-[#fafafa] rounded-2xl shadow-sm border-2 border-slate-200 overflow-hidden group hover:border-[#D7F24B] transition-all">
-        
-        {/* Ticket Cutouts */}
-        <div className="absolute left-1/2 top-0 -translate-x-1/2 -translate-y-1/2 w-6 h-6 bg-white rounded-full border-b-2 border-l-2 border-r-2 border-slate-200 group-hover:border-[#D7F24B] transition-colors z-10" />
-        <div className="absolute left-1/2 bottom-0 -translate-x-1/2 translate-y-1/2 w-6 h-6 bg-white rounded-full border-t-2 border-l-2 border-r-2 border-slate-200 group-hover:border-[#D7F24B] transition-colors z-10" />
+      <Popover>
+        <PopoverTrigger asChild>
+          <button className="w-full relative bg-[#fafafa] rounded-2xl shadow-sm border-2 border-slate-200 overflow-hidden group hover:border-[#D7F24B] transition-all text-left">
+            
+            {/* Ticket Cutouts */}
+            <div className="absolute left-1/2 top-0 -translate-x-1/2 -translate-y-1/2 w-6 h-6 bg-white rounded-full border-b-2 border-l-2 border-r-2 border-slate-200 group-hover:border-[#D7F24B] transition-colors z-10" />
+            <div className="absolute left-1/2 bottom-0 -translate-x-1/2 translate-y-1/2 w-6 h-6 bg-white rounded-full border-t-2 border-l-2 border-r-2 border-slate-200 group-hover:border-[#D7F24B] transition-colors z-10" />
 
-        <div className="absolute opacity-0 pointer-events-none">
-          <input 
-            type="date"
-            ref={startInputRef}
-            value={startDate ? startDate.substring(0, 10) : ''}
-            onChange={(e) => onStartDateChange(e.target.value)}
-          />
-          <input 
-            type="date"
-            ref={endInputRef}
-            value={endDate ? endDate.substring(0, 10) : ''}
-            onChange={(e) => onEndDateChange(e.target.value)}
-            min={startDate ? startDate.substring(0, 10) : undefined}
-          />
-        </div>
+            <div className="flex flex-col md:flex-row relative z-0">
+              
+              {/* IDA */}
+              <div className="flex-1 p-6 md:p-8 hover:bg-slate-50 transition-colors">
+                <span className="block text-[10px] font-extrabold text-slate-400 uppercase tracking-widest mb-2">Ida</span>
+                {formatDisplayDay(startDate) && (
+                   <span className="block text-xs font-bold text-slate-500 mb-1">{formatDisplayDay(startDate)}</span>
+                )}
+                <div className={`font-extrabold text-2xl lg:text-3xl transition-colors ${startDate ? 'text-[#171717]' : 'text-slate-300'}`}>
+                  {formatDisplayDate(startDate)}
+                </div>
+                <p className="mt-2 text-sm font-bold text-slate-500 truncate">{destinationName || 'Origem'}</p>
+              </div>
 
-        <div className="flex flex-col md:flex-row relative z-0">
-          
-          {/* IDA */}
-          <div 
-            onClick={handleStartClick}
-            className="flex-1 p-6 md:p-8 cursor-pointer hover:bg-slate-50 transition-colors"
-          >
-            <span className="block text-[10px] font-extrabold text-slate-400 uppercase tracking-widest mb-2">Ida</span>
-            {formatDisplayDay(startDate) && (
-               <span className="block text-xs font-bold text-slate-500 mb-1">{formatDisplayDay(startDate)}</span>
-            )}
-            <div className={`font-extrabold text-2xl lg:text-3xl transition-colors ${startDate ? 'text-[#171717]' : 'text-slate-300'}`}>
-              {formatDisplayDate(startDate)}
+              {/* DIVIDER & BADGE */}
+              <div className="relative md:w-px flex flex-col items-center justify-center py-4 md:py-0 border-t-2 md:border-t-0 md:border-l-2 border-dashed border-slate-200">
+                 <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-slate-900 text-[#D7F24B] text-[10px] font-extrabold uppercase px-3 py-1.5 rounded-full flex items-center gap-1.5 shadow-md whitespace-nowrap z-20">
+                   <Plane className="w-3 h-3" />
+                   {calculatedNights !== null 
+                      ? `${calculatedNights} ${calculatedNights === 1 ? 'NOITE' : 'NOITES'}` 
+                      : (startDate || endDate) ? 'PERÍODO' : ''}
+                 </div>
+              </div>
+
+              {/* VOLTA */}
+              <div className="flex-1 p-6 md:p-8 hover:bg-slate-50 transition-colors text-left md:text-right">
+                <span className="block text-[10px] font-extrabold text-slate-400 uppercase tracking-widest mb-2">Volta</span>
+                {formatDisplayDay(endDate) && (
+                   <span className="block text-xs font-bold text-slate-500 mb-1">{formatDisplayDay(endDate)}</span>
+                )}
+                <div className={`font-extrabold text-2xl lg:text-3xl transition-colors ${endDate ? 'text-[#171717]' : 'text-slate-300'}`}>
+                  {formatDisplayDate(endDate)}
+                </div>
+                <p className="mt-2 text-sm font-bold text-slate-500 truncate">{destinationName || 'Destino'}</p>
+              </div>
             </div>
-            <p className="mt-2 text-sm font-bold text-slate-500 truncate">{destinationName || 'Origem'}</p>
-          </div>
-
-          {/* DIVIDER & BADGE */}
-          <div className="relative md:w-px flex flex-col items-center justify-center py-4 md:py-0 border-t-2 md:border-t-0 md:border-l-2 border-dashed border-slate-200">
-             <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-slate-900 text-[#D7F24B] text-[10px] font-extrabold uppercase px-3 py-1.5 rounded-full flex items-center gap-1.5 shadow-md whitespace-nowrap z-20">
-               <Plane className="w-3 h-3" />
-               {calculatedNights !== null 
-                  ? `${calculatedNights} ${calculatedNights === 1 ? 'NOITE' : 'NOITES'}` 
-                  : (startDate || endDate) ? 'PERÍODO' : ''}
-             </div>
-          </div>
-
-          {/* VOLTA */}
-          <div 
-            onClick={handleEndClick}
-            className="flex-1 p-6 md:p-8 cursor-pointer hover:bg-slate-50 transition-colors text-left md:text-right"
-          >
-            <span className="block text-[10px] font-extrabold text-slate-400 uppercase tracking-widest mb-2">Volta</span>
-            {formatDisplayDay(endDate) && (
-               <span className="block text-xs font-bold text-slate-500 mb-1">{formatDisplayDay(endDate)}</span>
-            )}
-            <div className={`font-extrabold text-2xl lg:text-3xl transition-colors ${endDate ? 'text-[#171717]' : 'text-slate-300'}`}>
-              {formatDisplayDate(endDate)}
-            </div>
-            <p className="mt-2 text-sm font-bold text-slate-500 truncate">{destinationName || 'Destino'}</p>
-          </div>
-        </div>
-      </div>
+          </button>
+        </PopoverTrigger>
+        <PopoverContent className="w-auto p-0" align="center">
+          <Calendar
+            initialFocus
+            mode="range"
+            defaultMonth={date?.from}
+            selected={date}
+            onSelect={handleSelect}
+            numberOfMonths={2}
+            locale={ptBR}
+          />
+        </PopoverContent>
+      </Popover>
 
       {/* ATALHOS */}
       <div className="flex flex-wrap gap-2 mt-6 justify-center">

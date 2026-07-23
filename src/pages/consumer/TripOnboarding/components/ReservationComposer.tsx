@@ -85,7 +85,7 @@ export default function ReservationComposer({ trip, tripId, destinationId, modul
   const [savedReservationId, setSavedReservationId] = useState<string | null>(null);
 
   // Flight Lookup State
-  const [isManualFlight, setIsManualFlight] = useState(false);
+  const [isManualFlight, setIsManualFlight] = useState(true);
 
   useEffect(() => {
     if (['hotel', 'attraction', 'restaurant', 'show'].includes(moduleType)) {

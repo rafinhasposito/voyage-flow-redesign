@@ -149,6 +149,10 @@ export class MatchEngine {
         reasons.push({ type: 'curation', weight: 5 });
       }
 
+      // Add small randomization (0 to 15 points) to ensure the deck isn't identical every time
+      const randomFactor = Math.floor(Math.random() * 15);
+      score += randomFactor;
+
       return { score, reasons };
     };
 

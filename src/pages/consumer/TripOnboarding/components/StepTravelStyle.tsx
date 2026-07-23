@@ -4,56 +4,60 @@ import { Button } from '../../../../components/ui/button';
 import { Input } from '../../../../components/ui/input';
 import OnboardingShell from './OnboardingShell';
 
-const QUIZ_QUESTIONS = [
-  {
-    id: 'q1',
-    title: 'Em uma manhã livre, você prefere...',
-    options: [
-      { id: 'cedo', label: 'Sair cedo para aproveitar tudo', impact: { pace: 1 }, image: 'https://images.unsplash.com/photo-1542204165-65bf26472b9b?q=80&w=600&auto=format&fit=crop' },
-      { id: 'sem_pressa', label: 'Começar sem pressa', impact: { pace: -1 }, image: 'https://images.unsplash.com/photo-1541167760496-1628856ab772?q=80&w=600&auto=format&fit=crop' }
-    ]
-  },
-  {
-    id: 'q2',
-    title: 'Em um destino novo...',
-    options: [
-      { id: 'classicos', label: 'Ver os clássicos imperdíveis', impact: { classic: 1 }, image: 'https://images.unsplash.com/photo-1499856871958-5b9627545d1a?q=80&w=600&auto=format&fit=crop' },
-      { id: 'fora_obvio', label: 'Descobrir lugares fora do óbvio', impact: { classic: -1 }, image: 'https://images.unsplash.com/photo-1518105779142-d975f22f1b0a?q=80&w=600&auto=format&fit=crop' }
-    ]
-  },
-  {
-    id: 'q3',
-    title: 'O roteiro ideal...',
-    options: [
-      { id: 'planejado', label: 'Tem horários bem organizados', impact: { planned: 1 }, image: 'https://images.unsplash.com/photo-1506784365847-bbad939e9335?q=80&w=600&auto=format&fit=crop' },
-      { id: 'improviso', label: 'Deixa espaço para improvisar', impact: { planned: -1 }, image: 'https://images.unsplash.com/photo-1511497584788-876760111969?q=80&w=600&auto=format&fit=crop' }
-    ]
-  },
-  {
-    id: 'q4',
-    title: 'Na hora de gastar...',
-    options: [
-      { id: 'economiza', label: 'Economizo no básico', impact: { comfort: -1 }, image: 'https://images.unsplash.com/photo-1555881400-74d7acaacd8b?q=80&w=600&auto=format&fit=crop' },
-      { id: 'conforto', label: 'Prefiro mais conforto', impact: { comfort: 1 }, image: 'https://images.unsplash.com/photo-1582719508461-905c673771fd?q=80&w=600&auto=format&fit=crop' }
-    ]
-  },
-  {
-    id: 'q5',
-    title: 'O que mais marca uma viagem?',
-    options: [
-      { id: 'muitos', label: 'Conhecer muitos lugares', impact: { immersive: -1 }, image: 'https://images.unsplash.com/photo-1476514525535-07fb3b4ae5f1?q=80&w=600&auto=format&fit=crop' },
-      { id: 'profundidade', label: 'Viver poucos momentos intensamente', impact: { immersive: 1 }, image: 'https://images.unsplash.com/photo-1513279922550-250c2129b13a?q=80&w=600&auto=format&fit=crop' }
-    ]
-  },
-  {
-    id: 'q6',
-    title: 'Quando algo interessante aparece...',
-    options: [
-      { id: 'segue', label: 'Sigo o planejamento', impact: { planned: 1 }, image: 'https://images.unsplash.com/photo-1455390582262-044cdead27d8?q=80&w=600&auto=format&fit=crop' },
-      { id: 'adapta', label: 'Adapto o dia na hora', impact: { planned: -1 }, image: 'https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?q=80&w=600&auto=format&fit=crop' }
-    ]
-  }
-];
+const getQuizQuestions = (destName?: string) => {
+  const isNY = destName?.toLowerCase().includes('new york') || destName?.toLowerCase().includes('ny');
+
+  return [
+    {
+      id: 'q1',
+      title: destName ? `Em uma manhã livre em ${destName}, você prefere...` : 'Em uma manhã livre, você prefere...',
+      options: [
+        { id: 'cedo', label: 'Sair cedo para aproveitar tudo', impact: { pace: 1 }, image: isNY ? 'https://images.unsplash.com/photo-1496442226666-8d4d0e62e6e9?q=80&w=600&auto=format&fit=crop' : 'https://images.unsplash.com/photo-1542204165-65bf26472b9b?q=80&w=600&auto=format&fit=crop' },
+        { id: 'sem_pressa', label: 'Começar sem pressa', impact: { pace: -1 }, image: isNY ? 'https://images.unsplash.com/photo-1498307833015-e7b400441eb8?q=80&w=600&auto=format&fit=crop' : 'https://images.unsplash.com/photo-1541167760496-1628856ab772?q=80&w=600&auto=format&fit=crop' }
+      ]
+    },
+    {
+      id: 'q2',
+      title: destName ? `Explorando ${destName}...` : 'Em um destino novo...',
+      options: [
+        { id: 'classicos', label: 'Ver os clássicos imperdíveis', impact: { classic: 1 }, image: isNY ? 'https://images.unsplash.com/photo-1555109307-f7d9a1118e98?q=80&w=600&auto=format&fit=crop' : 'https://images.unsplash.com/photo-1499856871958-5b9627545d1a?q=80&w=600&auto=format&fit=crop' },
+        { id: 'fora_obvio', label: 'Descobrir lugares fora do óbvio', impact: { classic: -1 }, image: isNY ? 'https://images.unsplash.com/photo-1590525624771-4770d10b7a4f?q=80&w=600&auto=format&fit=crop' : 'https://images.unsplash.com/photo-1518105779142-d975f22f1b0a?q=80&w=600&auto=format&fit=crop' }
+      ]
+    },
+    {
+      id: 'q3',
+      title: 'O roteiro ideal...',
+      options: [
+        { id: 'planejado', label: 'Tem horários bem organizados', impact: { planned: 1 }, image: 'https://images.unsplash.com/photo-1506784365847-bbad939e9335?q=80&w=600&auto=format&fit=crop' },
+        { id: 'improviso', label: 'Deixa espaço para improvisar', impact: { planned: -1 }, image: 'https://images.unsplash.com/photo-1511497584788-876760111969?q=80&w=600&auto=format&fit=crop' }
+      ]
+    },
+    {
+      id: 'q4',
+      title: 'Na hora de gastar...',
+      options: [
+        { id: 'economiza', label: 'Economizo no básico', impact: { comfort: -1 }, image: 'https://images.unsplash.com/photo-1555881400-74d7acaacd8b?q=80&w=600&auto=format&fit=crop' },
+        { id: 'conforto', label: 'Prefiro mais conforto', impact: { comfort: 1 }, image: 'https://images.unsplash.com/photo-1582719508461-905c673771fd?q=80&w=600&auto=format&fit=crop' }
+      ]
+    },
+    {
+      id: 'q5',
+      title: destName ? `O que mais vai marcar sua viagem a ${destName}?` : 'O que mais marca uma viagem?',
+      options: [
+        { id: 'muitos', label: 'Conhecer muitos lugares', impact: { immersive: -1 }, image: isNY ? 'https://images.unsplash.com/photo-1518398046578-8cca57782e17?q=80&w=600&auto=format&fit=crop' : 'https://images.unsplash.com/photo-1476514525535-07fb3b4ae5f1?q=80&w=600&auto=format&fit=crop' },
+        { id: 'profundidade', label: 'Viver poucos momentos intensamente', impact: { immersive: 1 }, image: isNY ? 'https://images.unsplash.com/photo-1522083111811-37fbe06fcf1a?q=80&w=600&auto=format&fit=crop' : 'https://images.unsplash.com/photo-1513279922550-250c2129b13a?q=80&w=600&auto=format&fit=crop' }
+      ]
+    },
+    {
+      id: 'q6',
+      title: 'Quando algo interessante aparece...',
+      options: [
+        { id: 'segue', label: 'Sigo o planejamento', impact: { planned: 1 }, image: 'https://images.unsplash.com/photo-1455390582262-044cdead27d8?q=80&w=600&auto=format&fit=crop' },
+        { id: 'adapta', label: 'Adapto o dia na hora', impact: { planned: -1 }, image: 'https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?q=80&w=600&auto=format&fit=crop' }
+      ]
+    }
+  ];
+};
 
 const EXPERIENCES = [
   { id: 'turismo', title: 'Pontos turísticos', desc: 'Cartões-postais e ícones', icon: Camera },
@@ -126,7 +130,7 @@ export default function StepTravelStyle({ trip, destination, displayStepNumber, 
     const newAnswers = { ...quizAnswers, [questionId]: option };
     setQuizAnswers(newAnswers);
 
-    if (currentQIndex < QUIZ_QUESTIONS.length - 1) {
+    if (currentQIndex < getQuizQuestions(destination?.name).length - 1) {
       setCurrentQIndex(currentQIndex + 1);
     } else {
       calculateProfile(newAnswers);
@@ -243,7 +247,8 @@ export default function StepTravelStyle({ trip, destination, displayStepNumber, 
   const isValid = showResult && budgetValue && selectedExperiences.length > 0;
 
   if (!showResult) {
-    const q = QUIZ_QUESTIONS[currentQIndex];
+    const quizQuestions = getQuizQuestions(destination?.name);
+    const currentQ = quizQuestions[currentQIndex];
     return (
       <OnboardingShell
         trip={trip}
@@ -257,18 +262,18 @@ export default function StepTravelStyle({ trip, destination, displayStepNumber, 
           <div className="flex justify-between items-center mb-8">
             <span className="text-sm font-bold text-slate-400">Pergunta {currentQIndex + 1} de 6</span>
             <div className="flex gap-2">
-              {QUIZ_QUESTIONS.map((_, i) => (
+              {quizQuestions.map((_, i) => (
                 <div key={i} className={`h-2 rounded-full transition-all ${i === currentQIndex ? 'w-8 bg-lime-500' : i < currentQIndex ? 'w-2 bg-lime-200' : 'w-2 bg-slate-200'}`} />
               ))}
             </div>
           </div>
-          <h2 className="text-2xl lg:text-3xl font-extrabold text-slate-800 mb-10 leading-tight">{q.title}</h2>
+          <h2 className="text-2xl lg:text-3xl font-extrabold text-slate-800 mb-10 leading-tight">{currentQ.title}</h2>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 h-[400px]">
-            {q.options.map((opt) => (
+            {currentQ.options.map((opt) => (
                <button
                  key={opt.id}
-                 onClick={() => handleAnswer(q.id, opt)}
+                 onClick={() => handleAnswer(currentQ.id, opt)}
                  className="relative group rounded-[24px] overflow-hidden border-4 border-transparent hover:border-[#D7F24B] transition-all shadow-md hover:shadow-xl hover:-translate-y-1"
                >
                  <img src={opt.image} alt={opt.label} className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 group-hover:scale-105" />

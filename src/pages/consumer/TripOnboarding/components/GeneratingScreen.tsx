@@ -14,6 +14,8 @@ export function GeneratingScreen({ trip, destination, onError }: { trip: any, de
   const [retryCount, setRetryCount] = React.useState(0);
   const [isSuccess, setIsSuccess] = React.useState(false);
   const [isNavigating, setIsNavigating] = React.useState(false);
+  const [progress, setProgress] = React.useState(0);
+  const [stepMsg, setStepMsg] = React.useState('');
   const isGeneratingRef = React.useRef(false);
 
   const handleOpenSpace = async () => {

@@ -232,10 +232,22 @@ export function buildTripSpaceViewModel(
   const realBookedCount = mappedReservations.length;
 
   let estimatedBudget: { spent: number; total: number } | undefined = undefined;
-  // If there's real budget data from wallet or trip preferences, we could parse it, but for now we leave undefined to avoid mock
-  if (trip.budget || trip.preferences?.budget) {
-     const tB = trip.budget || trip.preferences?.budget;
-     estimatedBudget = { spent: 0, total: Number(tB) || 0 };
+  // If there's real budget data from wallet or trip preferences, parse it
+  const budgetVal = trip.preferences?.budget_value || trip.budget_value || trip.budget || trip.preferences?.budget;
+  if (budgetVal) {
+     const tB = Number(budgetVal.toString().replace(/[^0-9.]/g, ''));
+     if (!isNaN(tB) && tB > 0) {
+       // Multiply daily budget by total days to get total budget (if it's daily)
+       const totalBudget = trip.preferences?.budget_type === 'daily' ? tB * daysCount : tB;
+       
+       // Calculate spent from reservations cost
+       const spent = mappedReservations.reduce((acc, r) => {
+         const match = r.title.match(/US\$\s*(\d+)/i) || []; // very naive extraction for fallback
+         return acc; // The Wallet handles actual sum, but keeping this zero initially or implement true sum if costs are mapped in reservations.
+       }, 0);
+
+       estimatedBudget = { spent: 0, total: totalBudget };
+     }
   }
 
   const realPace = trip.pace || trip.preferences?.rhythm || trip.preferences?.pace;
