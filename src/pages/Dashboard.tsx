@@ -316,7 +316,15 @@ export default function Dashboard() {
   }, 0) + (state.customExpenses || []).reduce((sum, exp) => sum + exp.amountUSD, 0);
 
   return (
-    <div className="min-h-screen bg-[#FAF8F5] text-[#1C1E21] flex flex-col">
+    <div className="min-h-screen bg-[#FAF8F5] text-[#1C1E21] flex flex-col relative">
+      <div className="bg-amber-100 border-b border-amber-200 px-4 py-2 text-center w-full shadow-sm z-[100]">
+        <p className="text-amber-800 text-xs font-bold flex items-center justify-center gap-2">
+          Você está visualizando a interface legada de demonstração (/app/board). 
+          <Link to="/minhas-viagens" className="underline hover:text-amber-900 ml-1">
+            Ir para minhas viagens oficiais.
+          </Link>
+        </p>
+      </div>
       {/* Navigation Header */}
       <header className="border-b border-[#EAE6DF] bg-[#FAF8F5]/80 backdrop-blur sticky top-0 z-50">
         <div className="mx-auto flex max-w-[1240px] items-center justify-between px-6 py-4 md:px-10">

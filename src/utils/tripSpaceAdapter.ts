@@ -29,8 +29,12 @@ export function buildTripSpaceViewModel(
 
   // 2. Map Itinerary Days with Proper Attribute Names
   const rawItinerary: any[] = Array.isArray(trip.itinerary) ? trip.itinerary : [];
-  const days: TripSpaceDay[] = rawItinerary.map((d: any, idx: number) => {
-    const dayNum = d.day || idx + 1;
+  
+  // Filter out V2 metadata
+  const validDays = rawItinerary.filter((d: any) => !d._isMetadata);
+
+  const days: TripSpaceDay[] = validDays.map((d: any, idx: number) => {
+    const dayNum = d.day || d.dayNumber || idx + 1;
     
     let dayDateStr = '';
     if (startDateStr) {
@@ -42,11 +46,15 @@ export function buildTripSpaceViewModel(
     }
 
     const stops: TripSpaceStop[] = [];
-    const attractions: any[] = Array.isArray(d.attractions) ? d.attractions : [];
     
-    attractions.forEach((att: any, stopIdx: number) => {
+    // Support both V1 (attractions) and V2 (activities)
+    const sourceItems: any[] = Array.isArray(d.activities) 
+      ? d.activities 
+      : (Array.isArray(d.attractions) ? d.attractions : []);
+    
+    sourceItems.forEach((att: any, stopIdx: number) => {
       // Find catalog match if experience_id exists
-      const catExp = catalog.find((c: any) => c.id === (att.id || att.experience_id));
+      const catExp = catalog.find((c: any) => c.id === (att.id || att.experience_id || att.sourceExperienceId));
       
       const imageUrl = att.image || att.images?.[0] || att.imageUrl || att.photoUrl || catExp?.image || catExp?.images?.[0] || catExp?.media_urls?.[0];
       const lat = att.coordinates?.lat ?? att.location_lat ?? att.lat ?? catExp?.coordinates?.lat ?? catExp?.location_lat;
@@ -54,7 +62,7 @@ export function buildTripSpaceViewModel(
 
       // Planned start time calculation fallback if missing
       const fallbackHour = 9 + (stopIdx * 3);
-      const timeStr = att.plannedStartTime || att.time || `${String(fallbackHour).padStart(2, '0')}:00`;
+      const timeStr = att.startTime || att.plannedStartTime || att.time || `${String(fallbackHour).padStart(2, '0')}:00`;
 
       // Editorial short description (120-220 chars)
       let desc = att.emotionalDescription || att.short_description || att.description || catExp?.emotionalDescription || catExp?.description || 'Experiência selecionada para o seu roteiro.';
@@ -63,18 +71,18 @@ export function buildTripSpaceViewModel(
       }
 
       stops.push({
-        id: att.id || att.experience_id || `stop_${dayNum}_${stopIdx}`,
-        title: att.name || att.title || catExp?.name || catExp?.title || 'Experiência',
-        category: att.category || catExp?.category || 'Atração',
-        neighborhood: att.neighborhood || catExp?.neighborhood || destination?.name || 'Centro',
+        id: att.id || att.sourceExperienceId || att.experience_id || `stop_${dayNum}_${stopIdx}`,
+        title: att.title || att.name || catExp?.name || catExp?.title || 'Experiência',
+        category: att.type || att.category || catExp?.category || 'Atração',
+        neighborhood: att.location || att.neighborhood || catExp?.neighborhood || destination?.name || 'Centro',
         description: desc,
-        duration: att.durationHours ? `${att.durationHours * 60} min` : (att.duration ? `${att.duration}` : '1h 30min'),
+        duration: att.durationMinutes ? `${att.durationMinutes} min` : (att.durationHours ? `${att.durationHours * 60} min` : (att.duration ? `${att.duration}` : '1h 30min')),
         cost: att.costUSD !== undefined ? (att.costUSD === 0 ? 'Grátis' : `US$ ${att.costUSD}`) : (att.cost || 'Grátis'),
         imageUrl: imageUrl || undefined,
         lat: lat !== undefined ? Number(lat) : undefined,
         lng: lng !== undefined ? Number(lng) : undefined,
         time: timeStr,
-        isBooked: !!att.isBooked || reservations.some((r: any) => r.title?.toLowerCase().includes((att.name || att.title || '').toLowerCase()))
+        isBooked: !!att.isBooked || !!att.isFixed || !!att.manualLock || reservations.some((r: any) => r.title?.toLowerCase().includes((att.title || att.name || '').toLowerCase()))
       });
     });
 
