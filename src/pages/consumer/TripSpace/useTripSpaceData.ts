@@ -50,6 +50,15 @@ export function useTripSpaceData(tripId?: string) {
       // Fetch catalog experiences for destination
       const catalog = await ExperienceRepository.getAll();
 
+      // Check for Staleness
+      let stalenessStatus = 'UP_TO_DATE';
+      try {
+        const { TripItineraryGenerationService } = await import('@/services/TripItineraryGenerationService');
+        stalenessStatus = await TripItineraryGenerationService.checkItineraryStaleness(tripId);
+      } catch (e) {
+        console.warn('Could not check staleness', e);
+      }
+
       const viewModel = buildTripSpaceViewModel(
         trip,
         destination,
@@ -59,7 +68,7 @@ export function useTripSpaceData(tripId?: string) {
         user
       );
 
-      setData(viewModel);
+      setData({ ...viewModel, stalenessStatus } as any);
     } catch (err) {
       console.error("[TRIP_SPACE_LOAD_ERROR]", err);
       setError("Não foi possível carregar seu espaço da viagem.");

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { MapPin, Calendar, Users, Plus, RefreshCw, Sparkles, Check } from 'lucide-react';
+import { MapPin, Calendar, Users, Plus, RefreshCw, Sparkles, Check, AlertCircle } from 'lucide-react';
 import { TripSpaceViewModel } from '@/types/tripSpace.types';
 
 interface TripHeaderProps {
@@ -32,6 +32,24 @@ export function TripHeader({ data }: TripHeaderProps) {
 
   return (
     <header className="mb-8">
+      {data.stalenessStatus && data.stalenessStatus !== 'UP_TO_DATE' && (
+        <div className="mb-6 bg-yellow-50 border border-yellow-200 text-yellow-800 p-4 rounded-xl flex items-start gap-3 shadow-sm">
+          <AlertCircle className="w-5 h-5 text-yellow-600 mt-0.5 shrink-0" />
+          <div className="flex-1">
+            <h4 className="font-bold text-sm">Roteiro desatualizado</h4>
+            <p className="text-xs mt-1 text-yellow-700/90">
+              As preferências ou reservas mudaram desde a última geração. Você pode regenerar para refletir as alterações.
+            </p>
+          </div>
+          <Link
+            to={`/viagens/${data.tripId}/engine-preview`}
+            className="bg-yellow-100 hover:bg-yellow-200 text-yellow-800 border border-yellow-300 px-4 py-2 rounded-lg font-bold text-xs shrink-0 transition-colors"
+          >
+            Regerar Roteiro
+          </Link>
+        </div>
+      )}
+
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-4">
         <div>
           <h1 className="text-3xl font-extrabold text-slate-900 tracking-tight flex items-center gap-2">

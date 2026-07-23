@@ -151,7 +151,7 @@ export class SchedulerV1 {
     });
 
     const priorityItems = validCatalog.filter(item => ['LOVE', 'LIKE'].includes(input.matchVotes[item.id]));
-    const secondaryItems = validCatalog.filter(item => !['yes', 'love'].includes(input.matchVotes[item.id]));
+    const secondaryItems = validCatalog.filter(item => !['LOVE', 'LIKE'].includes(input.matchVotes[item.id]));
 
     const usedIds = new Set<string>();
     const usedParentRoles: Record<string, number> = {};
@@ -185,8 +185,20 @@ export class SchedulerV1 {
          continue;
       }
 
+      // If this entire day is strictly before the arrival flight, skip scheduling
+      if (tripStartMs !== -1 && absoluteDayStart + 86400000 < tripStartMs) {
+         day.warnings.push("Dia anterior à chegada do voo.");
+         continue;
+      }
+
+      // If this entire day is strictly after the departure flight, skip scheduling
+      if (tripEndMs !== -1 && absoluteDayStart > tripEndMs) {
+         day.warnings.push("Dia posterior à partida.");
+         continue;
+      }
+
       // Arrival day adjustment
-      if (isFirstDay) {
+      if (tripStartMs !== -1 && absoluteDayStart <= tripStartMs && tripStartMs < absoluteDayStart + 86400000) {
          const arrivalEndMsOfDay = tripStartMs - absoluteDayStart;
          if (arrivalEndMsOfDay > dayStartMs) dayStartMs = arrivalEndMsOfDay;
       }
@@ -694,7 +706,7 @@ export class SchedulerV1 {
            const { parentRole, semanticRole, foodSubtype } = classif;
            const isMeal = ['lunch', 'dinner', 'flexible_food', 'brunch', 'breakfast'].includes(semanticRole);
            const vote = input.matchVotes[item.id];
-           const isLoved = vote === 'love';
+           const isLoved = vote === 'LOVE';
 
            // Global Diversity Check
            if (usedGlobal.parent[parentRole] >= SemanticRules.getMaxInstancesPerRole(parentRole) && !isLoved) return false;
@@ -801,8 +813,8 @@ export class SchedulerV1 {
 
         const vote = input.matchVotes[candidate.id];
         let reason = 'Sugestão estimada';
-        if (vote === 'yes') reason = 'Match (Yes) - Estimativa';
-        if (vote === 'love') reason = 'Match (Love) - Estimativa';
+        if (vote === 'LIKE') reason = 'Match (Like) - Estimativa';
+        if (vote === 'LOVE') reason = 'Match (Love) - Estimativa';
 
         curr = proposedStart; // Leave gap for travel
 
