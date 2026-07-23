@@ -527,6 +527,11 @@ export class SchedulerV1 {
 
     if (!day) return -1;
 
+    if (!localStr.includes('T')) {
+      draft.overallWarnings.push("FLIGHT_ARRIVAL_TIME_UNKNOWN");
+      return -1;
+    }
+
     const flightMs = this.parseMs(localStr.split('T')[1]);
 
     day.activities.push({
@@ -605,6 +610,11 @@ export class SchedulerV1 {
     const dateStr = localStr.split('T')[0];
     const day = draft.days.find(d => d.date === dateStr);
     if (!day) return -1;
+
+    if (!localStr.includes('T')) {
+      draft.overallWarnings.push("FLIGHT_DEPARTURE_TIME_UNKNOWN");
+      return -1;
+    }
 
     const flightMs = this.parseMs(localStr.split('T')[1]);
 

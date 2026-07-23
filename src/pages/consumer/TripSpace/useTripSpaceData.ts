@@ -123,7 +123,7 @@ export function useTripSpaceData(tripId?: string) {
       await reloadData();
     } catch (err: any) {
       console.error(err);
-      setError(err.message || "Erro ao aplicar edição.");
+      setError(err.message || "Erro ao atualizar roteiro.");
     } finally {
       setDraftLoading(false);
     }
@@ -147,6 +147,28 @@ export function useTripSpaceData(tripId?: string) {
     }
   };
 
+  const previewRegeneration = async () => {
+    if (!tripId || !data) return;
+    setDraftLoading(true);
+    try {
+      const { TripItineraryGenerationService } = await import('@/services/TripItineraryGenerationService');
+      const preview = await TripItineraryGenerationService.generatePreview(tripId);
+
+      setEditDraft({
+        newItinerary: preview.itinerary,
+        status: 'APPLIED',
+        diff: [
+          { type: 'regenerate', summary: 'Roteiro completamente regenerado com as preferências atuais.' }
+        ]
+      });
+    } catch (err: any) {
+      console.error(err);
+      setError(err.message || "Erro ao gerar preview.");
+    } finally {
+      setDraftLoading(false);
+    }
+  };
+
   return {
     data,
     loading,
@@ -160,6 +182,7 @@ export function useTripSpaceData(tripId?: string) {
     clearDraft,
     editDraft,
     draftLoading,
-    regenerateItinerary
+    regenerateItinerary,
+    previewRegeneration
   };
 }

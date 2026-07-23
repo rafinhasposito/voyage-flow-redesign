@@ -110,7 +110,7 @@ export class EngineInputBuilder {
       engineVersion: '1.0.0',
       tripId: trip.id,
       destinationId: trip.destination,
-      destinationTimezone: 'America/New_York', // TODO: Resolve from destination DB
+      destinationTimezone: arrivalFlight?.arrivalTimezone || trip.destination_timezone || trip.timezone || undefined,
       startDate: trip.start_date,
       endDate: trip.end_date,
       travelers: {

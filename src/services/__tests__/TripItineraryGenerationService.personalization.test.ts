@@ -82,8 +82,8 @@ describe('TripItineraryGenerationService Personalization', () => {
     expect(eligibleB.find((e: any) => e.id === 'museum-a')).toBeUndefined();
 
     // Check selected
-    const selectedA = resultA.itinerary.flatMap(d => d.activities).map(a => a.sourceExperienceId);
-    const selectedB = resultB.itinerary.flatMap(d => d.activities).map(a => a.sourceExperienceId);
+    const selectedA = resultA.itinerary.flatMap(d => d.activities || []).map(a => a.sourceExperienceId);
+    const selectedB = resultB.itinerary.flatMap(d => d.activities || []).map(a => a.sourceExperienceId);
 
     expect(selectedA).not.toEqual(selectedB);
     expect(selectedA).not.toContain('rooftop-a');

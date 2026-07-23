@@ -112,6 +112,50 @@ export class TripItineraryGenerationService {
     const geoProvider = new LocalDeterministicGeoProvider();
     const draftItinerary = await SchedulerV1.generate(engineInput, geoProvider);
 
+    if (!draftItinerary.days || draftItinerary.days.length === 0) {
+      throw new Error('A Engine não conseguiu gerar nenhum dia para o roteiro.');
+    }
+
+    const persistedFormat = draftItinerary.days.map(day => {
+      return {
+        day: day.dayNumber,
+        dateStr: day.date,
+        theme: day.theme,
+        activities: day.activities.map(act => ({
+          id: act.id,
+          sourceExperienceId: act.sourceExperienceId,
+          type: act.type,
+          title: act.title,
+          description: act.description,
+          startTime: act.startTime,
+          endTime: act.endTime,
+          durationMinutes: act.duration,
+          location_lat: act.coordinates?.lat,
+          location_lng: act.coordinates?.lng,
+          isBooked: act.source === 'reservation',
+          isFixed: act.isFixed,
+          manualLock: act.isLocked,
+          image: act.imageUrl || catalog.find(c => c.id === act.sourceExperienceId)?.image,
+          costUSD: act.costUSD || catalog.find(c => c.id === act.sourceExperienceId)?.costUSD
+        }))
+      };
+    });
+
+    const itineraryWithMeta = [
+      {
+        _isMetadata: true,
+        engineVersion: '2.0.0',
+        generatedAt: new Date().toISOString(),
+        inputHash,
+        stats: {
+          votes: Object.keys(engineInput.matchVotes).length,
+          rejections: Object.values(engineInput.matchVotes).filter(v => v === 'no').length,
+          likes: Object.values(engineInput.matchVotes).filter(v => v === 'yes' || v === 'love').length,
+        }
+      },
+      ...persistedFormat
+    ];
+
     return {
       metadata: { inputHash },
       diagnostics: {
@@ -120,7 +164,7 @@ export class TripItineraryGenerationService {
           return vote !== 'REJECT';
         })
       },
-      itinerary: draftItinerary.days
+      itinerary: itineraryWithMeta
     };
   }
 

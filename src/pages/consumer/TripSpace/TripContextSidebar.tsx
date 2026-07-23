@@ -7,9 +7,10 @@ import { TripSpaceViewModel } from '@/types/tripSpace.types';
 
 interface TripContextSidebarProps {
   data: TripSpaceViewModel;
+  isOverviewMode?: boolean;
 }
 
-export function TripContextSidebar({ data }: TripContextSidebarProps) {
+export function TripContextSidebar({ data, isOverviewMode }: TripContextSidebarProps) {
   const formatDateRange = () => {
     if (!data.startDate || !data.endDate) return 'Datas a definir';
     const startParts = data.startDate.split('-').map(Number);
@@ -31,9 +32,6 @@ export function TripContextSidebar({ data }: TripContextSidebarProps) {
       <div className="bg-white border border-slate-200/80 rounded-[28px] p-5 shadow-xs overflow-hidden">
         <div className="flex items-center justify-between mb-4">
           <h3 className="font-extrabold text-slate-900 text-sm">Resumo da viagem</h3>
-          <button title="Editar resumo" className="text-slate-400 hover:text-slate-700 transition-colors">
-            <Edit3 className="w-4 h-4" />
-          </button>
         </div>
 
         {/* Hero image preview */}
@@ -104,9 +102,6 @@ export function TripContextSidebar({ data }: TripContextSidebarProps) {
         ) : (
           <div className="p-4 bg-slate-50 border border-dashed border-slate-200 rounded-2xl text-center">
             <p className="text-xs font-bold text-slate-700 mb-1">Você ainda não definiu uma hospedagem como basecamp.</p>
-            <button className="text-xs font-bold text-lime-700 hover:text-lime-800 flex items-center gap-1 mx-auto mt-2">
-              <Plus className="w-3.5 h-3.5" /> Adicionar hospedagem
-            </button>
           </div>
         )}
       </div>
@@ -133,17 +128,22 @@ export function TripContextSidebar({ data }: TripContextSidebarProps) {
         </div>
 
         <div className="grid grid-cols-2 gap-3 text-xs font-bold">
-          <div className="bg-slate-50 p-3 rounded-2xl border border-slate-100">
-            <p className="text-slate-400 font-medium text-[10px]">Itens reservados</p>
-            <p className="text-slate-900 font-extrabold mt-0.5">{data.bookedItemsCount?.booked || 0} de {data.bookedItemsCount?.total || 0}</p>
+          <div className="bg-slate-50 p-3 rounded-2xl border border-slate-100 flex flex-col justify-center">
+            <p className="text-slate-900 font-extrabold text-lg leading-none mb-1">{data.reservations?.length || 0}</p>
+            <p className="text-slate-400 font-medium text-[10px]">reservas confirmadas</p>
           </div>
-
-          {data.pace && (
-            <div className="bg-slate-50 p-3 rounded-2xl border border-slate-100">
-              <p className="text-slate-400 font-medium text-[10px]">Ritmo</p>
-              <p className="text-slate-900 font-extrabold mt-0.5">{data.pace}</p>
-            </div>
-          )}
+          <div className="bg-slate-50 p-3 rounded-2xl border border-slate-100 flex flex-col justify-center">
+            <p className="text-slate-900 font-extrabold text-lg leading-none mb-1">{(data.days || []).reduce((acc, day) => acc + (day.activities || day.stops || []).length, 0)}</p>
+            <p className="text-slate-400 font-medium text-[10px]">atividades no roteiro</p>
+          </div>
+          <div className="bg-slate-50 p-3 rounded-2xl border border-slate-100 flex flex-col justify-center">
+            <p className="text-slate-900 font-extrabold text-lg leading-none mb-1">{data.documents?.length || 0}</p>
+            <p className="text-slate-400 font-medium text-[10px]">documentos</p>
+          </div>
+          <div className="bg-slate-50 p-3 rounded-2xl border border-slate-100 flex flex-col justify-center">
+            <p className="text-slate-900 font-extrabold text-lg leading-none mb-1">{(data.checklist || []).filter(c => !c.completed).length}</p>
+            <p className="text-slate-400 font-medium text-[10px]">preparativos pendentes</p>
+          </div>
         </div>
       </div>
     </aside>

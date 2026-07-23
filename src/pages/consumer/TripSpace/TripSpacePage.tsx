@@ -16,8 +16,17 @@ export default function TripSpacePage() {
   const { 
     data, loading, error, activeDay, setActiveDay, reloadData,
     handleToggleLock, createDraft, commitDraft, clearDraft, editDraft, draftLoading,
-    regenerateItinerary
+    regenerateItinerary, previewRegeneration
   } = useTripSpaceData(tripId);
+
+  const [activeModule, setActiveModule] = useState(() => {
+    const hash = window.location.hash.replace('#', '');
+    return hash || 'roteiro';
+  });
+
+  useEffect(() => {
+    window.location.hash = activeModule;
+  }, [activeModule]);
 
   // Handle custom events from child components that don't have direct prop access
   useEffect(() => {
@@ -76,56 +85,131 @@ export default function TripSpacePage() {
     );
   }
 
+  const navItems = [
+    { id: 'visao-geral', label: 'Visão Geral' },
+    { id: 'roteiro', label: 'Roteiro' },
+    { id: 'descobertas', label: 'Descobertas' },
+    { id: 'carteira', label: 'Carteira' },
+    { id: 'preparativos', label: 'Preparativos' },
+    { id: 'documentos', label: 'Documentos' },
+    { id: 'mapa', label: 'Mapa' },
+  ];
+
   return (
     <div className="min-h-screen bg-[#FDFCF8] flex">
-      {/* 1. Left Sidebar Navigation */}
+      {/* Left Sidebar Navigation (We can use it just for app-level nav or logo) */}
       <TripSpaceSidebar
         profile={data.profile}
         tripId={data.tripId}
       />
 
-      {/* 2. Main Page Layout */}
-      <div className="flex-1 max-w-7xl mx-auto p-6 md:p-8 grid grid-cols-1 xl:grid-cols-12 gap-8">
-        {/* Center & Left Content (Col 1-8) */}
-        <main className="xl:col-span-8 min-w-0">
-          <TripHeader data={data} onRegenerate={regenerateItinerary} />
+      <div className="flex-1 max-w-7xl mx-auto p-6 md:p-8 flex flex-col gap-6">
+        <TripHeader data={data} onRegenerate={previewRegeneration} />
 
-          {/* Day Workspace (Timeline & Map & Quick Adjustments) */}
-          <DayWorkspace
-            tripId={data.tripId}
-            days={data.days}
-            activeDay={activeDay}
-            onDayChange={setActiveDay}
-            basecamp={data.basecamp}
-            onToggleLock={handleToggleLock}
-            onCreateDraft={createDraft}
-            onCommitDraft={commitDraft}
-            onClearDraft={clearDraft}
-            editDraft={editDraft}
-            draftLoading={draftLoading}
-          />
+        {/* Module Navigation */}
+        <div className="flex flex-wrap gap-2 border-b border-slate-200 pb-2">
+          {navItems.map((item) => (
+            <button
+              key={item.id}
+              onClick={() => setActiveModule(item.id)}
+              className={`px-4 py-2 text-sm font-semibold rounded-t-lg transition-colors ${
+                activeModule === item.id
+                  ? 'bg-white border border-slate-200 border-b-white text-slate-900 -mb-[9px] z-10'
+                  : 'text-slate-500 hover:text-slate-700 hover:bg-slate-100/50'
+              }`}
+            >
+              {item.label}
+            </button>
+          ))}
+        </div>
 
-          {/* Collections (Saved Ideas & Suggestions) */}
-          <TripCollections
-            savedIdeas={data.savedIdeas}
-            recommendations={data.recommendations}
-          />
+        {/* Main Content Area based on activeModule */}
+        <div className="flex-1">
+          {activeModule === 'visao-geral' && (
+            <div className="max-w-3xl">
+              <TripContextSidebar data={data} isOverviewMode={true} />
+            </div>
+          )}
 
-          {/* Preparations, Wallet & Documents */}
-          <TripPreparations
-            tripId={data.tripId}
-            checklist={data.checklist}
-            reservations={data.reservations}
-            documents={data.documents}
-            onChecklistUpdate={reloadData}
-          />
-        </main>
+          {activeModule === 'roteiro' && (
+            <div className="grid grid-cols-1 xl:grid-cols-12 gap-8">
+              <div className="xl:col-span-8 min-w-0">
+                <DayWorkspace
+                  tripId={data.tripId}
+                  days={data.days}
+                  activeDay={activeDay}
+                  onDayChange={setActiveDay}
+                  basecamp={data.basecamp}
+                  onToggleLock={handleToggleLock}
+                  onCreateDraft={createDraft}
+                  onCommitDraft={commitDraft}
+                  onClearDraft={clearDraft}
+                  editDraft={editDraft}
+                  draftLoading={draftLoading}
+                />
+              </div>
+              <div className="xl:col-span-4 min-w-0">
+                <div className="sticky top-8">
+                  <TripContextSidebar data={data} />
+                </div>
+              </div>
+            </div>
+          )}
 
-        {/* 3. Right Context Sidebar (Col 9-12) */}
-        <div className="xl:col-span-4 min-w-0">
-          <div className="sticky top-8">
-            <TripContextSidebar data={data} />
-          </div>
+          {activeModule === 'descobertas' && (
+            <div className="max-w-5xl">
+              <TripCollections
+                savedIdeas={data.savedIdeas}
+                recommendations={data.recommendations}
+              />
+            </div>
+          )}
+
+          {activeModule === 'carteira' && (
+            <div className="max-w-4xl">
+              <TripPreparations
+                activeTabOverride="reservations"
+                tripId={data.tripId}
+                checklist={data.checklist}
+                reservations={data.reservations}
+                documents={data.documents}
+                onChecklistUpdate={reloadData}
+              />
+            </div>
+          )}
+
+          {activeModule === 'preparativos' && (
+            <div className="max-w-4xl">
+              <TripPreparations
+                activeTabOverride="checklist"
+                tripId={data.tripId}
+                checklist={data.checklist}
+                reservations={data.reservations}
+                documents={data.documents}
+                onChecklistUpdate={reloadData}
+              />
+            </div>
+          )}
+
+          {activeModule === 'documentos' && (
+            <div className="max-w-4xl">
+              <TripPreparations
+                activeTabOverride="documents"
+                tripId={data.tripId}
+                checklist={data.checklist}
+                reservations={data.reservations}
+                documents={data.documents}
+                onChecklistUpdate={reloadData}
+              />
+            </div>
+          )}
+
+          {activeModule === 'mapa' && (
+            <div className="bg-white rounded-xl border border-slate-200 p-8 text-center">
+              <h2 className="text-xl font-bold text-slate-800 mb-2">Mapa Completo (Em breve)</h2>
+              <p className="text-sm text-slate-500">Visualização geográfica de todas as atrações.</p>
+            </div>
+          )}
         </div>
       </div>
     </div>

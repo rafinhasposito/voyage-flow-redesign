@@ -95,6 +95,7 @@ export interface TripSpaceViewModel {
   basecamp?: TripSpaceBasecamp;
   reservations: TripSpaceReservation[];
   savedIdeas: TripSpaceIdea[];
+  maybeIdeas: TripSpaceIdea[];
   recommendations: TripSpaceIdea[];
   checklist: TripSpaceChecklistItem[];
   documents: TripSpaceDocument[];

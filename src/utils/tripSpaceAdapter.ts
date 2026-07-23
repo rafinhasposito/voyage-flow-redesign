@@ -129,6 +129,7 @@ export function buildTripSpaceViewModel(
 
   const tinderVotes = trip.preferences?.match_votes || {};
   const savedIdeas: TripSpaceIdea[] = [];
+  const maybeIdeas: TripSpaceIdea[] = [];
   const recommendations: TripSpaceIdea[] = [];
 
   const destCatalog = catalog.filter((exp: any) => exp.destination_id === trip.destination || exp.destinationId === trip.destination);
@@ -136,16 +137,23 @@ export function buildTripSpaceViewModel(
   destCatalog.forEach((exp: any) => {
     const vote = tinderVotes[exp.id];
     if (!itineraryStopIds.has(exp.id)) {
-      if (vote === 'yes' || vote === 'love' || vote === 'maybe') {
+      if (vote === 'yes' || vote === 'love') {
         savedIdeas.push({
           id: exp.id,
           title: exp.name || exp.title,
           category: exp.category || 'Atração',
           neighborhood: exp.neighborhood || destination?.name || '',
-          photoUrl: exp.image || exp.images?.[0] || exp.media_urls?.[0],
-          reason: (vote === 'yes' || vote === 'love') ? 'Marcada como Quero Muito' : 'Marcada como Talvez'
+          photoUrl: exp.image || exp.images?.[0] || exp.media_urls?.[0]
         });
-      } else if (!vote && recommendations.length < 6) {
+      } else if (vote === 'maybe') {
+        maybeIdeas.push({
+          id: exp.id,
+          title: exp.name || exp.title,
+          category: exp.category || 'Atração',
+          neighborhood: exp.neighborhood || destination?.name || '',
+          photoUrl: exp.image || exp.images?.[0] || exp.media_urls?.[0]
+        });
+      } else if (!vote && vote !== 'no' && vote !== 'reject' && recommendations.length < 6) {
         recommendations.push({
           id: exp.id,
           title: exp.name || exp.title,
@@ -228,6 +236,7 @@ export function buildTripSpaceViewModel(
     basecamp,
     reservations: mappedReservations,
     savedIdeas,
+    maybeIdeas,
     recommendations,
     checklist,
     documents: mappedDocuments,
