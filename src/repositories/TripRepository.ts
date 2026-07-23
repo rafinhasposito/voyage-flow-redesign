@@ -223,4 +223,58 @@ export class TripRepository {
         
         return { status: 'APPLIED', data: readback };
     }
+
+    static async setItineraryActivityLock(tripId: string, activityId: string, isLocked: boolean, expectedVersion: string) {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) throw new Error("Usuário não autenticado");
+
+        const current = await this.getTripById(tripId);
+
+        // Concurrency control
+        if (current.updated_at !== expectedVersion) {
+            throw new Error("ITINERARY_CHANGED_SINCE_PREVIEW");
+        }
+
+        if (!current.itinerary || !Array.isArray(current.itinerary)) {
+            throw new Error("Roteiro não encontrado.");
+        }
+
+        const draft = JSON.parse(JSON.stringify(current.itinerary));
+        let found = false;
+
+        draft.forEach((day: any) => {
+            if (day.activities && Array.isArray(day.activities)) {
+                const act = day.activities.find((a: any) => a.id === activityId);
+                if (act) {
+                    act.manualLock = isLocked;
+                    found = true;
+                }
+            }
+        });
+
+        if (!found) {
+            throw new Error("Atividade não encontrada no roteiro.");
+        }
+
+        const { data, error } = await supabase
+            .from('trips')
+            .update({ itinerary: draft })
+            .eq('id', tripId)
+            .eq('user_id', user.id)
+            .eq('updated_at', expectedVersion)
+            .select()
+            .single();
+
+        if (error) {
+             if (error.code === 'PGRST116') {
+                 throw new Error("ITINERARY_CHANGED_SINCE_PREVIEW");
+             }
+             throw new Error("PERSISTENCE_FAILED: " + error.message);
+        }
+
+        // Readback
+        const readback = await this.getTripById(tripId);
+        
+        return { status: 'APPLIED', data: readback };
+    }
 }

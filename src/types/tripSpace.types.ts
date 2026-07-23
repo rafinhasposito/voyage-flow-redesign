@@ -11,6 +11,9 @@ export interface TripSpaceStop {
   lng?: number;
   time?: string;
   isBooked?: boolean;
+  isLocked?: boolean;
+  isFixed?: boolean;
+  matchScore?: number;
 }
 
 export interface TripSpaceDay {
@@ -98,6 +101,13 @@ export interface TripSpaceViewModel {
   profile: TripSpaceProfile;
   
   // Overview metrics
+  totalBudgetLimit: number;
+  spentSoFar: number;
+  
+  // Raw engine state
+  rawItinerary: any[];
+  rawVersion: string;
+  
   estimatedBudget: { spent: number; total: number };
   bookedItemsCount: { booked: number; total: number };
   pace: string;

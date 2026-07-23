@@ -72,12 +72,70 @@ export function useTripSpaceData(tripId?: string) {
     reloadData();
   }, [tripId, user, authLoading]);
 
+  const [editDraft, setEditDraft] = useState<any>(null); // To hold the ItineraryEditDraft
+  const [draftLoading, setDraftLoading] = useState(false);
+
+  // Implement editing logic
+  const handleToggleLock = async (activityId: string, isLocked: boolean) => {
+    if (!tripId || !data) return;
+    try {
+      setDraftLoading(true);
+      await TripRepository.setItineraryActivityLock(tripId, activityId, isLocked, data.rawVersion);
+      await reloadData();
+    } catch (err: any) {
+      console.error(err);
+      setError(err.message || "Erro ao trancar atividade.");
+    } finally {
+      setDraftLoading(false);
+    }
+  };
+
+  const createDraft = async (intent: import('@/domain/itinerary-engine/edit-intents').ItineraryEditIntent) => {
+    if (!data) return;
+    setDraftLoading(true);
+    try {
+      const { applyEditIntentDraft } = await import('@/domain/itinerary-engine/edit-intents');
+      const draft = applyEditIntentDraft(data.rawItinerary, { ...intent, expectedVersion: data.rawVersion }, data.reservations as any);
+      setEditDraft(draft);
+    } catch (err: any) {
+      console.error(err);
+      setError(err.message || "Erro ao gerar preview.");
+    } finally {
+      setDraftLoading(false);
+    }
+  };
+
+  const commitDraft = async () => {
+    if (!tripId || !editDraft || !data) return;
+    setDraftLoading(true);
+    try {
+      await TripRepository.applyApprovedItineraryDraft(tripId, editDraft.newItinerary, data.rawVersion);
+      setEditDraft(null);
+      await reloadData();
+    } catch (err: any) {
+      console.error(err);
+      setError(err.message || "Erro ao aplicar edição.");
+    } finally {
+      setDraftLoading(false);
+    }
+  };
+
+  const clearDraft = () => {
+    setEditDraft(null);
+  };
+
   return {
     data,
     loading,
     error,
     activeDay,
     setActiveDay,
-    reloadData
+    reloadData,
+    editDraft,
+    draftLoading,
+    handleToggleLock,
+    createDraft,
+    commitDraft,
+    clearDraft
   };
 }

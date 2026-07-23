@@ -82,7 +82,10 @@ export function buildTripSpaceViewModel(
         lat: lat !== undefined ? Number(lat) : undefined,
         lng: lng !== undefined ? Number(lng) : undefined,
         time: timeStr,
-        isBooked: !!att.isBooked || !!att.isFixed || !!att.manualLock || reservations.some((r: any) => r.title?.toLowerCase().includes((att.title || att.name || '').toLowerCase()))
+        isBooked: !!att.isBooked || !!att.isFixed || !!att.manualLock || reservations.some((r: any) => r.title?.toLowerCase().includes((att.title || att.name || '').toLowerCase())),
+        isLocked: !!att.manualLock || !!att.manualMetadata?.locked,
+        isFixed: !!att.isFixed || !!att.is_must_see,
+        matchScore: att.matchScore || catExp?.score || undefined
       });
     });
 
@@ -229,6 +232,10 @@ export function buildTripSpaceViewModel(
     checklist,
     documents: mappedDocuments,
     profile,
+    totalBudgetLimit: Number(trip.budget || trip.preferences?.budget || 0),
+    spentSoFar: 0,
+    rawItinerary: rawItinerary,
+    rawVersion: rawItinerary?.[0]?._isMetadata ? rawItinerary[0].version : '',
     estimatedBudget,
     bookedItemsCount: { booked: realBookedCount, total: totalStopsCount },
     pace: realPace
