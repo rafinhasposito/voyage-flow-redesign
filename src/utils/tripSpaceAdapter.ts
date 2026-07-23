@@ -1,4 +1,5 @@
 import { TripSpaceViewModel, TripSpaceDay, TripSpaceStop, TripSpaceBasecamp, TripSpaceReservation, TripSpaceIdea, TripSpaceChecklistItem, TripSpaceDocument, TripSpaceProfile } from '@/types/tripSpace.types';
+import { FALLBACK_ATTRACTIONS } from '@/data/fallbackData';
 
 export function buildTripSpaceViewModel(
   trip: any,
