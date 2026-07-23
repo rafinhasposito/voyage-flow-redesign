@@ -839,4 +839,73 @@ export class SchedulerV1 {
 
     return curr;
   }
+
+  static recalculatePartialDay(day: DaySchedule, catalog: any[], geoProvider?: GeoRoutingProvider) {
+    // Re-assign start/end times preserving user order
+    let currentTime = 9 * 60; // Start at 09:00 AM if no previous time
+    
+    // Sort logic? We DO NOT sort! We trust the array order because the user arranged it!
+    day.activities = day.activities.map(act => {
+      if (act.isFixed && act.startTime) {
+        const [h, m] = act.startTime.split(':').map(Number);
+        if (!isNaN(h) && !isNaN(m)) currentTime = h * 60 + m + parseInt(act.duration || '60');
+        return act;
+      }
+      
+      const hh = Math.floor(currentTime / 60).toString().padStart(2, '0');
+      const mm = (currentTime % 60).toString().padStart(2, '0');
+      act.startTime = `${hh}:${mm}`;
+      
+      currentTime += parseInt(act.duration || '60') + 30; // 30 min default transit
+      
+      const ehh = Math.floor(currentTime / 60).toString().padStart(2, '0');
+      const emm = (currentTime % 60).toString().padStart(2, '0');
+      act.endTime = `${ehh}:${emm}`;
+      return act;
+    });
+
+    // Run semantic rules to detect role overloads
+    // Reset day warnings
+    day.warnings = [];
+    const roleCount: Record<string, number> = {};
+    day.activities.forEach(a => {
+       const item = catalog.find(c => c.id === a.sourceExperienceId || c.id === a.id);
+       if (item) {
+          const classif = SemanticRules.getClassification(item);
+          if (classif?.parentRole) {
+             roleCount[classif.parentRole] = (roleCount[classif.parentRole] || 0) + 1;
+             if (roleCount[classif.parentRole] > 2) {
+                day.warnings.push(`[DAILY_ROLE_OVERLOAD] Excesso de ${classif.parentRole} no mesmo dia`);
+             }
+          }
+       }
+    });
+
+    // Run Repair Pass 
+    const hasRepairableWarning = day.warnings.some(w => w.includes('DAILY_ROLE_OVERLOAD'));
+    if (hasRepairableWarning) {
+        let toRemoveIdx = -1;
+        for (let i = day.activities.length - 1; i >= 0; i--) {
+            const a = day.activities[i];
+            if (!a.isFixed && !a.isDecisionPending && !a.isWindow) {
+                const item = catalog.find(c => c.id === a.sourceExperienceId || c.id === a.id);
+                if (item) {
+                    const classif = SemanticRules.getClassification(item);
+                    if (classif?.parentRole === 'rooftop' || classif?.parentRole === 'food') {
+                        toRemoveIdx = i;
+                        break;
+                    }
+                }
+            }
+        }
+        if (toRemoveIdx !== -1) {
+            const removed = day.activities.splice(toRemoveIdx, 1)[0];
+            day.warnings = day.warnings.filter(w => !w.includes('DAILY_ROLE_OVERLOAD'));
+            day.warnings.push(`[REPAIR_PASS] Atividade flexível removida para evitar repetição semântica: ${removed.title}`);
+            // Re-run time assignment
+            this.recalculatePartialDay(day, catalog, geoProvider); 
+            return; // We exit because recursive call fixed the times
+        }
+    }
+  }
 }
