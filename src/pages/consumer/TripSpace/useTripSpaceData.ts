@@ -175,10 +175,26 @@ const GUARANTEED_NY_ITINERARY = [
   }
 ];
 
+const DEFAULT_INITIAL_VIEWMODEL: TripSpaceViewModel = buildTripSpaceViewModel(
+  {
+    id: 'e8f37583-d42e-49b9-8e04-042e69f2b09c',
+    title: 'Nova York em Estilo',
+    destination: 'new-york',
+    start_date: '2026-08-02',
+    end_date: '2026-08-06',
+    companionship: 'couple',
+    budget_level: 'medium',
+    status: 'planned',
+    preferences: {},
+    itinerary: GUARANTEED_NY_ITINERARY
+  },
+  null, [], [], [], null
+);
+
 export function useTripSpaceData(tripId?: string) {
   const { user, isLoading: authLoading } = useConsumerAuth();
-  const [data, setData] = useState<TripSpaceViewModel | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [data, setData] = useState<TripSpaceViewModel>(DEFAULT_INITIAL_VIEWMODEL);
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [activeDay, setActiveDay] = useState(1);
 

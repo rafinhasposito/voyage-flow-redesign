@@ -59,41 +59,7 @@ export default function TripSpacePage() {
     );
   }
 
-  if (error || !data) {
-    return (
-      <div className="min-h-screen flex flex-col items-center justify-center bg-[#FDFCF8] p-6 text-center">
-        <div className="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center text-red-600 mb-4">
-          <AlertCircle className="w-6 h-6" />
-        </div>
-        <h1 className="text-xl font-extrabold text-slate-900 mb-2">{error || "Viagem não encontrada."}</h1>
-        <p className="text-xs text-slate-500 mb-6 font-medium">Verifique se o endereço da viagem está correto ou volte para suas viagens.</p>
-        <button
-          onClick={() => navigate('/minhas-viagens')}
-          className="bg-slate-900 text-white text-xs font-extrabold px-6 py-3 rounded-full hover:bg-slate-800 transition-colors"
-        >
-          Voltar para Minhas Viagens
-        </button>
-      </div>
-    );
-  }
 
-  if (!data.days || data.days.length === 0) {
-    return (
-      <div className="min-h-screen flex flex-col items-center justify-center bg-[#FDFCF8] p-6 text-center">
-        <div className="w-12 h-12 bg-lime-100 rounded-full flex items-center justify-center text-lime-700 mb-4">
-          <Compass className="w-6 h-6" />
-        </div>
-        <h1 className="text-xl font-extrabold text-slate-900 mb-2">Seu roteiro ainda não foi criado.</h1>
-        <p className="text-xs text-slate-500 mb-6 font-medium">Conclua o onboarding para gerar seu roteiro de viagem personalizado.</p>
-        <button
-          onClick={() => navigate(`/viagens/${data.tripId}/onboarding`)}
-          className="bg-lime-400 text-slate-950 text-xs font-extrabold px-6 py-3 rounded-full hover:bg-lime-500 transition-colors"
-        >
-          Continuar onboarding
-        </button>
-      </div>
-    );
-  }
 
   const navItems = [
     { id: 'visao-geral', label: 'Visão Geral' },
