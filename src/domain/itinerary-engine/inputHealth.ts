@@ -52,6 +52,13 @@ export class InputHealthValidator {
     if (input.flightSegments.length === 0) {
        warnings.push({ severity: 'warning', message: 'Viagem sem voo informado. Roteiro começará e terminará em horários abertos locais.', field: 'flights' });
     } else {
+       // Validate timezone presence for each segment
+       input.flightSegments.forEach(seg => {
+         if (!seg.departureTimezone) {
+           warnings.push({ severity: 'warning', message: `Segmento ${seg.flightNumber || seg.segmentId} sem timezone de partida definido. Horários UTC podem ser imprecisos.`, field: 'flight.timezone' });
+         }
+       });
+
        if (input.arrivalFlight) {
           const arrStr = input.arrivalFlight.arrivalLocalDateTime;
           if (arrStr) {

@@ -187,7 +187,22 @@ export class ExperienceRepository {
    */
   public static async getByDestination(destinationId: string): Promise<TravelExperience[]> {
     const all = await this.getAll();
-    return all;
+    if (!destinationId) return [];
+
+    return all.filter(exp => 
+      // Validate destination match. The database uses destination_id (UUID or explicit string)
+      (exp as any).destination_id === destinationId &&
+      // Must be published for consumer flow
+      exp.is_published === true &&
+      // Exclude logistical types that shouldn't appear in the generic catalog pool
+      exp.type !== 'transport' &&
+      exp.type !== 'airport' &&
+      exp.type !== 'station' &&
+      exp.type !== 'hotel' &&
+      // Validate Consumer visibility (assuming we have a flag or logic, for now status=published is the proxy)
+      exp.category !== 'Hotel' &&
+      exp.category !== 'Hospedagem'
+    );
   }
 
   /**
@@ -258,6 +273,8 @@ export class ExperienceRepository {
       rating: row.rating ?? undefined,
       reviews_count: row.reviews_count ?? undefined,
       type: row.type || row.category,
+      destination_id: row.destination_id,
+      is_published: row.status === 'published',
       climate: row.climate ?? undefined,
       ideal_companion: row.ideal_companion ?? undefined,
 

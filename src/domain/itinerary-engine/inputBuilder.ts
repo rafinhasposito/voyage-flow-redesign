@@ -21,14 +21,9 @@ export class EngineInputBuilder {
         lat: hotelRes.latitude,
         lng: hotelRes.longitude,
       };
-    } else if (trip.hotel_name) {
-      // Fallback para o preenchimento antigo
-      basecamp = {
-        id: 'legacy-hotel',
-        name: trip.hotel_name,
-        lat: trip.hotel_lat,
-        lng: trip.hotel_lng,
-      };
+    } else {
+      // Remover fallback de basecamp local/trip.hotel_name - se não tem reserva na wallet, não inventar basecamp.
+      basecamp = undefined;
     }
 
     // Flights mapping
@@ -119,14 +114,14 @@ export class EngineInputBuilder {
       startDate: trip.start_date,
       endDate: trip.end_date,
       travelers: {
-        count: preferences.travelersCount || 2,
+        count: preferences.travelersCount,
         children: !!preferences.hasChildren,
         wheelchair: !!preferences.needsAccessibility
       },
-      companionship: trip.companionship || 'couple',
-      travelProfile: preferences.travelProfile || 'classic',
-      pace: trip.pace || 'balanced',
-      budget: trip.budget_level || 'balanced',
+      companionship: trip.companionship,
+      travelProfile: preferences.travelProfile,
+      pace: trip.pace,
+      budget: trip.budget_level,
       matchVotes: matchVotes,
       avoidances: preferences.avoidances || [],
       accessibilityNeeds: [],

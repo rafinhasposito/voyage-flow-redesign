@@ -19,6 +19,21 @@ vi.mock('react-router-dom', async () => {
   };
 });
 
+// Stable mock user object — not recreated on each render (prevents useEffect loop)
+const MOCK_AUTH_USER = { id: 'test-user-id', email: 'test@e2e.com' };
+const MOCK_AUTH_SESSION = { access_token: 'mock-token' };
+
+// Mock ConsumerAuthProvider to inject a stub user without Supabase
+vi.mock('../../../contexts/ConsumerAuthProvider', () => ({
+  useConsumerAuth: () => ({
+    user: MOCK_AUTH_USER,
+    session: MOCK_AUTH_SESSION,
+    isLoading: false,
+    signOut: vi.fn(),
+  }),
+  ConsumerAuthProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+}));
+
 describe('EngineV2Preview Gate UI', () => {
   beforeEach(() => {
     vi.clearAllMocks();

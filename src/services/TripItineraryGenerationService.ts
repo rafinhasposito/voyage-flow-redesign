@@ -124,6 +124,23 @@ export class TripItineraryGenerationService {
     };
   }
 
+  static async checkItineraryStaleness(tripId: string): Promise<'UP_TO_DATE' | 'STALE' | 'NOT_GENERATED'> {
+    const trip = await TripRepository.getTripById(tripId);
+    if (!trip || !trip.itinerary || !Array.isArray(trip.itinerary)) return 'NOT_GENERATED';
+
+    const meta = trip.itinerary.find((i: any) => i._isMetadata);
+    if (!meta || !meta.inputHash) return 'NOT_GENERATED'; // Older itineraries without hash
+
+    const reservations = await TripWalletRepository.getReservations(tripId);
+    const currentHash = this.generateHash(JSON.stringify({
+      preferences: trip.preferences,
+      reservations: reservations.map(r => r.id).join(','),
+      dates: `${trip.start_date}_${trip.end_date}`
+    }));
+
+    return currentHash === meta.inputHash ? 'UP_TO_DATE' : 'STALE';
+  }
+
   private static generateHash(str: string): string {
     let hash = 0;
     for (let i = 0; i < str.length; i++) {

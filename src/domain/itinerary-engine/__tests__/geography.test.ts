@@ -19,9 +19,9 @@ test('Geographic clustering groups nearest items', async () => {
     pace: 'intense',
     budget: 'balanced',
     matchVotes: {
-      'c1': 'yes',
-      'c2': 'yes',
-      'c3': 'yes',
+      'c1': 'YES',
+      'c2': 'YES',
+      'c3': 'YES',
     },
     avoidances: [],
     accessibilityNeeds: [],
@@ -35,13 +35,15 @@ test('Geographic clustering groups nearest items', async () => {
     fixedReservations: [],
     flexibleReservations: [],
     catalog: [
-      { id: 'c1', name: 'Far Museum', location_lat: 40.700, location_lng: -74.015, experienceRole: 'panoramic_view', duration_minutes: 60, opening_hours: [{ open: '09:00', close: '18:00' }] }, // Far from basecamp
-      { id: 'c2', name: 'Near Museum', location_lat: 40.765, location_lng: -73.980, experienceRole: 'culture', duration_minutes: 60, opening_hours: [{ open: '09:00', close: '18:00' }] }, // Close to basecamp
-      { id: 'c3', name: 'Medium Museum', location_lat: 40.730, location_lng: -73.995, experienceRole: 'park', duration_minutes: 60, opening_hours: [{ open: '09:00', close: '18:00' }] }
+      { id: 'c1', name: 'Far Museum', location_lat: 40.700, location_lng: -74.015, type: 'experience', experienceRole: 'panoramic_view', duration_minutes: 60, opening_hours: [{ open: '09:00', close: '18:00' }] }, // Far from basecamp
+      { id: 'c2', name: 'Near Museum', location_lat: 40.765, location_lng: -73.980, type: 'experience', experienceRole: 'culture', duration_minutes: 60, opening_hours: [{ open: '09:00', close: '18:00' }] }, // Close to basecamp
+      { id: 'c3', name: 'Medium Museum', location_lat: 40.730, location_lng: -73.995, type: 'experience', experienceRole: 'park', duration_minutes: 60, opening_hours: [{ open: '09:00', close: '18:00' }] }
     ]
   };
 
   const draft = await SchedulerV1.generate(input, geoProvider);
+  console.log("DRAFT UNASSIGNED:", draft.unassigned);
+  console.log("DRAFT DAY 1:", draft.days[0].activities);
   const day1 = draft.days[0].activities.filter(a => a.type === 'experience');
   
   // Basecamp is at 40.768, Near Museum is at 40.765 (Very close).

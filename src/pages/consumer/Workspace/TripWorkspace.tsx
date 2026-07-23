@@ -35,6 +35,7 @@ export default function TripWorkspace() {
   const [replacingItem, setReplacingItem] = useState<{ day: number; id: string, triggerRef?: React.RefObject<HTMLButtonElement> } | null>(null);
   const [replacementCandidates, setReplacementCandidates] = useState<RecommendedExperience[]>([]);
   const [v2Metadata, setV2Metadata] = useState<any>(null);
+  const [stalenessStatus, setStalenessStatus] = useState<'UP_TO_DATE' | 'STALE' | 'NOT_GENERATED'>('UP_TO_DATE');
 
   // Ref to hold the trigger button for focus restoration
   const replaceTriggerRef = React.useRef<HTMLButtonElement | null>(null);
@@ -57,6 +58,15 @@ export default function TripWorkspace() {
         if (!trip) return navigate("/minhas-viagens");
 
         setTrip(trip);
+        
+        try {
+          const { TripItineraryGenerationService } = await import('@/services/TripItineraryGenerationService');
+          const status = await TripItineraryGenerationService.checkItineraryStaleness(tripId);
+          setStalenessStatus(status);
+        } catch (e) {
+          console.warn('Could not check staleness', e);
+        }
+
         // Try to fetch destination for the GeneratingScreen
         import("@/repositories/DestinationRepository").then(({ DestinationRepository }) => {
           DestinationRepository.sync((dests) => {
@@ -83,13 +93,16 @@ export default function TripWorkspace() {
                       plannedStartTime: a.startTime,
                       location_lat: a.coordinates?.lat,
                       location_lng: a.coordinates?.lng,
-                      is_must_see: a.isFixed,
+                      durationMinutes: a.durationMinutes || 60,
+                      matchScore: 90,
+                      is_must_see: false, // Don't misuse isFixed for must-see
+                      tags: [],
                       address: a.location
                    },
                    matchScore: 100,
                    matchReasons: [],
                    manualMetadata: {
-                      source: a.source,
+                      source: a.sourceExperienceId,
                       locked: a.isFixed || a.manualLock
                    }
                 }))
@@ -460,7 +473,26 @@ export default function TripWorkspace() {
               <h1 className="font-serif text-3xl md:text-4xl font-light text-[#0D0E10] mt-1">
                 Seu dia a dia em <span className="italic">Nova York</span>
               </h1>
-              {v2Metadata && (
+              {stalenessStatus === 'STALE' && (
+                 <div className="mt-4 flex items-center justify-between p-4 rounded-xl bg-amber-50 border border-amber-200">
+                   <div className="flex items-center gap-3">
+                     <div className="w-8 h-8 rounded-full bg-amber-100 flex items-center justify-center shrink-0">
+                       <RefreshCw className="w-4 h-4 text-amber-600" />
+                     </div>
+                     <div>
+                       <p className="text-sm font-bold text-amber-900">Roteiro desatualizado</p>
+                       <p className="text-xs text-amber-700">As preferências ou reservas mudaram desde a última geração.</p>
+                     </div>
+                   </div>
+                   <button 
+                     onClick={() => navigate(`/onboarding/${tripId}/generating`)} 
+                     className="px-4 py-2 bg-amber-600 text-white text-xs font-bold rounded-full hover:bg-amber-700 transition-colors shrink-0"
+                   >
+                     Regerar Roteiro
+                   </button>
+                 </div>
+              )}
+              {v2Metadata && stalenessStatus !== 'STALE' && (
                  <p className="text-[10px] text-slate-400 mt-2 font-mono uppercase">
                    Engine V{v2Metadata.engineVersion} • Persistido em {new Date(v2Metadata.generatedAt).toLocaleString()}
                  </p>

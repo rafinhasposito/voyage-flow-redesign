@@ -225,12 +225,38 @@ export default function StepMatch({
           </div>
           <h2 className="text-2xl font-extrabold text-slate-800">Match Concluído</h2>
           <p className="text-slate-500 mt-2 font-medium mb-8">Nossa inteligência artificial já entendeu as suas preferências baseada nos seus {Object.keys(votes).length} votos.</p>
-          <button
-            onClick={handleNextStep}
-            className="h-12 px-8 rounded-full bg-slate-900 text-white font-bold hover:bg-slate-800 transition-colors"
-          >
-            Avançar para DNA da Viagem
-          </button>
+          <div className="flex flex-col gap-3">
+            <button
+              onClick={handleNextStep}
+              className="h-12 px-8 rounded-full bg-slate-900 text-white font-bold hover:bg-slate-800 transition-colors"
+            >
+              Avançar para DNA da Viagem
+            </button>
+            <button
+              onClick={async () => {
+                const currentDeckItemIds = matchDeck?.items.map(i => i.experience_id) || [];
+                const currentState = trip.preferences?.match_deck_state || { seen_ids: [], round: 1 };
+                const newSeenIds = Array.from(new Set([...currentState.seen_ids, ...currentDeckItemIds]));
+                
+                await onSave({
+                  preferences: { 
+                    ...trip.preferences, 
+                    match_deck: null,
+                    match_deck_state: {
+                      seen_ids: newSeenIds,
+                      round: (currentState.round || 1) + 1,
+                      cursor: 0,
+                      seed: new Date().toISOString()
+                    }
+                  }
+                });
+                // Will re-trigger the loadExperiences effect
+              }}
+              className="h-12 px-8 rounded-full bg-white text-slate-600 border border-slate-200 font-bold hover:bg-slate-50 transition-colors"
+            >
+              Ver mais experiências (Nova Rodada)
+            </button>
+          </div>
         </div>
       ) : (
         <div className="max-w-md mx-auto">

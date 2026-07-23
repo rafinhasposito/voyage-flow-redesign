@@ -146,11 +146,11 @@ export class SchedulerV1 {
     const catalog = [...input.catalog];
     const validCatalog = catalog.filter(item => {
       const vote = input.matchVotes[item.id];
-      if (vote === 'no' || vote === 'dislike') return false;
+      if (vote === 'REJECT') return false;
       return true;
     });
 
-    const priorityItems = validCatalog.filter(item => ['yes', 'love'].includes(input.matchVotes[item.id]));
+    const priorityItems = validCatalog.filter(item => ['LOVE', 'LIKE'].includes(input.matchVotes[item.id]));
     const secondaryItems = validCatalog.filter(item => !['yes', 'love'].includes(input.matchVotes[item.id]));
 
     const usedIds = new Set<string>();
