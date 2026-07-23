@@ -7,6 +7,7 @@ import { TripSpaceDay, TripSpaceStop, TripSpaceBasecamp } from '@/types/tripSpac
 import MapLibreMap from '@/components/MapLibreMap';
 
 interface DayWorkspaceProps {
+  tripId: string;
   days: TripSpaceDay[];
   activeDay: number;
   onDayChange: (dayNum: number) => void;
@@ -20,18 +21,13 @@ interface DayWorkspaceProps {
 }
 
 export function DayWorkspace({ 
-  days, activeDay, onDayChange, basecamp, 
+  tripId, days, activeDay, onDayChange, basecamp, 
   onToggleLock, onCreateDraft, onCommitDraft, onClearDraft, editDraft, draftLoading 
 }: DayWorkspaceProps) {
   const [selectedStopId, setSelectedStopId] = useState<string | null>(null);
   const [quickNotice, setQuickNotice] = useState<string | null>(null);
 
   const currentDay = days.find(d => d.dayNumber === activeDay) || days[0];
-
-  const handleQuickAction = (actionName: string) => {
-    setQuickNotice(`${actionName}: Funcionalidade estará disponível em breve.`);
-    setTimeout(() => setQuickNotice(null), 3000);
-  };
 
   return (
     <section className="mb-8">
@@ -168,44 +164,125 @@ export function DayWorkspace({
                         
                         {/* Expanded Actions */}
                         {isSelected && (
-                          <div className="mt-4 pt-4 border-t border-slate-100 flex items-center gap-2">
-                            <button
-                              onClick={(e) => { e.stopPropagation(); if (stop.isFixed) { setQuickNotice("Itens fixos não podem ser removidos."); return; } onCreateDraft?.({ tripId: '', action: 'REMOVE', activityId: stop.id }); }}
-                              className="p-2 text-red-500 hover:bg-red-50 rounded-lg transition-colors"
-                              title="Remover"
-                            >
-                              <AlertCircle className="w-4 h-4" /> {/* Fallback icon for Trash */}
-                            </button>
-                            <button
-                              onClick={(e) => { e.stopPropagation(); onToggleLock?.(stop.id, !stop.isLocked); }}
-                              className={`p-2 rounded-lg transition-colors ${stop.isLocked ? 'text-purple-600 bg-purple-50' : 'text-slate-500 hover:bg-slate-50'}`}
-                              title={stop.isLocked ? "Destrancar" : "Trancar"}
-                            >
-                              <Info className="w-4 h-4" /> {/* Fallback icon for Lock */}
-                            </button>
-                            <div className="flex-1" />
-                            <button
-                              onClick={(e) => { e.stopPropagation(); if (idx === 0) return; onCreateDraft?.({ tripId: '', action: 'MOVE', activityId: stop.id, sourceDay: currentDay.dayNumber, targetDay: currentDay.dayNumber, targetPosition: idx - 1 }); }}
-                              className="p-2 text-slate-500 hover:bg-slate-50 rounded-lg transition-colors disabled:opacity-30"
-                              disabled={idx === 0}
-                              title="Mover para cima"
-                            >
-                              <ArrowUp className="w-4 h-4" />
-                            </button>
-                            <button
-                              onClick={(e) => { e.stopPropagation(); if (idx === currentDay.stops.length - 1) return; onCreateDraft?.({ tripId: '', action: 'MOVE', activityId: stop.id, sourceDay: currentDay.dayNumber, targetDay: currentDay.dayNumber, targetPosition: idx + 1 }); }}
-                              className="p-2 text-slate-500 hover:bg-slate-50 rounded-lg transition-colors disabled:opacity-30"
-                              disabled={idx === currentDay.stops.length - 1}
-                              title="Mover para baixo"
-                            >
-                              <ArrowDown className="w-4 h-4" />
-                            </button>
-                            <button
-                              onClick={(e) => { e.stopPropagation(); handleQuickAction("Substituir"); }}
-                              className="text-xs font-bold px-3 py-1.5 bg-slate-100 text-slate-700 hover:bg-slate-200 rounded-lg transition-colors"
-                            >
-                              Substituir
-                            </button>
+                          <div className="mt-4 pt-4 border-t border-slate-100">
+                            {quickNotice && (
+                              <div className="mb-3 text-xs font-bold text-amber-700 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2">
+                                {quickNotice}
+                              </div>
+                            )}
+                            <div className="flex items-center gap-2">
+                              {/* Remover — bloqueado se fixo */}
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  if (stop.isFixed) {
+                                    setQuickNotice('Item fixo: não pode ser removido (reserva confirmada).');
+                                    return;
+                                  }
+                                  if (stop.isLocked) {
+                                    setQuickNotice('Item trancado: destranque antes de remover.');
+                                    return;
+                                  }
+                                  onCreateDraft?.({ tripId, action: 'REMOVE', activityId: stop.id, sourceDay: currentDay.dayNumber });
+                                }}
+                                className={`p-2 rounded-lg transition-colors ${
+                                  stop.isFixed || stop.isLocked
+                                    ? 'text-slate-300 cursor-not-allowed'
+                                    : 'text-red-500 hover:bg-red-50'
+                                }`}
+                                title={stop.isFixed ? 'Item fixo — não removível' : stop.isLocked ? 'Trancado — não removível' : 'Remover'}
+                              >
+                                <AlertCircle className="w-4 h-4" />
+                              </button>
+
+                              {/* Lock / Unlock */}
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  if (stop.isFixed) {
+                                    setQuickNotice('Item fixo: bloqueio gerenciado pela Engine.');
+                                    return;
+                                  }
+                                  onToggleLock?.(stop.id, !stop.isLocked);
+                                }}
+                                className={`p-2 rounded-lg transition-colors ${
+                                  stop.isLocked ? 'text-purple-600 bg-purple-50' : 'text-slate-500 hover:bg-slate-50'
+                                } ${stop.isFixed ? 'opacity-40 cursor-not-allowed' : ''}`}
+                                title={stop.isFixed ? 'Gerenciado pela Engine' : stop.isLocked ? 'Destrancar posição' : 'Trancar posição neste horário'}
+                              >
+                                <Info className="w-4 h-4" />
+                              </button>
+
+                              <div className="flex-1" />
+
+                              {/* Mover para cima */}
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  if (idx === 0 || stop.isFixed) return;
+                                  onCreateDraft?.({
+                                    tripId,
+                                    action: 'MOVE',
+                                    activityId: stop.id,
+                                    sourceDay: currentDay.dayNumber,
+                                    targetDay: currentDay.dayNumber,
+                                    targetPosition: idx - 1
+                                  });
+                                }}
+                                className="p-2 text-slate-500 hover:bg-slate-50 rounded-lg transition-colors disabled:opacity-30"
+                                disabled={idx === 0 || stop.isFixed}
+                                title={stop.isFixed ? 'Item fixo' : 'Mover para cima'}
+                              >
+                                <ArrowUp className="w-4 h-4" />
+                              </button>
+
+                              {/* Mover para baixo */}
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  if (idx === currentDay.stops.length - 1 || stop.isFixed) return;
+                                  onCreateDraft?.({
+                                    tripId,
+                                    action: 'MOVE',
+                                    activityId: stop.id,
+                                    sourceDay: currentDay.dayNumber,
+                                    targetDay: currentDay.dayNumber,
+                                    targetPosition: idx + 2  // splice-after removes current, so +2 = after next
+                                  });
+                                }}
+                                className="p-2 text-slate-500 hover:bg-slate-50 rounded-lg transition-colors disabled:opacity-30"
+                                disabled={idx === currentDay.stops.length - 1 || stop.isFixed}
+                                title={stop.isFixed ? 'Item fixo' : 'Mover para baixo'}
+                              >
+                                <ArrowDown className="w-4 h-4" />
+                              </button>
+
+                              {/* Substituir — abre Explorar com filtro no item atual */}
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  if (stop.isFixed) {
+                                    setQuickNotice('Item fixo: substituição bloqueada.');
+                                    return;
+                                  }
+                                  onCreateDraft?.({
+                                    tripId,
+                                    action: 'REPLACE',
+                                    activityId: stop.id,
+                                    sourceDay: currentDay.dayNumber,
+                                    targetDay: currentDay.dayNumber,
+                                    targetPosition: idx
+                                  });
+                                }}
+                                className={`text-xs font-bold px-3 py-1.5 rounded-lg transition-colors ${
+                                  stop.isFixed
+                                    ? 'bg-slate-50 text-slate-300 cursor-not-allowed'
+                                    : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                                }`}
+                              >
+                                Substituir
+                              </button>
+                            </div>
                           </div>
                         )}
                       </div>

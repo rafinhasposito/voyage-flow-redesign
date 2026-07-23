@@ -23,6 +23,7 @@ export type EditResultStatus =
   | 'ITINERARY_CHANGED_SINCE_PREVIEW'
   | 'BLOCKED_FIXED_ITEM'
   | 'BLOCKED_MANUAL_LOCK'
+  | 'NO_VALID_PLACEMENT'
   | 'READBACK_MISMATCH'
   | 'PERSISTENCE_FAILED';
 
@@ -105,37 +106,39 @@ export function applyEditIntentDraft(
   const catalog = (intent as any).catalogContext || []; // We need to inject catalog if we want strict semantic rules
   
   const recalculateDay = (day: PersistedDayV2) => {
-    // Map EngineActivity back to DaySchedule format for SchedulerV1
+    const originalActivities = day.activities || [];
+    // Map to DaySchedule format for SchedulerV1
     const daySchedule = {
       date: day.dateStr || '2025-01-01',
-      warnings: [],
-      activities: day.activities?.map(a => ({
+      warnings: [] as string[],
+      activities: originalActivities.map(a => ({
         id: a.id,
-        type: a.type,
-        title: a.title,
-        startTime: a.startTime || '10:00',
-        endTime: a.endTime || '11:00',
+        type: a.type || 'experience',
+        title: a.title || '',
+        startTime: a.startTime || '09:00',
+        endTime: a.endTime || '10:00',
         duration: a.duration,
         isFixed: a.isFixed || a.manualLock || false,
         sourceExperienceId: a.sourceExperienceId,
-        source: a.source as any
-      })) || []
+        source: (a.source as any) || 'engine'
+      }))
     };
     
     SchedulerV1.recalculatePartialDay(daySchedule, catalog);
     
-    // Map back
+    // Map back using ID match, NOT array index (avoids corruption after splice)
     if (day.activities) {
-        day.activities = daySchedule.activities.map((sa: any, i: number) => ({
-           ...day.activities![i], // preserve non-schedule props
-           id: sa.id,
-           startTime: sa.startTime,
-           endTime: sa.endTime
-        }));
+      day.activities = originalActivities.map(orig => {
+        const scheduled = daySchedule.activities.find(sa => sa.id === orig.id);
+        if (scheduled) {
+          return { ...orig, startTime: scheduled.startTime, endTime: scheduled.endTime };
+        }
+        return orig;
+      });
     }
     
     if (daySchedule.warnings && daySchedule.warnings.length > 0) {
-        warnings.push(...daySchedule.warnings.map((w: string) => `Dia ${day.dayNumber}: ${w}`));
+      warnings.push(...daySchedule.warnings.map((w: string) => `Dia ${day.dayNumber}: ${w}`));
     }
   };
 
@@ -153,6 +156,30 @@ export function applyEditIntentDraft(
     if (info) recalculateDay(info.day);
   }
 
+  if (intent.action === 'REPLACE') {
+    if (!intent.activityId || intent.sourceExperienceId === undefined) {
+      return { newItinerary: currentItinerary, status: 'PERSISTENCE_FAILED', warnings: ['Missing replace parameters'] };
+    }
+    const info = findActivityInfo(intent.activityId);
+    if (!info) return { newItinerary: currentItinerary, status: 'PERSISTENCE_FAILED', warnings: ['Activity to replace not found'] };
+    if (info.activity.isFixed) return { newItinerary: currentItinerary, status: 'BLOCKED_FIXED_ITEM', warnings: [] };
+    if (info.activity.manualLock) return { newItinerary: currentItinerary, status: 'BLOCKED_MANUAL_LOCK', warnings: [] };
+
+    const addedItem = catalog.find((c: any) => c.id === intent.sourceExperienceId);
+    // Build deterministic ID: sourceExperienceId + targetDay + position
+    const deterministicId = `${intent.sourceExperienceId}_d${intent.targetDay ?? info.day.dayNumber}_p${info.aIdx}`;
+    const replacement: EngineActivity = {
+      id: deterministicId,
+      title: addedItem ? (addedItem.name || addedItem.title) : (intent.sourceExperienceId ? `Experiência ${intent.sourceExperienceId.substring(0, 6)}` : 'Nova Atividade'),
+      type: addedItem?.category || 'attraction',
+      sourceExperienceId: intent.sourceExperienceId,
+      source: 'catalog',
+      duration: addedItem?.duration?.toString() || info.activity.duration || '90'
+    };
+    info.day.activities.splice(info.aIdx, 1, replacement);
+    recalculateDay(info.day);
+  }
+
   if (intent.action === 'ADD') {
     if (!intent.sourceExperienceId || intent.targetDay === undefined) {
       return { newItinerary: currentItinerary, status: 'PERSISTENCE_FAILED', warnings: ['Missing add parameters'] };
@@ -160,10 +187,17 @@ export function applyEditIntentDraft(
     const targetDayObj = draftItinerary.find((d: any) => !d._isMetadata && d.dayNumber === intent.targetDay) as PersistedDayV2;
     if (targetDayObj && targetDayObj.activities) {
       const addedItem = catalog.find((c: any) => c.id === intent.sourceExperienceId);
+      // Already in this day? Return already applied
+      const alreadyIn = targetDayObj.activities.some(a => a.sourceExperienceId === intent.sourceExperienceId);
+      if (alreadyIn) {
+        return { newItinerary: currentItinerary, status: 'ALREADY_APPLIED', warnings: ['Esta experiência já está neste dia.'] };
+      }
+      // Deterministic ID so re-adding doesn't duplicate
+      const deterministicId = `${intent.sourceExperienceId}_d${intent.targetDay}_add`;
       const newAct: EngineActivity = {
-        id: 'new_' + Math.random().toString(36).substr(2, 9),
-        title: addedItem ? addedItem.name || addedItem.title : 'Nova Atividade',
-        type: 'attraction',
+        id: deterministicId,
+        title: addedItem ? (addedItem.name || addedItem.title) : 'Nova Atividade',
+        type: addedItem?.category || 'attraction',
         sourceExperienceId: intent.sourceExperienceId,
         source: 'catalog',
         duration: addedItem?.duration?.toString() || '90'

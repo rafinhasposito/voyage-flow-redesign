@@ -91,6 +91,7 @@ export default function TripSpacePage() {
 
           {/* Day Workspace (Timeline & Map & Quick Adjustments) */}
           <DayWorkspace
+            tripId={data.tripId}
             days={data.days}
             activeDay={activeDay}
             onDayChange={setActiveDay}
