@@ -21,8 +21,8 @@ export function TripSpaceSidebar({ profile, tripId }: TripSpaceSidebarProps) {
   const menuItems = [
     { id: 'minha_viagem', label: 'Minhas viagens', icon: Compass, to: '/minhas-viagens', isHash: false },
     { id: 'roteiro', label: 'Roteiro', icon: Calendar, to: `#roteiro`, isHash: true },
-    { id: 'descobertas', label: 'Ideias', icon: Heart, to: `#descobertas`, isHash: true },
-    { id: 'carteira', label: 'Reservas', icon: Bookmark, to: `#carteira`, isHash: true },
+    { id: 'catalog', label: 'Explorar Atrações', icon: Heart, to: `/app/catalog`, isHash: false },
+    { id: 'wallet', label: 'Orçamento & Gastos', icon: Bookmark, to: `/app/wallet`, isHash: false },
     { id: 'preparativos', label: 'Preparativos', icon: FolderCheck, to: `#preparativos`, isHash: true },
     { id: 'documentos', label: 'Documentos', icon: FileText, to: `#documentos`, isHash: true },
     { id: 'mapa', label: 'Mapa', icon: Map, to: `#mapa`, isHash: true },
