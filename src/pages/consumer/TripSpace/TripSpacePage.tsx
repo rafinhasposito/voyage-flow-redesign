@@ -59,15 +59,21 @@ export default function TripSpacePage() {
     );
   }
 
-
+  if (error || !data) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center bg-[#FDFCF8] p-6 text-center">
+        <AlertCircle className="w-12 h-12 text-red-500 mb-4" />
+        <p className="font-extrabold text-slate-800 text-lg mb-1">Ops! Ocorreu um erro.</p>
+        <p className="text-sm text-slate-500 font-medium mb-4">{error || "Não foi possível carregar o roteiro."}</p>
+        <button onClick={() => navigate(-1)} className="px-6 py-2 bg-slate-900 text-white rounded-full font-bold">Voltar</button>
+      </div>
+    );
+  }
 
   const navItems = [
     { id: 'visao-geral', label: 'Visão Geral' },
     { id: 'roteiro', label: 'Roteiro' },
     { id: 'descobertas', label: 'Descobertas' },
-    { id: 'carteira', label: 'Carteira' },
-    { id: 'preparativos', label: 'Preparativos' },
-    { id: 'documentos', label: 'Documentos' },
     { id: 'mapa', label: 'Mapa' },
   ];
 

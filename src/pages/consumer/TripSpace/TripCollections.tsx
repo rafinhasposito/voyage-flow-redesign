@@ -54,9 +54,6 @@ export function TripCollections({ savedIdeas, maybeIdeas, recommendations, onAdd
                     ) : (
                       <div className="w-full h-full flex items-center justify-center text-slate-400 font-bold text-xs">Sem foto</div>
                     )}
-                    <button className="absolute top-2 right-2 p-1.5 bg-white/90 backdrop-blur-sm rounded-full text-red-500 hover:bg-white shadow-xs">
-                      <Heart className="w-4 h-4 fill-current" />
-                    </button>
                   </div>
                   <div>
                     <h4 className="font-extrabold text-slate-900 text-xs mb-1 line-clamp-2">{idea.title}</h4>
@@ -103,9 +100,6 @@ export function TripCollections({ savedIdeas, maybeIdeas, recommendations, onAdd
                     ) : (
                       <div className="w-full h-full flex items-center justify-center text-slate-400 font-bold text-xs">Sem foto</div>
                     )}
-                    <button className="absolute top-2 right-2 p-1.5 bg-white/90 backdrop-blur-sm rounded-full text-slate-400 hover:text-red-500 hover:bg-white shadow-xs">
-                      <Heart className="w-4 h-4" />
-                    </button>
                   </div>
                   <div>
                     <h4 className="font-extrabold text-slate-900 text-xs mb-1 line-clamp-2">{idea.title}</h4>

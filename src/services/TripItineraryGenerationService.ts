@@ -86,12 +86,14 @@ export class TripItineraryGenerationService {
       ...persistedFormat
     ];
 
-    // 7. Persist to DB
-    const updatedTrip = await TripRepository.updateTrip(tripId, {
-      itinerary: itineraryWithMeta
-    });
+    // 7. Persist to DB with Optimistic Locking
+    const result = await TripRepository.applyApprovedItineraryDraft(
+      tripId,
+      itineraryWithMeta,
+      trip.updated_at
+    );
 
-    return updatedTrip;
+    return result.data;
   }
 
   static async generatePreview(tripId: string): Promise<any> {
