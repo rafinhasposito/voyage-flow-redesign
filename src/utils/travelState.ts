@@ -1,4 +1,6 @@
 "use client";
+import { ExperienceIntelligenceSnapshot } from "./intelligence/experienceIntelligenceSnapshot";
+import { supabase } from "@/lib/supabase";
 import { LogisticsEngine } from "../lib/intelligence/logistics";
 
 export interface TravelExperience {
@@ -150,7 +152,7 @@ export interface RecommendedExperience {
   manualMetadata?: StopEditMetadata;
 }
 
-export type TravelerPersona = 
+export type TravelerPersona =
   | "explorador_visual"
   | "curador_experiencias"
   | "descobridor"
@@ -159,19 +161,19 @@ export type TravelerPersona =
 
 export type TravelPace = "relaxado" | "equilibrado" | "intenso";
 
-export type TravelCompanionship = 
-  | "solo" 
-  | "couple" 
-  | "family" 
-  | "friends" 
-  | "romantic" 
+export type TravelCompanionship =
+  | "solo"
+  | "couple"
+  | "family"
+  | "friends"
+  | "romantic"
   | "celebration";
 
-export type TransportPreference = 
-  | "walk" 
-  | "metro" 
-  | "uber" 
-  | "rent_car" 
+export type TransportPreference =
+  | "walk"
+  | "metro"
+  | "uber"
+  | "rent_car"
   | "public_transit";
 
 export interface PersonaAffinity {
@@ -186,11 +188,11 @@ export interface TagAffinity {
   [tag: string]: number;
 }
 
-export type TravelAtmosphereTheme = 
-  | "winter_magic" 
-  | "romantic_spring" 
-  | "sunny_summer" 
-  | "golden_autumn" 
+export type TravelAtmosphereTheme =
+  | "winter_magic"
+  | "romantic_spring"
+  | "sunny_summer"
+  | "golden_autumn"
   | "classic_default";
 
 export interface TravelAtmosphere {
@@ -251,7 +253,7 @@ export interface UserProfile {
   hasChildren?: boolean;
   groupSize?: number;
   wheelchairRequired?: boolean;
-  
+
   personaAffinity: PersonaAffinity;
   tagAffinity: TagAffinity;
   pace: TravelPace;
@@ -278,8 +280,8 @@ export interface TripContext {
 
 export interface ItineraryDay {
   dayNumber: number;
-  attractions: Attraction[]; 
-  recommendations?: RecommendedExperience[]; 
+  attractions: Attraction[];
+  recommendations?: RecommendedExperience[];
 }
 
 export interface TravelState {
@@ -987,7 +989,7 @@ export function migrateTrip(profile: UserProfile): TripContext {
 export class AtmosphereEngine {
   static getAtmosphere(destination: string, dateStr: string): TravelAtmosphere {
     const month = new Date(dateStr).getMonth();
-    
+
     if (destination.toLowerCase().includes("york") && (month === 11 || month === 0 || month === 1)) {
       return {
         theme: "winter_magic",
@@ -1104,8 +1106,73 @@ export function getTravelState(): TravelState {
   return state;
 }
 
-export function saveTravelState(state: TravelState) {
+export async function saveTravelState(state: TravelState): Promise<void> {
+  // Sincronização estrita com a Fonte Oficial (Supabase) antes de qualquer cache local
+  if (state.trip?.id && !state.trip.id.startsWith("trip-default") && !state.trip.id.startsWith("local-")) {
+    await syncTravelStateToSupabase(state);
+  }
+
+  // O cache local só é atualizado SE o Supabase confirmar sucesso (ou se for viagem puramente local)
   localStorage.setItem("viagem_dos_sonhos_state", JSON.stringify(state));
+}
+
+export async function syncTravelStateToSupabase(state: TravelState): Promise<void> {
+  if (!state.trip?.id) return;
+  const { data: session } = await supabase.auth.getSession();
+
+  // Contrato: Se usuário logado e viagem persistida, Supabase é a única fonte de verdade
+  if (session?.session?.user) {
+    const { error } = await supabase
+      .from('trips')
+      .update({
+        itinerary: state.itinerary,
+        checklist: state.checklist,
+        custom_expenses: state.customExpenses,
+      })
+      .eq('id', state.trip.id)
+      .eq('user_id', session.session.user.id);
+
+    if (error) {
+      throw new Error(`Falha crítica ao sincronizar com Supabase: ${error.message}`);
+    }
+    console.log("[travelState] Viagem sincronizada com sucesso na Fonte Oficial (Supabase)");
+  }
+}
+
+export async function getTravelStateAsync(tripId?: string): Promise<TravelState> {
+  const localState = getTravelState(); // Obtém base inicial estrutural
+
+  if (!tripId || tripId.startsWith("trip-default") || tripId.startsWith("local-")) {
+    return localState; // Retorna cache se for apenas rascunho local
+  }
+
+  const { data: session } = await supabase.auth.getSession();
+  if (session?.session?.user) {
+    // Busca da Fonte Oficial
+    const { data: trip, error } = await supabase
+      .from('trips')
+      .select('itinerary, checklist, custom_expenses')
+      .eq('id', tripId)
+      .eq('user_id', session.session.user.id)
+      .maybeSingle();
+
+    if (error) {
+      throw new Error(`Falha crítica ao ler do Supabase: ${error.message}`);
+    }
+
+    if (trip) {
+      // Supabase ESMAGA o cache local incondicionalmente, mesmo se estiver vazio.
+      // Isso impede o "Vazamento de Cache" de viagens antigas para viagens novas.
+      localState.itinerary = (trip.itinerary || []) as ItineraryDay[];
+      localState.checklist = (trip.checklist || []) as TripChecklistItem[];
+      localState.customExpenses = (trip.custom_expenses || []) as CustomExpense[];
+
+      // Atualiza o fallback local para refletir a verdade exata do banco
+      localStorage.setItem("viagem_dos_sonhos_state", JSON.stringify(localState));
+      console.log("[travelState] Estado recuperado e cache esmagado com sucesso pela Fonte Oficial");
+    }
+  }
+  return localState;
 }
 
 // ==========================================
@@ -1346,7 +1413,7 @@ export class ExperienceMatchingEngine {
     const wCompanionship = weights.companionshipMatch;
 
     const totalWeight = wPersona + wTag + wSeason + wBudget + wCompanionship;
-    const rawScore = 
+    const rawScore =
       (personaScore * wPersona +
        tagScore * wTag +
        seasonScore * wSeason +
@@ -1394,7 +1461,7 @@ export class ExperienceMatchingEngine {
 
     // Aplicação das Restrições e Bloqueios
     const restrictions = ExperienceMatchingEngine.evaluateRestrictions(experience, profile);
-    
+
     // Se não for permitido (blocker), o match score cai para 0 e a experiência não é recomendada
     if (!restrictions.allowed) {
       finalScore = 0;
@@ -1624,35 +1691,35 @@ export function generateSmartItinerary(profile: UserProfile, catalog?: TravelExp
   console.log(`================================================================`);
 
   const itinerary: ItineraryDay[] = [];
-  
+
   // Clone array to modify and schedule
   const unassigned = [...availableRanked];
 
   for (let d = 1; d <= profile.days; d++) {
     const dayRecommendations: RecommendedExperience[] = [];
     const dayAttractionsLegacy: TravelExperience[] = [];
-    
+
     const dayDate = new Date(new Date(profile.startDate || new Date()).getTime() + (d - 1) * 24 * 60 * 60 * 1000).toISOString().split("T")[0];
-    
+
     let currentDayMinutes = 9 * 60; // Start at 09:00 AM
     const maxMinutesPerDay = 22 * 60; // End at 22:00 (10 PM)
-    
+
     let previousExp: TravelExperience | null = null;
     let previousEndTime: string | null = null;
 
     // We aim for 3 experiences per day
     while (dayRecommendations.length < 3 && unassigned.length > 0 && currentDayMinutes < maxMinutesPerDay) {
-      
+
       let selectedIndex = -1;
       let logisticsRes: import("../lib/intelligence/logistics").LogisticsEvaluation | null = null;
       let proposedStart = "";
       let durationHours = 0;
-      
+
       // Look for the highest ranked experience that fits logistically
       for (let i = 0; i < unassigned.length; i++) {
         const candidate = unassigned[i];
         durationHours = candidate.experience.durationHours || 2;
-        
+
         let transitMins: number | null = null;
         if (previousExp) {
           if (previousExp.transit_options_origin && previousExp.transit_options_origin.length > 0) {
@@ -1664,10 +1731,10 @@ export function generateSmartItinerary(profile: UserProfile, catalog?: TravelExp
         }
         const effectiveTransitMins = transitMins ?? 0; // Para calcular arrivalMins usamos 0 se desconhecido, mas avaliamos como nulo
         const arrivalMins = currentDayMinutes + effectiveTransitMins;
-        
+
         proposedStart = `${String(Math.floor(arrivalMins / 60)).padStart(2, '0')}:${String(arrivalMins % 60).padStart(2, '0')}`;
         const windowEnd = `${String(Math.floor(maxMinutesPerDay / 60)).padStart(2, '0')}:${String(maxMinutesPerDay % 60).padStart(2, '0')}`;
-        
+
         const evalRes = LogisticsEngine.evaluateFeasibility(
           dayDate,
           proposedStart,
@@ -1678,17 +1745,17 @@ export function generateSmartItinerary(profile: UserProfile, catalog?: TravelExp
           windowEnd,
           previousEndTime
         );
-        
+
         if (evalRes.feasible) {
            selectedIndex = i;
            logisticsRes = evalRes;
            break;
         }
       }
-      
+
       if (selectedIndex !== -1 && logisticsRes) {
         const selected = unassigned.splice(selectedIndex, 1)[0];
-        
+
         let transitMins: number | null = null;
         if (previousExp) {
           if (previousExp.transit_options_origin && previousExp.transit_options_origin.length > 0) {
@@ -1701,19 +1768,19 @@ export function generateSmartItinerary(profile: UserProfile, catalog?: TravelExp
         const effectiveTransitMins = transitMins ?? 0;
         const arrivalMins = currentDayMinutes + effectiveTransitMins;
         const endMins = arrivalMins + (durationHours * 60);
-        
+
         const plannedEndTime = `${String(Math.floor(endMins / 60)).padStart(2, '0')}:${String(endMins % 60).padStart(2, '0')}`;
-        
+
         selected.experience = {
           ...selected.experience,
           plannedStartTime: proposedStart,
           plannedEndTime: plannedEndTime,
           logisticsEvaluation: logisticsRes
         };
-        
+
         dayRecommendations.push(selected);
         dayAttractionsLegacy.push(selected.experience);
-        
+
         currentDayMinutes = endMins;
         previousExp = selected.experience;
         previousEndTime = plannedEndTime;
@@ -1722,7 +1789,7 @@ export function generateSmartItinerary(profile: UserProfile, catalog?: TravelExp
         break;
       }
     }
-    
+
 
     // Fallback determinístico para preencher dias extras (viagens longas ou catálogo curto):
     // Reinicia o ponteiro circulando pelas experiências recomendadas do usuário,
@@ -1732,11 +1799,11 @@ export function generateSmartItinerary(profile: UserProfile, catalog?: TravelExp
       while (dayRecommendations.length < 3 && currentDayMinutes < maxMinutesPerDay) {
         const fallbackRec = availableRanked[fallbackIndex % availableRanked.length];
         fallbackIndex++;
-        
+
         if (fallbackIndex > availableRanked.length * 2) {
           break;
         }
-        
+
         if (!dayRecommendations.some(r => r.experience.id === fallbackRec.experience.id)) {
           const durationHours = fallbackRec.experience.durationHours || 2;
           let transitMins: number | null = null;
@@ -1751,9 +1818,9 @@ export function generateSmartItinerary(profile: UserProfile, catalog?: TravelExp
           const effectiveTransitMins = transitMins ?? 0;
           const arrivalMins = currentDayMinutes + effectiveTransitMins;
           const windowEnd = `${String(Math.floor(maxMinutesPerDay / 60)).padStart(2, '0')}:${String(maxMinutesPerDay % 60).padStart(2, '0')}`;
-          
+
           const proposedStart = `${String(Math.floor(arrivalMins / 60)).padStart(2, '0')}:${String(arrivalMins % 60).padStart(2, '0')}`;
-          
+
           const evalRes = LogisticsEngine.evaluateFeasibility(
             dayDate,
             proposedStart,
@@ -1764,11 +1831,11 @@ export function generateSmartItinerary(profile: UserProfile, catalog?: TravelExp
             windowEnd,
             previousEndTime
           );
-          
+
           if (!evalRes.feasible) {
             continue;
           }
-          
+
           const endMins = arrivalMins + (durationHours * 60);
           const plannedEndTime = `${String(Math.floor(endMins / 60)).padStart(2, '0')}:${String(endMins % 60).padStart(2, '0')}`;
 
@@ -1782,7 +1849,7 @@ export function generateSmartItinerary(profile: UserProfile, catalog?: TravelExp
 
           dayRecommendations.push(clonedRec);
           dayAttractionsLegacy.push(clonedRec.experience);
-          
+
           currentDayMinutes = endMins;
           previousExp = clonedRec.experience;
           previousEndTime = plannedEndTime;
