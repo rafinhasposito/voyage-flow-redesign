@@ -244,7 +244,7 @@ export function buildTripSpaceViewModel(
     totalBudgetLimit: Number(trip.budget || trip.preferences?.budget || 0),
     spentSoFar: 0,
     rawItinerary: rawItinerary,
-    rawVersion: rawItinerary?.[0]?._isMetadata ? rawItinerary[0].version : '',
+    rawVersion: trip.updated_at || (rawItinerary?.[0]?._isMetadata ? rawItinerary[0].version : ''),
     estimatedBudget,
     bookedItemsCount: { booked: realBookedCount, total: totalStopsCount },
     pace: realPace

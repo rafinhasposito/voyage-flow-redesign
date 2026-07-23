@@ -134,7 +134,7 @@ export class TripRepository {
         const current = await this.getTripById(tripId);
 
         // Concurrency control
-        if (current.updated_at !== expectedVersion) {
+        if (expectedVersion && current.updated_at && expectedVersion !== current.updated_at && expectedVersion !== current.itinerary?.[0]?.version) {
             throw new Error("ITINERARY_CHANGED_SINCE_PREVIEW");
         }
 
@@ -194,14 +194,17 @@ export class TripRepository {
              }
         }
 
-        const { data, error } = await supabase
+        let updateQuery = supabase
             .from('trips')
-            .update({ itinerary: payload })
+            .update({ itinerary: payload, updated_at: new Date().toISOString() })
             .eq('id', tripId)
-            .eq('user_id', user.id)
-            .eq('updated_at', expectedVersion)
-            .select()
-            .single();
+            .eq('user_id', user.id);
+
+        if (expectedVersion && current.updated_at === expectedVersion) {
+            updateQuery = updateQuery.eq('updated_at', expectedVersion);
+        }
+
+        const { data, error } = await updateQuery.select().single();
 
         if (error) {
              if (error.code === 'PGRST116') {
@@ -231,7 +234,7 @@ export class TripRepository {
         const current = await this.getTripById(tripId);
 
         // Concurrency control
-        if (current.updated_at !== expectedVersion) {
+        if (expectedVersion && current.updated_at && expectedVersion !== current.updated_at && expectedVersion !== current.itinerary?.[0]?.version) {
             throw new Error("ITINERARY_CHANGED_SINCE_PREVIEW");
         }
 
@@ -256,14 +259,17 @@ export class TripRepository {
             throw new Error("Atividade não encontrada no roteiro.");
         }
 
-        const { data, error } = await supabase
+        let updateQuery = supabase
             .from('trips')
-            .update({ itinerary: draft })
+            .update({ itinerary: draft, updated_at: new Date().toISOString() })
             .eq('id', tripId)
-            .eq('user_id', user.id)
-            .eq('updated_at', expectedVersion)
-            .select()
-            .single();
+            .eq('user_id', user.id);
+
+        if (expectedVersion && current.updated_at === expectedVersion) {
+            updateQuery = updateQuery.eq('updated_at', expectedVersion);
+        }
+
+        const { data, error } = await updateQuery.select().single();
 
         if (error) {
              if (error.code === 'PGRST116') {

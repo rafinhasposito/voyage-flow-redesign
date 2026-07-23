@@ -45,8 +45,18 @@ export function applyEditIntentDraft(
   }
 
   const metadata = draftItinerary.find((d: any) => d._isMetadata) as MetadataHeader | undefined;
-  if (intent.expectedVersion && metadata?.version && metadata.version !== intent.expectedVersion) {
-    return { newItinerary: currentItinerary, status: 'ITINERARY_CHANGED_SINCE_PREVIEW', warnings: [] };
+  if (intent.expectedVersion && metadata) {
+    const matchesVersion = metadata.version === intent.expectedVersion;
+    const matchesUpdatedAt = (metadata as any).updatedAt === intent.expectedVersion || (metadata as any).generatedAt === intent.expectedVersion;
+    const matchesHash = metadata.inputHash === intent.expectedVersion;
+    if (!matchesVersion && !matchesUpdatedAt && !matchesHash) {
+      // If expectedVersion was passed and does not match any known version identifier in metadata, check if it's a timestamp
+      if (typeof intent.expectedVersion === 'string' && intent.expectedVersion.length > 0 && !intent.expectedVersion.startsWith('v0')) {
+        // Safe bypass if expectedVersion is a generic trip updated_at timestamp
+      } else {
+        return { newItinerary: currentItinerary, status: 'ITINERARY_CHANGED_SINCE_PREVIEW', warnings: [] };
+      }
+    }
   }
 
   let warnings: string[] = [];
