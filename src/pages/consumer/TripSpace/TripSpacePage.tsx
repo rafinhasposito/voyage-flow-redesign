@@ -15,7 +15,8 @@ export default function TripSpacePage() {
 
   const { 
     data, loading, error, activeDay, setActiveDay, reloadData,
-    handleToggleLock, createDraft, commitDraft, clearDraft, editDraft, draftLoading 
+    handleToggleLock, createDraft, commitDraft, clearDraft, editDraft, draftLoading,
+    regenerateItinerary
   } = useTripSpaceData(tripId);
 
   // Handle custom events from child components that don't have direct prop access
@@ -87,7 +88,7 @@ export default function TripSpacePage() {
       <div className="flex-1 max-w-7xl mx-auto p-6 md:p-8 grid grid-cols-1 xl:grid-cols-12 gap-8">
         {/* Center & Left Content (Col 1-8) */}
         <main className="xl:col-span-8 min-w-0">
-          <TripHeader data={data} />
+          <TripHeader data={data} onRegenerate={regenerateItinerary} />
 
           {/* Day Workspace (Timeline & Map & Quick Adjustments) */}
           <DayWorkspace

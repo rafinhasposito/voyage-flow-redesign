@@ -5,9 +5,10 @@ import { TripSpaceViewModel } from '@/types/tripSpace.types';
 
 interface TripHeaderProps {
   data: TripSpaceViewModel;
+  onRegenerate: () => void;
 }
 
-export function TripHeader({ data }: TripHeaderProps) {
+export function TripHeader({ data, onRegenerate }: TripHeaderProps) {
   const [updateNotice, setUpdateNotice] = useState(false);
 
   const formatDateRange = () => {
@@ -41,12 +42,12 @@ export function TripHeader({ data }: TripHeaderProps) {
               As preferências ou reservas mudaram desde a última geração. Você pode regenerar para refletir as alterações.
             </p>
           </div>
-          <Link
-            to={`/viagens/${data.tripId}/engine-preview`}
-            className="bg-yellow-100 hover:bg-yellow-200 text-yellow-800 border border-yellow-300 px-4 py-2 rounded-lg font-bold text-xs shrink-0 transition-colors"
+          <button
+            onClick={onRegenerate}
+            className="bg-yellow-100 hover:bg-yellow-200 text-yellow-800 border border-yellow-300 px-4 py-2 rounded-lg font-bold text-xs shrink-0 transition-colors cursor-pointer"
           >
             Regerar Roteiro
-          </Link>
+          </button>
         </div>
       )}
 
@@ -63,13 +64,13 @@ export function TripHeader({ data }: TripHeaderProps) {
         {/* Action buttons */}
         <div className="flex items-center gap-3 shrink-0">
           <div className="relative">
-            <Link
-              to={`/viagens/${data.tripId}/engine-preview`}
-              className="bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 px-5 py-2.5 rounded-full font-bold text-sm flex items-center gap-2 transition-colors shadow-sm"
+            <button
+              onClick={onRegenerate}
+              className="bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 px-5 py-2.5 rounded-full font-bold text-sm flex items-center gap-2 transition-colors shadow-sm cursor-pointer"
             >
               <RefreshCw className="w-4 h-4 text-slate-400" />
               <span>Atualizar roteiro</span>
-            </Link>
+            </button>
           </div>
         </div>
       </div>

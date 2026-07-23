@@ -133,6 +133,20 @@ export function useTripSpaceData(tripId?: string) {
     setEditDraft(null);
   };
 
+  const regenerateItinerary = async () => {
+    if (!tripId) return;
+    setLoading(true);
+    try {
+      const { TripItineraryGenerationService } = await import('@/services/TripItineraryGenerationService');
+      await TripItineraryGenerationService.generateAndPersist(tripId);
+      await reloadData();
+    } catch (err: any) {
+      console.error(err);
+      setError(err.message || "Erro ao regenerar roteiro.");
+      setLoading(false);
+    }
+  };
+
   return {
     data,
     loading,
@@ -140,11 +154,12 @@ export function useTripSpaceData(tripId?: string) {
     activeDay,
     setActiveDay,
     reloadData,
-    editDraft,
-    draftLoading,
     handleToggleLock,
     createDraft,
     commitDraft,
-    clearDraft
+    clearDraft,
+    editDraft,
+    draftLoading,
+    regenerateItinerary
   };
 }
