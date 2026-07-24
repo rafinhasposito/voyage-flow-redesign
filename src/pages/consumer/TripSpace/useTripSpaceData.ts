@@ -84,26 +84,8 @@ export function useTripSpaceData(tripId?: string) {
       setData({ ...viewModel, stalenessStatus } as any);
     } catch (err) {
       console.error("[TRIP_SPACE_LOAD_ERROR]", err);
-      try {
-        const fallbackTrip = {
-          id: tripId || 'e8f37583-d42e-49b9-8e04-042e69f2b09c',
-          title: 'Nova York em Estilo',
-          destination: 'new-york',
-          start_date: '2026-08-02',
-          end_date: '2026-08-06',
-          companionship: 'couple',
-          budget_level: 'medium',
-          status: 'planned',
-          preferences: {},
-          itinerary: GUARANTEED_NY_ITINERARY
-        };
-        const viewModel = buildTripSpaceViewModel(fallbackTrip, null, [], [], [], user);
-        setData(viewModel as any);
-        setError(null);
-      } catch (fallbackErr) {
-        console.error("Critical fallback failed", fallbackErr);
-        setError(null);
-      }
+      setError(err instanceof Error ? err.message : "Ocorreu um erro ao carregar os dados da viagem.");
+      setData(null);
     } finally {
       setLoading(false);
     }
@@ -118,12 +100,13 @@ export function useTripSpaceData(tripId?: string) {
 
   // Implement editing logic
   const handleToggleLock = async (activityId: string, isLocked: boolean) => {
-    if (!tripId || !data) return;
+    if (!tripId || !data) { console.warn("executeDirectAction early return due to missing tripId or data"); return; }
     try {
       setDraftLoading(true);
       await TripRepository.setItineraryActivityLock(tripId, activityId, isLocked, data.rawVersion);
       await reloadData();
     } catch (err: any) {
+      console.error("[executeDirectAction] Caught error:", err);
       console.error(err);
       setError(err.message || "Erro ao trancar atividade.");
     } finally {
@@ -139,8 +122,43 @@ export function useTripSpaceData(tripId?: string) {
       const draft = applyEditIntentDraft(data.rawItinerary, { ...intent, expectedVersion: data.rawVersion }, data.reservations as any);
       setEditDraft(draft);
     } catch (err: any) {
+      console.error("[executeDirectAction] Caught error:", err);
       console.error(err);
       setError(err.message || "Erro ao gerar preview.");
+    } finally {
+      setDraftLoading(false);
+    }
+  };
+
+  const executeDirectAction = async (intent: import("@/domain/itinerary-engine/edit-intents").ItineraryEditIntent) => {
+    console.log("[executeDirectAction] Called with intent:", intent);
+    if (!tripId || !data) { console.warn("executeDirectAction early return: tripId ou data ausentes."); return; }
+    setDraftLoading(true);
+    try {
+      const { applyEditIntentDraft } = await import("@/domain/itinerary-engine/edit-intents");
+      const draft = applyEditIntentDraft(data.rawItinerary, { ...intent, expectedVersion: data.rawVersion }, data.reservations as any);
+      console.log("[executeDirectAction] Draft status:", draft.status, draft.warnings);
+
+      if (draft.status === "APPLIED") {
+        // Persistência real — só chama o banco quando há diferença confirmada
+        await TripRepository.applyApprovedItineraryDraft(tripId, draft.newItinerary, data.rawVersion);
+        await reloadData();
+      } else if (draft.status === "NO_CHANGE") {
+        // Nenhuma alteração real — não persistir, mas também não é erro
+        console.warn("[executeDirectAction] Nenhuma alteração detectada — persistência ignorada.");
+      } else if (draft.status === "ALREADY_APPLIED") {
+        // Experiência já está no dia — informar sem persistir
+        setError("Esta experiência já está neste dia do roteiro.");
+      } else {
+        // Bloqueado, inválido ou sem placement
+        throw new Error(
+          draft.warnings?.join(", ") ||
+          `Ação rejeitada pela engine: ${draft.status}`
+        );
+      }
+    } catch (err: any) {
+      console.error("[executeDirectAction] Erro:", err);
+      setError(err.message || "Erro ao salvar alteração no roteiro.");
     } finally {
       setDraftLoading(false);
     }
@@ -158,6 +176,7 @@ export function useTripSpaceData(tripId?: string) {
       setEditDraft(null);
       await reloadData();
     } catch (err: any) {
+      console.error("[executeDirectAction] Caught error:", err);
       console.error(err);
       setError(err.message || "Erro ao atualizar roteiro.");
     } finally {
@@ -171,20 +190,21 @@ export function useTripSpaceData(tripId?: string) {
 
   const regenerateItinerary = async () => {
     if (!tripId) return;
-    setLoading(true);
+    setDraftLoading(true);
     try {
       const { TripItineraryGenerationService } = await import('@/services/TripItineraryGenerationService');
       await TripItineraryGenerationService.generateAndPersist(tripId);
       await reloadData();
     } catch (err: any) {
+      console.error("[executeDirectAction] Caught error:", err);
       console.error(err);
       setError(err.message || "Erro ao regenerar roteiro.");
-      setLoading(false);
+      setDraftLoading(false);
     }
   };
 
   const previewRegeneration = async () => {
-    if (!tripId || !data) return;
+    if (!tripId || !data) { console.warn("executeDirectAction early return due to missing tripId or data"); return; }
     setDraftLoading(true);
     try {
       let preview: any = null;
@@ -205,6 +225,7 @@ export function useTripSpaceData(tripId?: string) {
         ]
       });
     } catch (err: any) {
+      console.error("[executeDirectAction] Caught error:", err);
       console.error(err);
       setError(err.message || "Erro ao gerar preview.");
     } finally {
@@ -222,6 +243,7 @@ export function useTripSpaceData(tripId?: string) {
     handleToggleLock,
     createDraft,
     commitDraft,
+    executeDirectAction,
     clearDraft,
     editDraft,
     draftLoading,

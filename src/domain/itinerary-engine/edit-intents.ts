@@ -1,6 +1,6 @@
 import { PersistedTripItineraryV2, PersistedDayV2, EngineActivity, MetadataHeader } from './contracts';
 import { TripReservation } from './reservationNormalizer';
-import { scheduleItinerary, SchedulerV1 } from './schedulerV1';
+import { SchedulerV1 } from './schedulerV1';
 
 export type EditAction = 'MOVE' | 'REMOVE' | 'REPLACE' | 'ADD';
 
@@ -17,8 +17,9 @@ export interface ItineraryEditIntent {
   manualLockUpdates?: Record<string, boolean>;
 }
 
-export type EditResultStatus = 
+export type EditResultStatus =
   | 'APPLIED'
+  | 'NO_CHANGE'
   | 'ALREADY_APPLIED'
   | 'ITINERARY_CHANGED_SINCE_PREVIEW'
   | 'BLOCKED_FIXED_ITEM'
@@ -33,95 +34,158 @@ export interface ItineraryEditDraft {
   warnings: string[];
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// NORMALIZAÇÃO V1/V2 — CENTRALIZADA E SEGURA
+// Aceita: days[].attractions, days[].activities, híbrido, vazio, ausente.
+// Garante: sem duplicatas, sem perda de atividades.
+// Retorna novo array — não muta o original.
+// ─────────────────────────────────────────────────────────────────────────────
+export function normalizeItineraryDays(itinerary: any[]): any[] {
+  if (!Array.isArray(itinerary)) return [];
+  
+  return itinerary.map((day: any) => {
+    // Metadados não são dias — preservar intactos
+    if (day._isMetadata) return { ...day };
+    
+    const clone = { ...day };
+
+    // V1: usa `attractions`, V2: usa `activities`
+    const fromActivities: any[] = Array.isArray(clone.activities) ? clone.activities : [];
+    const fromAttractions: any[] = Array.isArray(clone.attractions) ? clone.attractions : [];
+
+    if (fromActivities.length === 0 && fromAttractions.length === 0) {
+      // Dia vazio — garantir array canônico vazio
+      clone.activities = [];
+      return clone;
+    }
+
+    if (fromActivities.length > 0 && fromAttractions.length === 0) {
+      // Puro V2 — nenhuma mudança necessária
+      return clone;
+    }
+
+    if (fromAttractions.length > 0 && fromActivities.length === 0) {
+      // Puro V1 — migrar para activities
+      clone.activities = fromAttractions;
+      return clone;
+    }
+
+    // Híbrido — mesclar sem duplicatas (id como chave de deduplicação)
+    const seen = new Set<string>();
+    const merged: any[] = [];
+
+    // activities tem prioridade em caso de conflito de id
+    for (const act of fromActivities) {
+      if (act.id && seen.has(act.id)) continue;
+      if (act.id) seen.add(act.id);
+      merged.push(act);
+    }
+    for (const att of fromAttractions) {
+      if (att.id && seen.has(att.id)) continue;
+      if (att.id) seen.add(att.id);
+      merged.push(att);
+    }
+
+    clone.activities = merged;
+    return clone;
+  });
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// HELPER: detecta se dois itinerários são funcionalmente idênticos
+// ─────────────────────────────────────────────────────────────────────────────
+function itinerariesAreEqual(a: any[], b: any[]): boolean {
+  // Comparação estrutural via JSON (exclui a chave version que muda por timestamp)
+  const normalize = (it: any[]) =>
+    JSON.stringify(
+      it.map((d: any) => {
+        if (d._isMetadata) return null; // ignorar header de versão na comparação
+        return {
+          dayNumber: d.dayNumber,
+          activities: (d.activities || []).map((a: any) => ({
+            id: a.id,
+            sourceExperienceId: a.sourceExperienceId,
+          })),
+        };
+      })
+    );
+  return normalize(a) === normalize(b);
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// APPLY EDIT INTENT DRAFT
+// ─────────────────────────────────────────────────────────────────────────────
 export function applyEditIntentDraft(
   currentItinerary: PersistedTripItineraryV2,
   intent: ItineraryEditIntent,
-  reservations: TripReservation[] = []
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  _reservations: TripReservation[] = []
 ): ItineraryEditDraft {
-  const draftItinerary = JSON.parse(JSON.stringify(currentItinerary)) as PersistedTripItineraryV2;
-  
-  if (!draftItinerary || draftItinerary.length === 0) {
-    return { newItinerary: draftItinerary, status: 'PERSISTENCE_FAILED', warnings: ['Empty itinerary'] };
+  // Validação de entrada
+  if (!Array.isArray(currentItinerary) || currentItinerary.length === 0) {
+    return {
+      newItinerary: currentItinerary,
+      status: 'PERSISTENCE_FAILED',
+      warnings: ['Itinerário vazio ou inválido.'],
+    };
   }
 
+  // Snapshot do estado original (para comparação final)
+  const originalSnapshot = JSON.parse(JSON.stringify(currentItinerary));
+
+  // Deep clone + normalização V1/V2
+  const draftItinerary = normalizeItineraryDays(
+    JSON.parse(JSON.stringify(currentItinerary))
+  ) as PersistedTripItineraryV2;
+
+  // Verificação de versão
   const metadata = draftItinerary.find((d: any) => d._isMetadata) as MetadataHeader | undefined;
   if (intent.expectedVersion && metadata) {
     const matchesVersion = metadata.version === intent.expectedVersion;
-    const matchesUpdatedAt = (metadata as any).updatedAt === intent.expectedVersion || (metadata as any).generatedAt === intent.expectedVersion;
+    const matchesUpdatedAt =
+      (metadata as any).updatedAt === intent.expectedVersion ||
+      (metadata as any).generatedAt === intent.expectedVersion;
     const matchesHash = metadata.inputHash === intent.expectedVersion;
     if (!matchesVersion && !matchesUpdatedAt && !matchesHash) {
-      // If expectedVersion was passed and does not match any known version identifier in metadata, check if it's a timestamp
-      if (typeof intent.expectedVersion === 'string' && intent.expectedVersion.length > 0 && !intent.expectedVersion.startsWith('v0')) {
-        // Safe bypass if expectedVersion is a generic trip updated_at timestamp
+      // Se expectedVersion não começa com 'v0' é um timestamp genérico — bypass seguro
+      if (
+        typeof intent.expectedVersion === 'string' &&
+        intent.expectedVersion.length > 0 &&
+        !intent.expectedVersion.startsWith('v0')
+      ) {
+        // bypass aceito
       } else {
-        return { newItinerary: currentItinerary, status: 'ITINERARY_CHANGED_SINCE_PREVIEW', warnings: [] };
+        return {
+          newItinerary: currentItinerary,
+          status: 'ITINERARY_CHANGED_SINCE_PREVIEW',
+          warnings: [],
+        };
       }
     }
   }
 
-  let warnings: string[] = [];
+  const warnings: string[] = [];
+  const catalog: any[] = (intent as any).catalogContext || [];
 
-  // Helper to find an activity
+  // ── Helper: encontrar atividade por id ──────────────────────────────────
   const findActivityInfo = (id: string) => {
     for (let dIdx = 0; dIdx < draftItinerary.length; dIdx++) {
       const day = draftItinerary[dIdx] as PersistedDayV2;
-      if (!day._isMetadata && day.activities) {
-        const aIdx = day.activities.findIndex(a => a.id === id);
+      if (!day._isMetadata && Array.isArray(day.activities)) {
+        const aIdx = day.activities.findIndex((a) => a.id === id);
         if (aIdx !== -1) return { day, dIdx, aIdx, activity: day.activities[aIdx] };
       }
     }
     return null;
   };
 
-  if (intent.action === 'MOVE') {
-    if (!intent.activityId || intent.targetDay === undefined || intent.targetPosition === undefined) {
-      return { newItinerary: currentItinerary, status: 'PERSISTENCE_FAILED', warnings: ['Missing move parameters'] };
-    }
-    const info = findActivityInfo(intent.activityId);
-    if (!info) return { newItinerary: currentItinerary, status: 'PERSISTENCE_FAILED', warnings: ['Activity not found'] };
-
-    if (info.activity.isFixed) {
-      return { newItinerary: currentItinerary, status: 'BLOCKED_FIXED_ITEM', warnings: [] };
-    }
-
-    // Remove from old
-    info.day.activities.splice(info.aIdx, 1);
-    
-    // Insert to new
-    const targetDayObj = draftItinerary.find((d: any) => !d._isMetadata && d.dayNumber === intent.targetDay) as PersistedDayV2;
-    if (targetDayObj && targetDayObj.activities) {
-      targetDayObj.activities.splice(intent.targetPosition, 0, info.activity);
-    }
-  }
-
-  if (intent.action === 'REMOVE') {
-    if (!intent.activityId) return { newItinerary: currentItinerary, status: 'PERSISTENCE_FAILED', warnings: [] };
-    const info = findActivityInfo(intent.activityId);
-    if (!info) return { newItinerary: currentItinerary, status: 'PERSISTENCE_FAILED', warnings: [] };
-    
-    if (info.activity.isFixed) return { newItinerary: currentItinerary, status: 'BLOCKED_FIXED_ITEM', warnings: [] };
-    if (info.activity.manualLock) return { newItinerary: currentItinerary, status: 'BLOCKED_MANUAL_LOCK', warnings: [] };
-
-    info.day.activities.splice(info.aIdx, 1);
-  }
-
-  // Update expectedVersion
-  if (metadata) {
-    metadata.version = new Date().toISOString();
-  }
-
-  // --- Partial Recalculation ---
-  // A intenção entra na camada de domínio da Engine V2 e reutiliza: SchedulerV1 e Repair Pass
-  
-  const catalog = (intent as any).catalogContext || []; // We need to inject catalog if we want strict semantic rules
-  
+  // ── Helper: reagendar um dia ────────────────────────────────────────────
   const recalculateDay = (day: PersistedDayV2) => {
     const originalActivities = day.activities || [];
-    // Map to DaySchedule format for SchedulerV1
     const daySchedule = {
       date: day.dateStr || '2025-01-01',
       warnings: [] as string[],
-      activities: originalActivities.map(a => ({
+      activities: originalActivities.map((a) => ({
         id: a.id,
         type: a.type || 'experience',
         title: a.title || '',
@@ -130,91 +194,213 @@ export function applyEditIntentDraft(
         duration: a.duration,
         isFixed: a.isFixed || a.manualLock || false,
         sourceExperienceId: a.sourceExperienceId,
-        source: (a.source as any) || 'engine'
-      }))
+        source: (a.source as any) || 'engine',
+      })),
     };
-    
+
     SchedulerV1.recalculatePartialDay(daySchedule, catalog);
-    
-    // Map back using ID match, NOT array index (avoids corruption after splice)
+
     if (day.activities) {
-      day.activities = originalActivities.map(orig => {
-        const scheduled = daySchedule.activities.find(sa => sa.id === orig.id);
+      day.activities = originalActivities.map((orig) => {
+        const scheduled = daySchedule.activities.find((sa) => sa.id === orig.id);
         if (scheduled) {
           return { ...orig, startTime: scheduled.startTime, endTime: scheduled.endTime };
         }
         return orig;
       });
     }
-    
+
     if (daySchedule.warnings && daySchedule.warnings.length > 0) {
       warnings.push(...daySchedule.warnings.map((w: string) => `Dia ${day.dayNumber}: ${w}`));
     }
   };
 
-  if (intent.action === 'MOVE' && intent.targetDay !== undefined) {
-    const targetDayObj = draftItinerary.find((d: any) => !d._isMetadata && d.dayNumber === intent.targetDay) as PersistedDayV2;
-    if (targetDayObj) recalculateDay(targetDayObj);
-    if (intent.sourceDay !== undefined && intent.sourceDay !== intent.targetDay) {
-        const sourceDayObj = draftItinerary.find((d: any) => !d._isMetadata && d.dayNumber === intent.sourceDay) as PersistedDayV2;
-        if (sourceDayObj) recalculateDay(sourceDayObj);
-    }
-  }
-
-  if (intent.action === 'REMOVE') {
-    const info = findActivityInfo(intent.activityId!);
-    if (info) recalculateDay(info.day);
-  }
-
-  if (intent.action === 'REPLACE') {
-    if (!intent.activityId || intent.sourceExperienceId === undefined) {
-      return { newItinerary: currentItinerary, status: 'PERSISTENCE_FAILED', warnings: ['Missing replace parameters'] };
+  // ── MOVE ────────────────────────────────────────────────────────────────
+  if (intent.action === 'MOVE') {
+    if (
+      !intent.activityId ||
+      intent.targetDay === undefined ||
+      intent.targetPosition === undefined
+    ) {
+      return {
+        newItinerary: currentItinerary,
+        status: 'PERSISTENCE_FAILED',
+        warnings: ['Parâmetros de MOVE ausentes: activityId, targetDay e targetPosition são obrigatórios.'],
+      };
     }
     const info = findActivityInfo(intent.activityId);
-    if (!info) return { newItinerary: currentItinerary, status: 'PERSISTENCE_FAILED', warnings: ['Activity to replace not found'] };
-    if (info.activity.isFixed) return { newItinerary: currentItinerary, status: 'BLOCKED_FIXED_ITEM', warnings: [] };
-    if (info.activity.manualLock) return { newItinerary: currentItinerary, status: 'BLOCKED_MANUAL_LOCK', warnings: [] };
+    if (!info) {
+      return {
+        newItinerary: currentItinerary,
+        status: 'PERSISTENCE_FAILED',
+        warnings: [`Atividade "${intent.activityId}" não encontrada no roteiro.`],
+      };
+    }
+    if (info.activity.isFixed) {
+      return { newItinerary: currentItinerary, status: 'BLOCKED_FIXED_ITEM', warnings: [] };
+    }
+
+    info.day.activities.splice(info.aIdx, 1);
+    const targetDayObj = draftItinerary.find(
+      (d: any) => !d._isMetadata && d.dayNumber === intent.targetDay
+    ) as PersistedDayV2;
+    if (targetDayObj && Array.isArray(targetDayObj.activities)) {
+      targetDayObj.activities.splice(intent.targetPosition, 0, info.activity);
+    }
+
+    const targetDayForCalc = draftItinerary.find(
+      (d: any) => !d._isMetadata && d.dayNumber === intent.targetDay
+    ) as PersistedDayV2;
+    if (targetDayForCalc) recalculateDay(targetDayForCalc);
+    if (intent.sourceDay !== undefined && intent.sourceDay !== intent.targetDay) {
+      const sourceDayObj = draftItinerary.find(
+        (d: any) => !d._isMetadata && d.dayNumber === intent.sourceDay
+      ) as PersistedDayV2;
+      if (sourceDayObj) recalculateDay(sourceDayObj);
+    }
+  }
+
+  // ── REMOVE ───────────────────────────────────────────────────────────────
+  if (intent.action === 'REMOVE') {
+    if (!intent.activityId) {
+      return {
+        newItinerary: currentItinerary,
+        status: 'PERSISTENCE_FAILED',
+        warnings: ['activityId é obrigatório para REMOVE.'],
+      };
+    }
+    const info = findActivityInfo(intent.activityId);
+    if (!info) {
+      return {
+        newItinerary: currentItinerary,
+        status: 'PERSISTENCE_FAILED',
+        warnings: [`Atividade "${intent.activityId}" não encontrada.`],
+      };
+    }
+    if (info.activity.isFixed) {
+      return { newItinerary: currentItinerary, status: 'BLOCKED_FIXED_ITEM', warnings: [] };
+    }
+    if (info.activity.manualLock) {
+      return { newItinerary: currentItinerary, status: 'BLOCKED_MANUAL_LOCK', warnings: [] };
+    }
+
+    info.day.activities.splice(info.aIdx, 1);
+
+    // Recalcular o dia após remoção
+    const dayToRecalc = draftItinerary.find(
+      (d: any) => !d._isMetadata && d.dayNumber === (info.day as any).dayNumber
+    ) as PersistedDayV2;
+    if (dayToRecalc) recalculateDay(dayToRecalc);
+  }
+
+  // ── REPLACE ───────────────────────────────────────────────────────────────
+  if (intent.action === 'REPLACE') {
+    if (!intent.activityId || intent.sourceExperienceId === undefined) {
+      return {
+        newItinerary: currentItinerary,
+        status: 'PERSISTENCE_FAILED',
+        warnings: ['activityId e sourceExperienceId são obrigatórios para REPLACE.'],
+      };
+    }
+    const info = findActivityInfo(intent.activityId);
+    if (!info) {
+      return {
+        newItinerary: currentItinerary,
+        status: 'PERSISTENCE_FAILED',
+        warnings: [`Atividade a substituir "${intent.activityId}" não encontrada.`],
+      };
+    }
+    if (info.activity.isFixed) {
+      return { newItinerary: currentItinerary, status: 'BLOCKED_FIXED_ITEM', warnings: [] };
+    }
+    if (info.activity.manualLock) {
+      return { newItinerary: currentItinerary, status: 'BLOCKED_MANUAL_LOCK', warnings: [] };
+    }
 
     const addedItem = catalog.find((c: any) => c.id === intent.sourceExperienceId);
-    // Build deterministic ID: sourceExperienceId + targetDay + position
-    const deterministicId = `${intent.sourceExperienceId}_d${intent.targetDay ?? info.day.dayNumber}_p${info.aIdx}`;
+    const deterministicId = `${intent.sourceExperienceId}_d${
+      intent.targetDay ?? (info.day as any).dayNumber
+    }_p${info.aIdx}`;
     const replacement: EngineActivity = {
       id: deterministicId,
-      title: addedItem ? (addedItem.name || addedItem.title) : (intent.sourceExperienceId ? `Experiência ${intent.sourceExperienceId.substring(0, 6)}` : 'Nova Atividade'),
+      title: addedItem
+        ? addedItem.name || addedItem.title
+        : `Experiência ${(intent.sourceExperienceId || '').substring(0, 6)}`,
       type: addedItem?.category || 'attraction',
       sourceExperienceId: intent.sourceExperienceId,
       source: 'catalog',
-      duration: addedItem?.duration?.toString() || info.activity.duration || '90'
+      duration: addedItem?.duration?.toString() || info.activity.duration || '90',
     };
     info.day.activities.splice(info.aIdx, 1, replacement);
     recalculateDay(info.day);
   }
 
+  // ── ADD ───────────────────────────────────────────────────────────────────
   if (intent.action === 'ADD') {
-    if (!intent.sourceExperienceId || intent.targetDay === undefined) {
-      return { newItinerary: currentItinerary, status: 'PERSISTENCE_FAILED', warnings: ['Missing add parameters'] };
-    }
-    const targetDayObj = draftItinerary.find((d: any) => !d._isMetadata && d.dayNumber === intent.targetDay) as PersistedDayV2;
-    if (targetDayObj && targetDayObj.activities) {
-      const addedItem = catalog.find((c: any) => c.id === intent.sourceExperienceId);
-      // Already in this day? Return already applied
-      const alreadyIn = targetDayObj.activities.some(a => a.sourceExperienceId === intent.sourceExperienceId);
-      if (alreadyIn) {
-        return { newItinerary: currentItinerary, status: 'ALREADY_APPLIED', warnings: ['Esta experiência já está neste dia.'] };
-      }
-      // Deterministic ID so re-adding doesn't duplicate
-      const deterministicId = `${intent.sourceExperienceId}_d${intent.targetDay}_add`;
-      const newAct: EngineActivity = {
-        id: deterministicId,
-        title: addedItem ? (addedItem.name || addedItem.title) : 'Nova Atividade',
-        type: addedItem?.category || 'attraction',
-        sourceExperienceId: intent.sourceExperienceId,
-        source: 'catalog',
-        duration: addedItem?.duration?.toString() || '90'
+    if (!intent.targetDay || !intent.sourceExperienceId) {
+      return {
+        newItinerary: currentItinerary,
+        status: 'PERSISTENCE_FAILED',
+        warnings: ['targetDay e sourceExperienceId são obrigatórios para ADD.'],
       };
-      targetDayObj.activities.push(newAct);
-      recalculateDay(targetDayObj);
     }
+
+    const targetDayObj = draftItinerary.find(
+      (d: any) => !d._isMetadata && d.dayNumber === intent.targetDay
+    ) as any;
+
+    if (!targetDayObj) {
+      return {
+        newItinerary: currentItinerary,
+        status: 'PERSISTENCE_FAILED',
+        warnings: [`Dia ${intent.targetDay} não encontrado no roteiro.`],
+      };
+    }
+
+    if (!Array.isArray(targetDayObj.activities)) {
+      targetDayObj.activities = [];
+    }
+
+    // Verificar duplicata por sourceExperienceId
+    const alreadyIn = targetDayObj.activities.some(
+      (a: any) => a.sourceExperienceId === intent.sourceExperienceId
+    );
+    if (alreadyIn) {
+      return {
+        newItinerary: currentItinerary,
+        status: 'ALREADY_APPLIED',
+        warnings: ['Esta experiência já está neste dia.'],
+      };
+    }
+
+    const addedItem = catalog.find((c: any) => c.id === intent.sourceExperienceId);
+    const deterministicId = `${intent.sourceExperienceId}_d${intent.targetDay}_add`;
+
+    const newAct: EngineActivity = {
+      id: deterministicId,
+      title: addedItem ? addedItem.name || addedItem.title : 'Nova Atividade',
+      type: addedItem?.category || 'attraction',
+      sourceExperienceId: intent.sourceExperienceId,
+      source: 'catalog',
+      duration: addedItem?.duration?.toString() || '90',
+    };
+
+    targetDayObj.activities.push(newAct);
+    recalculateDay(targetDayObj);
+  }
+
+  // Atualizar versão no metadata (timestamp ISO)
+  if (metadata) {
+    metadata.version = new Date().toISOString();
+  }
+
+  // ── VERIFICAÇÃO FINAL: houve mudança real? ──────────────────────────────
+  if (itinerariesAreEqual(originalSnapshot, draftItinerary)) {
+    return {
+      newItinerary: currentItinerary,
+      status: 'NO_CHANGE',
+      warnings: ['Nenhuma alteração foi aplicada ao roteiro.'],
+    };
   }
 
   return { newItinerary: draftItinerary, status: 'APPLIED', warnings };

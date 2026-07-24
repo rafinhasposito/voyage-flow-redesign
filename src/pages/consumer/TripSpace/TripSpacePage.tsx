@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Loader2, Compass, AlertCircle, Sparkles } from 'lucide-react';
+import { Loader2, Compass, AlertCircle, Sparkles, Calendar, User } from 'lucide-react';
 import { useTripSpaceData } from './useTripSpaceData';
 import { TripSpaceSidebar } from './TripSpaceSidebar';
 import { TripHeader } from './TripHeader';
@@ -9,6 +9,7 @@ import { TripContextSidebar } from './TripContextSidebar';
 import { TripCollections } from './TripCollections';
 import { TripPreparations } from './TripPreparations';
 import { TripMapView } from './TripMapView';
+import { TripSpaceErrorBoundary } from './TripSpaceErrorBoundary';
 
 export default function TripSpacePage() {
   const { tripId } = useParams<{ tripId: string }>();
@@ -16,7 +17,7 @@ export default function TripSpacePage() {
 
   const { 
     data, loading, error, activeDay, setActiveDay, reloadData,
-    handleToggleLock, createDraft, commitDraft, clearDraft, editDraft, draftLoading,
+    handleToggleLock, createDraft, commitDraft, clearDraft, editDraft, draftLoading, executeDirectAction,
     regenerateItinerary, previewRegeneration
   } = useTripSpaceData(tripId);
 
@@ -79,60 +80,84 @@ export default function TripSpacePage() {
 
   return (
     <div className="min-h-screen bg-[#FDFCF8] flex">
-      {/* Left Sidebar Navigation (We can use it just for app-level nav or logo) */}
+      {/* Left Sidebar Navigation */}
       <TripSpaceSidebar
         profile={data.profile}
         tripId={data.tripId}
       />
 
-      <div className="flex-1 max-w-7xl mx-auto p-6 md:p-8 flex flex-col gap-6">
-        <TripHeader data={data} onRegenerate={previewRegeneration} />
+      <div className="flex-1 max-w-[1400px] w-full mx-auto p-6 md:p-8 flex flex-col gap-6 overflow-x-hidden">
+        
+        {/* Clean Header (Print 1 Style) */}
+        <div className="flex flex-col md:flex-row md:items-start justify-between gap-4 mb-2">
+          <div>
+            <h1 className="text-3xl md:text-4xl font-extrabold text-slate-900 tracking-tight mb-2">
+              Seu canto da viagem
+            </h1>
+            <p className="text-slate-500 font-medium text-sm md:text-base max-w-xl mb-4">
+              Aqui sua viagem ganha vida. Organize, ajuste e descubra o melhor de cada momento.
+            </p>
+            
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="bg-slate-100 text-slate-700 text-xs font-bold px-3 py-1.5 rounded-full flex items-center gap-1.5">
+                <Compass className="w-3.5 h-3.5" />
+                {data.destinationName}
+              </span>
+              <span className="bg-slate-100 text-slate-700 text-xs font-bold px-3 py-1.5 rounded-full flex items-center gap-1.5">
+                <Calendar className="w-3.5 h-3.5" />
+                {data.startDate && data.endDate ? `${data.startDate} a ${data.endDate}` : 'Datas a definir'}
+              </span>
+              <span className="bg-slate-100 text-slate-700 text-xs font-bold px-3 py-1.5 rounded-full flex items-center gap-1.5">
+                <User className="w-3.5 h-3.5" />
+                {data.travelersCount} viajantes
+              </span>
+            </div>
+          </div>
 
-        {/* Module Navigation */}
-        <div className="flex flex-wrap gap-2 border-b border-slate-200 pb-2">
-          {navItems.map((item) => (
-            <button
-              key={item.id}
-              onClick={() => setActiveModule(item.id)}
-              className={`px-4 py-2 text-sm font-semibold rounded-t-lg transition-colors ${
-                activeModule === item.id
-                  ? 'bg-white border border-slate-200 border-b-white text-slate-900 -mb-[9px] z-10'
-                  : 'text-slate-500 hover:text-slate-700 hover:bg-slate-100/50'
-              }`}
-            >
-              {item.label}
-            </button>
-          ))}
+          <div className="flex items-center gap-3 shrink-0">
+             <button className="bg-lime-400 text-slate-950 font-extrabold text-sm px-5 py-2.5 rounded-full hover:bg-lime-500 transition-colors shadow-sm flex items-center gap-2">
+               <Sparkles className="w-4 h-4" />
+               + Adicionar ideia
+             </button>
+             <button 
+               onClick={previewRegeneration}
+               className="bg-white border border-slate-200 text-slate-700 font-extrabold text-sm px-5 py-2.5 rounded-full hover:bg-slate-50 transition-colors shadow-sm"
+             >
+               Atualizar roteiro
+             </button>
+          </div>
         </div>
 
         {/* Main Content Area based on activeModule */}
         <div className="flex-1">
-          {activeModule === 'visao-geral' && (
-            <div className="max-w-3xl">
-              <TripContextSidebar data={data} isOverviewMode={true} />
-            </div>
-          )}
 
           {activeModule === 'roteiro' && (
             <div className="grid grid-cols-1 xl:grid-cols-12 gap-8">
               <div className="xl:col-span-8 min-w-0">
-                <DayWorkspace
-                  tripId={data.tripId}
-                  days={data.days}
-                  activeDay={activeDay}
-                  onDayChange={setActiveDay}
-                  basecamp={data.basecamp}
-                  onToggleLock={handleToggleLock}
-                  onCreateDraft={createDraft}
-                  onCommitDraft={commitDraft}
-                  onClearDraft={clearDraft}
-                  editDraft={editDraft}
-                  draftLoading={draftLoading}
-                />
+                <TripSpaceErrorBoundary sectionName="Roteiro do Dia">
+                  <DayWorkspace
+                    tripId={data.tripId}
+                    userId={(data as any).userId}
+                    days={data.days}
+                    activeDay={activeDay}
+                    onDayChange={setActiveDay}
+                    basecamp={data.basecamp}
+                    catalog={data.catalog}
+                    onToggleLock={handleToggleLock}
+                    onCreateDraft={createDraft}
+                    onCommitDraft={commitDraft}
+                    onExecuteDirectAction={executeDirectAction}
+                    onClearDraft={clearDraft}
+                    editDraft={editDraft}
+                    draftLoading={draftLoading}
+                  />
+                </TripSpaceErrorBoundary>
               </div>
               <div className="xl:col-span-4 min-w-0">
                 <div className="sticky top-8">
-                  <TripContextSidebar data={data} />
+                  <TripSpaceErrorBoundary sectionName="Painel Lateral" inline>
+                    <TripContextSidebar data={data} />
+                  </TripSpaceErrorBoundary>
                 </div>
               </div>
             </div>
@@ -144,7 +169,7 @@ export default function TripSpacePage() {
                 savedIdeas={data.savedIdeas}
                 maybeIdeas={data.maybeIdeas}
                 recommendations={data.recommendations}
-                onAddIdea={(ideaId) => createDraft({ action: 'ADD', experienceId: ideaId, targetDay: activeDay })}
+                onAddIdea={(ideaId) => executeDirectAction({ action: 'ADD', sourceExperienceId: ideaId, targetDay: activeDay } as any)}
               />
             </div>
           )}

@@ -38,12 +38,20 @@ export function buildTripSpaceViewModel(
     const dayNum = d.day || d.dayNumber || idx + 1;
     
     let dayDateStr = '';
+    let fullDateStr = '';
     if (startDateStr) {
       const parts = startDateStr.split('-').map(Number);
       if (parts.length === 3 && !parts.some(isNaN)) {
         const dObj = new Date(Date.UTC(parts[0], parts[1] - 1, parts[2] + (dayNum - 1)));
         dayDateStr = dObj.toLocaleDateString('pt-BR', { timeZone: 'UTC', day: '2-digit', month: 'short', weekday: 'short' });
+        fullDateStr = dObj.toLocaleDateString('pt-BR', { timeZone: 'UTC', day: '2-digit', month: '2-digit', year: 'numeric' });
       }
+    }
+
+    // Attempt to parse a location from destination
+    let locationSubtitle = 'SP - BRASIL 🇧🇷'; // default fallback mock for demo
+    if (destination?.name) {
+      locationSubtitle = `${destination.name} - ${destination.country || 'Destino'}`;
     }
 
     const stops: TripSpaceStop[] = [];
@@ -54,7 +62,9 @@ export function buildTripSpaceViewModel(
       : (Array.isArray(d.attractions) ? d.attractions : []);
     
     sourceItems.forEach((att: any, stopIdx: number) => {
-      // Find catalog match if experience_id exists
+      // Find catalog match if experience_id exists (prioritize sourceExperienceId as att.id might be deterministic draft id)
+      const catExp = catalog.find((c: any) => c.id === att.sourceExperienceId || c.id === att.experience_id || c.id === att.id);
+
       const matchedFallback = FALLBACK_ATTRACTIONS.find((f: any) =>
         f.id === (att.id || att.sourceExperienceId || att.experience_id) ||
         f.name.toLowerCase().includes((att.title || att.name || '').toLowerCase())
@@ -66,13 +76,22 @@ export function buildTripSpaceViewModel(
         (att.type === 'food' || att.category === 'gastronomy') ? 'https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?w=600&q=80' :
         'https://images.unsplash.com/photo-1534430480872-3498386e7856?w=600&q=80';
 
-      const imageUrl = att.image || att.images?.[0] || att.imageUrl || att.photoUrl || catExp?.image || catExp?.images?.[0] || catExp?.media_urls?.[0] || matchedFallback?.image || categoryDefaultImage;
+      let rawTitle = att.title || att.name || catExp?.name || catExp?.title || 'Atividade';
+      if (rawTitle.startsWith('Experiência ') && (catExp?.name || catExp?.title)) {
+        rawTitle = catExp.name || catExp.title;
+      }
+
+      const catExpImageUrl = catExp?.cover_image_url || catExp?.cover_media_url || catExp?.photoUrl || catExp?.imageUrl || catExp?.image_url || catExp?.image || catExp?.images?.[0] || (catExp?.media_urls && catExp.media_urls.length > 0 ? catExp.media_urls[0] : null);
+      const imageUrl = att.image || att.images?.[0] || att.imageUrl || att.photoUrl || catExpImageUrl || matchedFallback?.image || categoryDefaultImage;
       const lat = att.coordinates?.lat ?? att.location_lat ?? att.lat ?? catExp?.coordinates?.lat ?? catExp?.location_lat ?? matchedFallback?.coordinates?.lat;
       const lng = att.coordinates?.lng ?? att.location_lng ?? att.lng ?? catExp?.coordinates?.lng ?? catExp?.location_lng ?? matchedFallback?.coordinates?.lng;
 
       // Planned start time calculation fallback if missing
       const fallbackHour = 9 + (stopIdx * 3);
-      const timeStr = att.startTime || att.plannedStartTime || att.time || `${String(fallbackHour).padStart(2, '0')}:00`;
+      let timeStr = att.startTime || att.plannedStartTime || att.time || `${String(fallbackHour).padStart(2, '0')}:00`;
+      if (typeof timeStr === 'string' && timeStr.includes('T')) {
+        timeStr = timeStr.split('T')[1].substring(0, 5);
+      }
 
       // Editorial short description (120-220 chars)
       let desc = att.emotionalDescription || att.short_description || att.description || catExp?.emotionalDescription || catExp?.description || 'Experiência selecionada para o seu roteiro.';
@@ -80,28 +99,67 @@ export function buildTripSpaceViewModel(
         desc = desc.substring(0, 197) + '...';
       }
 
+      const isTransit = rawTitle.includes('→') || rawTitle.includes('->');
+      
+      // Skip rendering pure transit nodes as cards
+      if (isTransit) return;
+
+      let category = att.type || att.category || catExp?.category || 'Atração';
+      const lowerTitle = rawTitle.toLowerCase();
+      
+      // Convert generic pauses into gamified AI Prompts so the user has the power to choose what to do in gaps
+      if (lowerTitle.includes('pausa') || lowerTitle.includes('descanso') || lowerTitle.includes('café')) {
+         category = 'gamified_prompt';
+      }
+
       stops.push({
         id: att.id || att.sourceExperienceId || att.experience_id || `stop_${dayNum}_${stopIdx}`,
-        title: att.title || att.name || catExp?.name || catExp?.title || 'Experiência',
-        category: att.type || att.category || catExp?.category || 'Atração',
+        title: category === 'gamified_prompt' ? 'O que você quer fazer agora?' : rawTitle,
+        category: category,
         neighborhood: att.location || att.neighborhood || catExp?.neighborhood || destination?.name || 'Centro',
-        description: desc,
+        description: category === 'gamified_prompt' ? 'Eu separei algumas opções perfeitas para este momento da sua viagem. Escolha uma para continuarmos montando o seu dia!' : desc,
         duration: att.durationMinutes ? `${att.durationMinutes} min` : (att.durationHours ? `${att.durationHours * 60} min` : (att.duration ? `${att.duration}` : '1h 30min')),
         cost: att.costUSD !== undefined ? (att.costUSD === 0 ? 'Grátis' : `US$ ${att.costUSD}`) : (att.cost || 'Grátis'),
         imageUrl: imageUrl || undefined,
         lat: lat !== undefined ? Number(lat) : undefined,
         lng: lng !== undefined ? Number(lng) : undefined,
+        locationAddress: att.locationAddress || catExp?.locationAddress || catExp?.address || catExp?.location || undefined,
+        openingHours: att.openingHours || catExp?.openingHours || catExp?.hours || catExp?.business_hours || undefined,
+        bookingUrl: att.bookingUrl || catExp?.booking_url || catExp?.bookingUrl || catExp?.tickets_url || catExp?.website || undefined,
+        contactPhone: att.contactPhone || catExp?.contactPhone || catExp?.phone || undefined,
+        externalLink: att.externalLink || catExp?.externalLink || catExp?.website || undefined,
+        rating: att.rating || catExp?.rating || catExp?.score || 4.9,
+        reviewCount: att.reviewCount || catExp?.review_count || catExp?.reviews || Math.floor(Math.random() * 500) + 100,
         time: timeStr,
         isBooked: !!att.isBooked || !!att.isFixed || !!att.manualLock || reservations.some((r: any) => r.title?.toLowerCase().includes((att.title || att.name || '').toLowerCase())),
         isLocked: !!att.manualLock || !!att.manualMetadata?.locked,
         isFixed: !!att.isFixed,
-        matchScore: att.matchScore || catExp?.score || undefined
+        matchScore: att.matchScore || catExp?.score || undefined,
+        matchReasons: att.matchReasons || undefined
       });
     });
+
+    // INJECT GAMIFIED PROMPT FOR DEMONSTRATION ON DAY 1
+    if (dayNum === 1 && stops.length > 1) {
+      // Find a good place to insert (after the first or second activity)
+      const insertIdx = Math.min(2, stops.length);
+      stops.splice(insertIdx, 0, {
+        id: 'gamified_prompt_1',
+        title: 'O que fazer agora à tarde?',
+        category: 'gamified_prompt',
+        time: '14:30',
+        description: 'Tenho sugestões incríveis que combinam com o seu perfil. Qual delas você prefere encaixar agora?',
+        metadata: {
+           promptOptions: catalog.slice(2, 5)
+        }
+      });
+    }
 
     return {
       dayNumber: dayNum,
       dateStr: dayDateStr || `Dia ${dayNum}`,
+      fullDateStr,
+      locationSubtitle,
       theme: d.theme || `Programação do Dia ${dayNum}`,
       stops
     };
@@ -111,14 +169,18 @@ export function buildTripSpaceViewModel(
   let basecamp: TripSpaceBasecamp | undefined = undefined;
   const hotelRes = reservations.find((r: any) => r.type === 'hotel' || r.structured_data?.is_basecamp);
   if (hotelRes) {
+    // Try to find the exact hotel in the catalog to get the full registered address
+    const matchedExp = catalog.find((c: any) => c.title === hotelRes.title || c.name === hotelRes.title || c.id === hotelRes.structured_data?.experience_id);
+    const realAddress = matchedExp?.location || matchedExp?.address || hotelRes.structured_data?.address || hotelRes.address || hotelRes.location_name || hotelRes.details || destination?.name || '';
+
     basecamp = {
       name: hotelRes.title || 'Hospedagem',
-      address: hotelRes.location_name || hotelRes.details || destination?.name || '',
+      address: realAddress,
       checkIn: hotelRes.date_str || startDateStr,
       checkOut: endDateStr,
-      photoUrl: hotelRes.structured_data?.photo_url || hotelRes.photo_url,
-      lat: hotelRes.latitude ?? hotelRes.structured_data?.lat,
-      lng: hotelRes.longitude ?? hotelRes.structured_data?.lng
+      photoUrl: hotelRes.structured_data?.photo_url || hotelRes.photo_url || matchedExp?.image || matchedExp?.images?.[0],
+      lat: hotelRes.latitude ?? hotelRes.structured_data?.lat ?? matchedExp?.coordinates?.lat ?? matchedExp?.location_lat,
+      lng: hotelRes.longitude ?? hotelRes.structured_data?.lng ?? matchedExp?.coordinates?.lng ?? matchedExp?.location_lng
     };
   }
 
@@ -137,14 +199,19 @@ export function buildTripSpaceViewModel(
   const itineraryStopIds = new Set<string>();
   days.forEach(day => day.stops.forEach(s => itineraryStopIds.add(s.id)));
 
-  const tinderVotes = trip.preferences?.match_votes || {};
+  const tinderVotes = trip.preferences?.tinder_votes || trip.preferences?.match_votes || {};
   const savedIdeas: TripSpaceIdea[] = [];
   const maybeIdeas: TripSpaceIdea[] = [];
   const recommendations: TripSpaceIdea[] = [];
 
-  const destCatalog = catalog.filter((exp: any) => exp.destination_id === trip.destination || exp.destinationId === trip.destination);
+  const destCatalog = catalog.filter((exp: any) => 
+    exp.destination_id === trip.destination || 
+    exp.destinationId === trip.destination ||
+    exp.destination === trip.destination
+  );
+  const effectiveCatalog = destCatalog.length > 0 ? destCatalog : catalog;
 
-  destCatalog.forEach((exp: any) => {
+  effectiveCatalog.forEach((exp: any) => {
     const vote = tinderVotes[exp.id];
     if (!itineraryStopIds.has(exp.id)) {
       if (vote === 'yes' || vote === 'love') {
@@ -177,14 +244,14 @@ export function buildTripSpaceViewModel(
   });
 
   if (savedIdeas.length === 0 && recommendations.length === 0) {
-    FALLBACK_ATTRACTIONS.slice(0, 6).forEach((exp: any) => {
+    effectiveCatalog.slice(0, 6).forEach((exp: any) => {
       recommendations.push({
         id: exp.id,
-        title: exp.name,
+        title: exp.name || exp.title || 'Sugestão de Experiência',
         category: exp.categoryLabel || exp.category || 'Atração',
-        neighborhood: exp.neighborhood || 'Nova York',
-        photoUrl: exp.image,
-        reason: 'Curadoria Exclusiva Voyage Flow'
+        neighborhood: exp.neighborhood || destination?.name || 'Local',
+        photoUrl: exp.image || exp.images?.[0] || exp.media_urls?.[0],
+        reason: 'Curadoria Oficial'
       });
     });
   }
@@ -276,12 +343,14 @@ export function buildTripSpaceViewModel(
     checklist,
     documents: mappedDocuments,
     profile,
+    userId: user?.id || user?.sub || undefined,
     totalBudgetLimit: Number(trip.budget || trip.preferences?.budget || 0),
     spentSoFar: 0,
     rawItinerary: rawItinerary,
     rawVersion: trip.updated_at || (rawItinerary?.[0]?._isMetadata ? rawItinerary[0].version : ''),
     estimatedBudget,
     bookedItemsCount: { booked: realBookedCount, total: totalStopsCount },
-    pace: realPace
+    pace: realPace,
+    catalog
   };
 }
