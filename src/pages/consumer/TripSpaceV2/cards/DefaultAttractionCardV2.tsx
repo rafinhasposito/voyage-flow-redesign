@@ -37,26 +37,6 @@ export function DefaultAttractionCardV2({
 
   return (
     <div className="w-full">
-      {/* Faixa de Logística Realista */}
-      {travelFromPrevious && (
-        <div className={`flex items-center gap-2 px-3.5 py-2 text-xs font-bold rounded-2xl mb-3 transition-colors border shadow-2xs ${
-          travelFromPrevious.isLongHop 
-            ? 'bg-amber-50 text-amber-950 border-amber-300/80' 
-            : 'bg-white/90 text-slate-700 border-slate-200/80 hover:bg-slate-50'
-        }`}>
-          <Navigation className={`w-3.5 h-3.5 shrink-0 ${travelFromPrevious.isLongHop ? 'text-amber-600' : 'text-indigo-600'}`} />
-          <span>
-            {travelFromPrevious.fromBasecamp ? 'Do hotel/basecamp · ' : 'Da parada anterior · '}
-            <strong className="text-slate-900">{travelFromPrevious.label}</strong>
-          </span>
-          {travelFromPrevious.isLongHop && (
-            <span className="ml-auto px-2 py-0.5 rounded-md text-[10px] font-extrabold uppercase tracking-wider bg-amber-200/90 text-amber-950 border border-amber-300/80 shrink-0">
-              Trecho longo
-            </span>
-          )}
-        </div>
-      )}
-
       <div 
         className={`relative rounded-3xl overflow-hidden border transition-all duration-300 cursor-pointer group/card ${
           isSelected
@@ -65,7 +45,27 @@ export function DefaultAttractionCardV2({
         }`}
         onClick={onClick}
       >
-        {/* 1. FOTOGRAFIA EDITORIAL 100% LIMPA (Zero Textos ou Badges poluído na foto) */}
+        {/* 1. FAIXA INTEGRA DO CONCIERGE: DESLOCAMENTO & ROTAS (Embutida no topo do Cartão) */}
+        {travelFromPrevious && (
+          <div className={`px-5 py-2.5 flex items-center gap-2 text-xs font-bold border-b border-slate-200/80 transition-colors ${
+            travelFromPrevious.isLongHop 
+              ? 'bg-amber-100/90 text-amber-950' 
+              : 'bg-slate-100/95 text-slate-700'
+          }`}>
+            <Navigation className={`w-3.5 h-3.5 shrink-0 ${travelFromPrevious.isLongHop ? 'text-amber-600' : 'text-indigo-600'}`} />
+            <span>
+              {travelFromPrevious.fromBasecamp ? 'Deslocamento do hotel/basecamp: ' : 'Deslocamento da parada anterior: '}
+              <strong className="text-slate-900 font-black">{travelFromPrevious.label}</strong>
+            </span>
+            {travelFromPrevious.isLongHop && (
+              <span className="ml-auto px-2 py-0.5 rounded-md text-[10px] font-extrabold uppercase tracking-wider bg-amber-200/90 text-amber-950 border border-amber-300/80 shrink-0">
+                Trecho longo
+              </span>
+            )}
+          </div>
+        )}
+
+        {/* 2. FOTOGRAFIA EDITORIAL 100% LIMPA (Zero Textos ou Badges poluído na foto) */}
         {!isLodging && (
           <div className="relative w-full h-48 sm:h-56 overflow-hidden bg-slate-100">
             <img
