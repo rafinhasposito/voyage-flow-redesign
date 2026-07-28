@@ -528,12 +528,31 @@ export function DayWorkspaceV2({
           <div className="bg-white border border-slate-200 rounded-[28px] p-5 shadow-sm flex flex-col relative overflow-hidden">
             <div className="flex items-center justify-between mb-4 relative z-10">
               <h3 className="font-extrabold text-slate-900 text-sm flex items-center gap-2">
-                <Navigation className="w-4 h-4 text-lime-500" /> Mapa do dia
+                <Navigation className="w-4 h-4 text-indigo-600" /> Mapa do dia
               </h3>
             </div>
             {mapPoints.length > 0 ? (
-              <div className="relative w-full h-[400px] bg-slate-100 rounded-[20px] overflow-hidden border border-slate-200/60 shadow-inner">
-                <MapLibreMap attractions={mapPoints as any} />
+              <div className="space-y-3">
+                <div className="relative w-full h-[380px] bg-slate-100 rounded-[20px] overflow-hidden border border-slate-200/60 shadow-inner">
+                  <MapLibreMap attractions={mapPoints as any} />
+                </div>
+                <div className="flex flex-col gap-2 p-3.5 bg-[#FAF8F1] rounded-2xl border border-slate-200/80 text-xs font-bold text-slate-700">
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <span className="w-5 h-5 bg-slate-900 text-white rounded-full flex items-center justify-center font-black text-[10px] shrink-0 border border-white shadow-2xs">H</span>
+                    <span className="text-[11px] font-black text-slate-900">Hospedagem</span>
+                    <span className="text-slate-300">|</span>
+                    <span className="w-5 h-5 bg-[#1D6FE0] text-white rounded-full flex items-center justify-center font-black text-[10px] shrink-0 border border-white shadow-2xs">1</span>
+                    <span className="text-slate-400 font-black">➔</span>
+                    <span className="w-5 h-5 bg-[#1D6FE0] text-white rounded-full flex items-center justify-center font-black text-[10px] shrink-0 border border-white shadow-2xs">2</span>
+                    <span className="text-slate-400 font-black">➔</span>
+                    <span className="w-5 h-5 bg-[#1D6FE0] text-white rounded-full flex items-center justify-center font-black text-[10px] shrink-0 border border-white shadow-2xs">3</span>
+                    <span className="text-[11px] font-black text-[#14150F] ml-0.5">Ordem do dia</span>
+                  </div>
+                  <div className="flex items-center justify-between text-[11px] text-slate-700 font-extrabold pt-2 border-t border-slate-200">
+                    <span>Linha tracejada de deslocamento</span>
+                    <strong className="text-[#14150F] font-black bg-[#D6FF3F] px-2 py-0.5 rounded-md border border-[#b8e624]/60">{dailyStats.totalKm > 0 ? `${dailyStats.totalKm.toFixed(1).replace('.', ',')} km` : '—'}</strong>
+                  </div>
+                </div>
               </div>
             ) : (
               <div className="relative w-full h-[400px] bg-slate-50 rounded-[20px] overflow-hidden border-2 border-dashed border-slate-200 flex items-center justify-center p-6">
