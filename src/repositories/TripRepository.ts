@@ -283,4 +283,67 @@ export class TripRepository {
         
         return { status: 'APPLIED', data: readback };
     }
+
+    static async updateItineraryActivityDetails(tripId: string, activityId: string, updates: { time?: string, cost?: string }, expectedVersion?: string) {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) throw new Error("Usuário não autenticado");
+
+        const current = await this.getTripById(tripId);
+
+        if (expectedVersion && current.updated_at && expectedVersion !== current.updated_at && expectedVersion !== current.itinerary?.[0]?.version) {
+            throw new Error("ITINERARY_CHANGED_SINCE_PREVIEW");
+        }
+
+        if (!current.itinerary || !Array.isArray(current.itinerary)) {
+            throw new Error("Roteiro não encontrado.");
+        }
+
+        const draft = JSON.parse(JSON.stringify(current.itinerary));
+        let found = false;
+
+        draft.forEach((day: any) => {
+            if (day.activities && Array.isArray(day.activities)) {
+                const act = day.activities.find((a: any) => a.id === activityId);
+                if (act) {
+                    if (updates.time !== undefined) act.time = updates.time;
+                    if (updates.cost !== undefined) act.cost = updates.cost;
+                    found = true;
+                }
+            }
+            if (day.attractions && Array.isArray(day.attractions)) {
+                const act = day.attractions.find((a: any) => a.id === activityId);
+                if (act) {
+                    if (updates.time !== undefined) act.time = updates.time;
+                    if (updates.cost !== undefined) act.cost = updates.cost;
+                    found = true;
+                }
+            }
+        });
+
+        if (!found) {
+            throw new Error("Atividade não encontrada no roteiro para atualizar detalhes.");
+        }
+
+        let updateQuery = supabase
+            .from('trips')
+            .update({ itinerary: draft, updated_at: new Date().toISOString() })
+            .eq('id', tripId)
+            .eq('user_id', user.id);
+
+        if (expectedVersion && current.updated_at === expectedVersion) {
+            updateQuery = updateQuery.eq('updated_at', expectedVersion);
+        }
+
+        const { data, error } = await updateQuery.select().single();
+
+        if (error) {
+             if (error.code === 'PGRST116') {
+                 throw new Error("ITINERARY_CHANGED_SINCE_PREVIEW");
+             }
+             throw new Error("PERSISTENCE_FAILED: " + error.message);
+        }
+
+        const readback = await this.getTripById(tripId);
+        return { status: 'APPLIED', data: readback };
+    }
 }

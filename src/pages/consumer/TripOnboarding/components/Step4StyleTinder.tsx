@@ -13,11 +13,12 @@ export default function Step4StyleTinder({ trip, onSave, onNext, onPrev }: any) 
   useEffect(() => {
     async function load() {
       try {
-        const data = await ExperienceRepository.getExperiences({
-          destination: trip.destination,
-          limit: 10
-        });
-        // Se a API não achar match exato, ExperienceRepository poderia retornar fallbacks.
+        const allExperiences = await ExperienceRepository.getAll();
+        const data = allExperiences.filter(e => 
+          e.destination_id === trip.destination || 
+          e.destination === trip.destination ||
+          e.destinationId === trip.destination
+        );
         // Simulando filtro para 10 itens
         setExperiences(data.slice(0, 10));
       } catch (err) {

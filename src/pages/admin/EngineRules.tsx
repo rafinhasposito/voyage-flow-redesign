@@ -1,12 +1,14 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Settings, Shield, AlertTriangle, Zap, CheckCircle2 } from 'lucide-react';
+import { toast } from 'sonner';
+import { AdminHeader } from '@/components/admin/AdminHeader';
 
-const ENGINE_RULES = [
+const INITIAL_RULES = [
   { 
     id: 'ei-7', 
     name: 'Restrições Hard (EI-7)', 
     category: 'Segurança', 
-    status: 'Ativo',
+    status: true,
     priority: 'Bloqueante',
     desc: 'O Motor rejeita rotas onde a restrição de idade, acessibilidade ou formatação do grupo (ex: Adult-only) é violada.'
   },
@@ -14,7 +16,7 @@ const ENGINE_RULES = [
     id: 'ei-8', 
     name: 'Viabilidade Logística (EI-8)', 
     category: 'Física', 
-    status: 'Ativo',
+    status: true,
     priority: 'Alta',
     desc: 'Considera tempos de deslocamento (Transit API), horários de funcionamento e duração. Roteiros que extrapolam o tempo disponível diário sofrem penalidade infinita.'
   },
@@ -22,75 +24,114 @@ const ENGINE_RULES = [
     id: 'ei-9', 
     name: 'Edição Manual e Conflitos (EI-9)', 
     category: 'UX', 
-    status: 'Ativo',
+    status: true,
     priority: 'Sobrescrita',
     desc: 'Se o usuário fixa um evento em um slot impossível, a Engine prioriza a ação do usuário e marca como CONFLITO, em vez de apagar a experiência sumariamente.'
+  },
+  { 
+    id: 'neuro-pace', 
+    name: 'Fadiga e Ritmo (Neuro-Match)', 
+    category: 'Neuromarketing', 
+    status: true,
+    priority: 'Alta',
+    desc: 'Penaliza severamente a combinação de viajantes com ritmo "Relaxado" e atrações de alta energia física. (Ativado no MatchEngine 2.0).'
   },
   { 
     id: 'must-see', 
     name: 'Priorização de Must See', 
     category: 'Curadoria', 
-    status: 'Ativo',
+    status: true,
     priority: 'Média',
-    desc: 'Multiplicador de 1.5x na pontuação base (score) para itens marcados como Must See pelo Concierge ou IA.'
+    desc: 'Multiplicador de pontuação base (score) para itens marcados como Must See pelo Concierge ou IA.'
   },
-  { 
-    id: 'transit', 
-    name: 'Fallback de Trânsito Desconhecido', 
-    category: 'Logística', 
-    status: 'Ativo',
-    priority: 'Baixa',
-    desc: 'Se a API de mapas falhar (ou offline), a Engine assume 15 minutos fixos de deslocamento aéreo intra-bairro e 45 minutos inter-bairro.'
-  }
 ];
 
 export default function EngineRules() {
-  return (
-    <div className="flex flex-col h-full bg-vf-bg overflow-hidden">
-      <div className="flex items-center justify-between px-6 py-4 bg-white border-b border-vf-border z-10 shrink-0">
-        <div>
-          <h1 className="text-lg font-black text-vf-black tracking-tight flex items-center gap-2">
-            <Settings className="w-4 h-4 text-emerald-600" /> Transparência do Motor (Engine)
-          </h1>
-          <p className="text-[11px] text-vf-text-3 font-semibold">Auditoria das regras determinísticas em execução.</p>
-        </div>
-      </div>
+  const [rules, setRules] = useState(INITIAL_RULES);
+  const [saving, setSaving] = useState(false);
 
-      <div className="flex-1 overflow-auto p-6">
-        <div className="max-w-[1000px] mx-auto space-y-6">
+  const toggleRule = (id: string) => {
+    setRules(rules.map(r => r.id === id ? { ...r, status: !r.status } : r));
+  };
+
+  const handleSave = () => {
+    setSaving(true);
+    setTimeout(() => {
+      toast.success('Regras do motor atualizadas localmente.');
+      setSaving(false);
+    }, 500);
+  };
+
+  return (
+    <div className="flex flex-col h-full bg-[#F7F7F2] font-sans overflow-auto selection:bg-[#D7F24B] selection:text-[#171717]">
+      <AdminHeader
+        title="Regras do Motor (Engine)"
+        subtitle="Controle absoluto sobre as heurísticas e comportamentos do Match Engine 2.0."
+        icon={<Settings className="w-4 h-4 text-[#171717]" />}
+        badgeText="Módulo de Inteligência"
+        gradient="from-[#FFD166] to-[#EF476F]" // Orange/Red gradient for rules engine
+        loading={false}
+        metrics={[
+          { label: 'Regras Ativas', value: rules.filter(r => r.status).length, color: 'bg-emerald-500/10 text-emerald-900 border-emerald-500/20' },
+          { label: 'Engine', value: '2.0.4', color: 'bg-white/40' },
+        ]}
+        actions={
+          <button 
+            onClick={handleSave} 
+            disabled={saving}
+            className="px-8 py-3 bg-[#171717] hover:bg-[#2a2a2a] text-white font-black rounded-xl text-sm transition-all shadow-[0_4px_14px_0_rgb(0,0,0,0.1)] active:scale-95 disabled:opacity-50 disabled:pointer-events-none"
+          >
+            {saving ? 'Salvando...' : 'Salvar Engine'}
+          </button>
+        }
+      />
+
+      <div className="flex-1 p-8">
+        <div className="max-w-[1200px] mx-auto space-y-6">
           
-          <div className="bg-emerald-50 text-emerald-800 p-4 rounded-xl border border-emerald-200 flex items-start gap-4">
-            <CheckCircle2 className="w-6 h-6 shrink-0 mt-0.5" />
+          <div className="bg-emerald-50 text-emerald-800 p-6 rounded-3xl border border-emerald-200 flex items-start gap-4 shadow-sm">
+            <div className="w-10 h-10 rounded-full bg-emerald-100 flex items-center justify-center shrink-0">
+               <CheckCircle2 className="w-5 h-5 text-emerald-600" />
+            </div>
             <div>
-              <h3 className="font-bold text-sm">Engine Operacional</h3>
-              <p className="text-xs mt-1 opacity-80">As políticas de validação estão rodando na versão mais recente (EI-9). O roteador respeita fixações manuais e tempo logístico.</p>
+              <h3 className="font-black text-lg text-emerald-900">Engine Operacional (v2.0)</h3>
+              <p className="text-sm mt-1 text-emerald-800/80 font-medium">A nova lógica de Neuromarketing e Personas IA está ativa e monitorando o catálogo em tempo real.</p>
             </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {ENGINE_RULES.map(rule => (
-              <div key={rule.id} className="bg-white rounded-xl border border-vf-border shadow-vf-sm p-5 flex flex-col">
-                <div className="flex justify-between items-start mb-3">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {rules.map(rule => (
+              <div 
+                key={rule.id} 
+                className={`rounded-3xl border p-6 flex flex-col transition-all duration-300 ${rule.status ? 'bg-white border-[#171717]/5 shadow-sm hover:shadow-md' : 'bg-[#171717]/[0.02] border-[#171717]/5 opacity-60'}`}
+              >
+                <div className="flex justify-between items-start mb-4">
                   <div>
-                    <h4 className="font-black text-vf-black text-lg leading-tight">{rule.name}</h4>
-                    <span className="text-[10px] font-black uppercase text-vf-text-3 tracking-widest">{rule.category}</span>
+                    <h4 className="font-black text-[#171717] text-xl leading-tight mb-1">{rule.name}</h4>
+                    <span className="text-[10px] font-black uppercase text-[#171717]/40 tracking-widest">{rule.category}</span>
                   </div>
-                  <div className="px-2 py-1 bg-emerald-100 text-emerald-800 rounded text-[10px] font-black uppercase shrink-0">
-                    {rule.status}
-                  </div>
+                  
+                  {/* Toggle Button */}
+                  <button 
+                    onClick={() => toggleRule(rule.id)}
+                    className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer items-center justify-center rounded-full transition-colors duration-200 ease-in-out focus:outline-none ${rule.status ? 'bg-[#D7F24B]' : 'bg-[#171717]/20'}`}
+                  >
+                    <span className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-sm ring-0 transition duration-200 ease-in-out ${rule.status ? 'translate-x-2.5' : '-translate-x-2.5'}`} />
+                  </button>
+
                 </div>
                 
-                <p className="text-sm text-vf-text-2 mb-4 flex-1">{rule.desc}</p>
+                <p className="text-[13px] font-medium text-[#171717]/60 mb-6 flex-1 leading-relaxed">{rule.desc}</p>
                 
-                <div className="pt-3 border-t border-vf-border/50 flex items-center justify-between">
-                  <div className="flex items-center gap-1.5 text-xs font-bold text-slate-500">
-                    <Shield className="w-3.5 h-3.5" />
+                <div className="pt-4 border-t border-[#171717]/5 flex items-center justify-between">
+                  <div className="flex items-center gap-1.5 text-xs font-bold text-[#171717]/40">
+                    <Shield className="w-4 h-4" />
                     Prioridade:
                   </div>
-                  <span className={`text-[11px] font-black uppercase ${
-                    rule.priority === 'Bloqueante' ? 'text-rose-600' :
-                    rule.priority === 'Sobrescrita' ? 'text-indigo-600' :
-                    'text-amber-600'
+                  <span className={`text-[11px] font-black uppercase tracking-widest px-2.5 py-1 rounded-md ${
+                    rule.priority === 'Bloqueante' ? 'bg-red-50 text-red-600' :
+                    rule.priority === 'Sobrescrita' ? 'bg-indigo-50 text-indigo-600' :
+                    'bg-orange-50 text-orange-600'
                   }`}>
                     {rule.priority}
                   </span>

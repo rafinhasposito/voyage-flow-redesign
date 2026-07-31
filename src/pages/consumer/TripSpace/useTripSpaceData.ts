@@ -81,10 +81,14 @@ export function useTripSpaceData(tripId?: string) {
         user
       );
 
+
+
+
       setData({ ...viewModel, stalenessStatus } as any);
     } catch (err) {
-      console.error("[TRIP_SPACE_LOAD_ERROR]", err);
-      setError(err instanceof Error ? err.message : "Ocorreu um erro ao carregar os dados da viagem.");
+      console.error("[TRIP_SPACE_LOAD_ERROR] Detalhes do erro:", err);
+      const errMsg = err instanceof Error ? err.message : (err as any)?.message || "Ocorreu um erro ao carregar os dados da viagem.";
+      setError(errMsg);
       setData(null);
     } finally {
       setLoading(false);
@@ -106,9 +110,64 @@ export function useTripSpaceData(tripId?: string) {
       await TripRepository.setItineraryActivityLock(tripId, activityId, isLocked, data.rawVersion);
       await reloadData();
     } catch (err: any) {
-      console.error("[executeDirectAction] Caught error:", err);
-      console.error(err);
-      setError(err.message || "Erro ao trancar atividade.");
+      console.error("[handleToggleLock] Erro:", err);
+      throw err;
+    } finally {
+      setDraftLoading(false);
+    }
+  };
+
+  const updateActivityDetails = async (activityId: string, updates: { time?: string, cost?: string }) => {
+    if (!tripId || !data) return;
+    try {
+      setDraftLoading(true);
+      await TripRepository.updateItineraryActivityDetails(tripId, activityId, updates, data.rawVersion);
+      await reloadData();
+    } catch (err: any) {
+      console.error("[updateActivityDetails] Erro:", err);
+      throw err;
+    } finally {
+      setDraftLoading(false);
+    }
+  };
+
+  const uploadWalletDocument = async (file: File, title: string, type: string, reservationId?: string) => {
+    if (!tripId || !user) throw new Error("Missing tripId or user");
+    try {
+      setDraftLoading(true);
+      await TripWalletRepository.uploadDocument(tripId, user.id, file, reservationId);
+      await reloadData();
+    } catch (err: any) {
+      console.error("[uploadWalletDocument] Erro:", err);
+      throw err;
+    } finally {
+      setDraftLoading(false);
+    }
+  };
+
+  const deleteWalletDocument = async (doc: any) => {
+    if (!tripId) return;
+    try {
+      setDraftLoading(true);
+      await TripWalletRepository.deleteDocument(doc);
+      await reloadData();
+    } catch (err: any) {
+      console.error("[deleteWalletDocument] Erro:", err);
+      throw err;
+    } finally {
+      setDraftLoading(false);
+    }
+  };
+
+  const deleteWalletReservation = async (reservationId: string) => {
+    if (!tripId) return;
+    try {
+      setDraftLoading(true);
+      await TripWalletRepository.deleteReservation(reservationId);
+      await reloadData();
+    } catch (err: any) {
+      console.error("[deleteWalletReservation] Erro:", err);
+      throw err;
     } finally {
       setDraftLoading(false);
     }
@@ -122,9 +181,8 @@ export function useTripSpaceData(tripId?: string) {
       const draft = applyEditIntentDraft(data.rawItinerary, { ...intent, expectedVersion: data.rawVersion }, data.reservations as any);
       setEditDraft(draft);
     } catch (err: any) {
-      console.error("[executeDirectAction] Caught error:", err);
-      console.error(err);
-      setError(err.message || "Erro ao gerar preview.");
+      console.error("[createDraft] Erro:", err);
+      throw err;
     } finally {
       setDraftLoading(false);
     }
@@ -136,7 +194,9 @@ export function useTripSpaceData(tripId?: string) {
     setDraftLoading(true);
     try {
       const { applyEditIntentDraft } = await import("@/domain/itinerary-engine/edit-intents");
+      
       const draft = applyEditIntentDraft(data.rawItinerary, { ...intent, expectedVersion: data.rawVersion }, data.reservations as any);
+
       console.log("[executeDirectAction] Draft status:", draft.status, draft.warnings);
 
       if (draft.status === "APPLIED") {
@@ -148,7 +208,7 @@ export function useTripSpaceData(tripId?: string) {
         console.warn("[executeDirectAction] Nenhuma alteração detectada — persistência ignorada.");
       } else if (draft.status === "ALREADY_APPLIED") {
         // Experiência já está no dia — informar sem persistir
-        setError("Esta experiência já está neste dia do roteiro.");
+        throw new Error("Esta experiência já está neste dia do roteiro.");
       } else {
         // Bloqueado, inválido ou sem placement
         throw new Error(
@@ -158,7 +218,7 @@ export function useTripSpaceData(tripId?: string) {
       }
     } catch (err: any) {
       console.error("[executeDirectAction] Erro:", err);
-      setError(err.message || "Erro ao salvar alteração no roteiro.");
+      throw err;
     } finally {
       setDraftLoading(false);
     }
@@ -176,9 +236,8 @@ export function useTripSpaceData(tripId?: string) {
       setEditDraft(null);
       await reloadData();
     } catch (err: any) {
-      console.error("[executeDirectAction] Caught error:", err);
-      console.error(err);
-      setError(err.message || "Erro ao atualizar roteiro.");
+      console.error("[commitDraft] Erro:", err);
+      throw err;
     } finally {
       setDraftLoading(false);
     }
@@ -241,6 +300,10 @@ export function useTripSpaceData(tripId?: string) {
     setActiveDay,
     reloadData,
     handleToggleLock,
+    updateActivityDetails,
+    uploadWalletDocument,
+    deleteWalletDocument,
+    deleteWalletReservation,
     createDraft,
     commitDraft,
     executeDirectAction,

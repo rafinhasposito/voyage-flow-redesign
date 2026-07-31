@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html b:css='false' b:defaultwidgetversion='2' b:js='false' b:layoutsVersion='3' b:responsive='true'
+      xmlns="http://www.w3.org/1999/xhtml"
+      xmlns:b="http://www.google.com/2005/gml/b"
+      xmlns:data="http://www.google.com/2005/gml/data"
+      xmlns:expr="http://www.google.com/2005/gml/expr">
+<head>
+    <b:skin><![CDATA[body{margin:0;padding:0;background:transparent;}]]></b:skin>
+    
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>dyad-generated-app</title>
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="anonymous" />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&amp;display=swap" rel="stylesheet" />
+    <script type="module" crossorigin="anonymous" src="/assets/index-DOr731lp.js"></script>
+    <link rel="stylesheet" crossorigin="anonymous" href="/assets/index-CdJomQqA.css" />
+  <link rel="manifest" href="/manifest.webmanifest" /><script id="vite-plugin-pwa:register-sw" src="/registerSW.js"></script>
+</head>
+<body>
+    
+    <div id="root"></div>
+  
+    <div style="display:none;">
+        <b:section id="main" showaddelement="no">
+            <b:widget id="Blog1" locked="true" type="Blog"/>
+        </b:section>
+    </div>
+</body>
+</html>

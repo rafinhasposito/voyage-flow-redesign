@@ -15,13 +15,7 @@ interface TripPreparationsProps {
   activeTabOverride?: 'checklist' | 'reservations' | 'documents';
 }
 
-const DEFAULT_PREPARATIONS: TripSpaceChecklistItem[] = [
-  { id: 'prep_1', text: 'Emitir autorização de viagem (ESTA / Visto EUA)', completed: true },
-  { id: 'prep_2', text: 'Contratar seguro viagem com cobertura médica ($50k+)', completed: false },
-  { id: 'prep_3', text: 'Configurar cartão internacional (Wise / Nomad)', completed: true },
-  { id: 'prep_4', text: 'Verificar adaptadores de tomada padrão EUA (tipo A/B)', completed: false },
-  { id: 'prep_5', text: 'Comprar chip eSIM com dados móveis ilimitados para NYC', completed: false },
-];
+const DEFAULT_PREPARATIONS: TripSpaceChecklistItem[] = [];
 
 export function TripPreparations({ tripId, checklist: initialChecklist, reservations, documents, onChecklistUpdate, activeTabOverride }: TripPreparationsProps) {
   const [items, setItems] = useState<TripSpaceChecklistItem[]>(() =>
@@ -59,8 +53,10 @@ export function TripPreparations({ tripId, checklist: initialChecklist, reservat
 
         {items.length === 0 ? (
           <div className="p-4 bg-slate-50 border border-dashed border-slate-200 rounded-2xl text-center">
-            <p className="text-xs font-bold text-slate-700 mb-1">Você ainda não possui preparativos cadastrados.</p>
-            <p className="text-[11px] text-slate-500">Adicione tarefas ou checklists essenciais para a viagem.</p>
+            <p className="text-xs font-bold text-slate-700 mb-1 flex items-center justify-center gap-1">
+              Módulo em construção <span className="bg-slate-200 text-slate-600 text-[9px] uppercase px-1.5 py-0.5 rounded ml-1">Breve</span>
+            </p>
+            <p className="text-[11px] text-slate-500">Em breve você poderá adicionar tarefas e checklists essenciais para a viagem.</p>
           </div>
         ) : (
           <div className="space-y-2 max-h-48 overflow-y-auto pr-1">

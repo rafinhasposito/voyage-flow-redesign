@@ -161,6 +161,7 @@ export function buildExperiencePayload(form: FormState): ExperienceInsert {
     description: form.description,
     short_description: form.short_description,
     category: form.category || 'Atração',
+    type: form.type,
     status: form.status,
     destination_id: String(form.destination_id),
     address: form.address,

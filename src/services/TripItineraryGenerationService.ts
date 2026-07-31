@@ -79,21 +79,37 @@ export class TripItineraryGenerationService {
         inputHash,
         stats: {
           votes: Object.keys(engineInput.matchVotes).length,
-          rejections: Object.values(engineInput.matchVotes).filter(v => v === 'no').length,
-          likes: Object.values(engineInput.matchVotes).filter(v => v === 'yes' || v === 'love').length,
+          rejections: Object.values(engineInput.matchVotes).filter(v => v === 'no' || v === 'REJECT').length,
+          likes: Object.values(engineInput.matchVotes).filter(v => v === 'yes' || v === 'love' || v === 'LOVE' || v === 'PURCHASED').length,
         }
       },
       ...persistedFormat
     ];
 
-    // 7. Persist to DB with Optimistic Locking
-    const result = await TripRepository.applyApprovedItineraryDraft(
-      tripId,
-      itineraryWithMeta,
-      trip.updated_at
-    );
-
-    return result.data;
+    try {
+      // 7. Persist to DB 
+      let savedData;
+      // If it's the first time generating the itinerary (empty or just created), bypass optimistic locking
+      if (!trip.itinerary || trip.itinerary.length === 0 || trip.status === 'onboarding') {
+        savedData = await TripRepository.updateTripOnboarding(tripId, {
+          itinerary: itineraryWithMeta,
+          status: 'planned',
+          preferences: { current_step: 'workspace' }
+        });
+      } else {
+        // Optimistic Locking for subsequent updates
+        const result = await TripRepository.applyApprovedItineraryDraft(
+          tripId,
+          itineraryWithMeta,
+          trip.updated_at
+        );
+        savedData = result.data;
+      }
+      return savedData;
+    } catch (dbErr: any) {
+      console.error("[TRIP_GEN_PERSIST_ERROR] Supabase/DB Error:", dbErr.code, dbErr.message, dbErr.details || dbErr);
+      throw dbErr;
+    }
   }
 
   static async generatePreview(tripId: string): Promise<any> {

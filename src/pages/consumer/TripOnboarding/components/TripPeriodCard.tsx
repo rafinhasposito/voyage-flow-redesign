@@ -105,14 +105,14 @@ export default function TripPeriodCard({
               
               {/* IDA */}
               <div className="flex-1 p-6 md:p-8 hover:bg-slate-50 transition-colors">
-                <span className="block text-[10px] font-extrabold text-slate-400 uppercase tracking-widest mb-2">Ida</span>
+                <span className="block text-[10px] font-extrabold text-slate-400 uppercase tracking-widest mb-2">Chegada</span>
                 {formatDisplayDay(startDate) && (
                    <span className="block text-xs font-bold text-slate-500 mb-1">{formatDisplayDay(startDate)}</span>
                 )}
                 <div className={`font-extrabold text-2xl lg:text-3xl transition-colors ${startDate ? 'text-[#171717]' : 'text-slate-300'}`}>
                   {formatDisplayDate(startDate)}
                 </div>
-                <p className="mt-2 text-sm font-bold text-slate-500 truncate">{destinationName || 'Origem'}</p>
+                <p className="mt-2 text-sm font-bold text-slate-500 truncate">{destinationName || 'Destino'}</p>
               </div>
 
               {/* DIVIDER & BADGE */}
@@ -127,7 +127,7 @@ export default function TripPeriodCard({
 
               {/* VOLTA */}
               <div className="flex-1 p-6 md:p-8 hover:bg-slate-50 transition-colors text-left md:text-right">
-                <span className="block text-[10px] font-extrabold text-slate-400 uppercase tracking-widest mb-2">Volta</span>
+                <span className="block text-[10px] font-extrabold text-slate-400 uppercase tracking-widest mb-2">Partida</span>
                 {formatDisplayDay(endDate) && (
                    <span className="block text-xs font-bold text-slate-500 mb-1">{formatDisplayDay(endDate)}</span>
                 )}

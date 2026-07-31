@@ -1,12 +1,30 @@
 import React, { useState, useEffect } from 'react';
-import { Tag, Search } from 'lucide-react';
+import { Tag, Search, Network } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { supabase } from '@/lib/supabase';
 import { toast } from 'sonner';
+import { AdminHeader } from '@/components/admin/AdminHeader';
 
 interface TagStats {
   name: string;
   usageCount: number;
+  cluster: string;
+}
+
+const CLUSTER_MAP: Record<string, string[]> = {
+  'Gastronomia': ['restaurant', 'cafe', 'food', 'gastronomia', 'drink', 'bar', 'rooftop', 'street food'],
+  'Cultura & Arte': ['museum', 'monument', 'teatro', 'classic', 'art', 'history', 'cultura', 'musical'],
+  'Natureza & Aventura': ['park', 'nature', 'aventura', 'outdoor', 'hike', 'beach', 'praia', 'trilha'],
+  'Entretenimento': ['show', 'music', 'nightlife', 'party', 'entertainment', 'shopping'],
+  'Essenciais (Must See)': ['must see', 'iconic', 'landmark', 'famoso', 'tourist']
+};
+
+function getCluster(tagName: string): string {
+  const lower = tagName.toLowerCase();
+  for (const [cluster, keywords] of Object.entries(CLUSTER_MAP)) {
+    if (keywords.some(k => lower.includes(k))) return cluster;
+  }
+  return 'Outros / Nicho';
 }
 
 export default function Tags() {
@@ -36,7 +54,13 @@ export default function Tags() {
           }
         });
 
-        setTags(Array.from(tagMap.entries()).map(([name, usageCount]) => ({ name, usageCount })).sort((a, b) => b.usageCount - a.usageCount));
+        const mappedTags = Array.from(tagMap.entries()).map(([name, usageCount]) => ({ 
+          name, 
+          usageCount,
+          cluster: getCluster(name)
+        })).sort((a, b) => b.usageCount - a.usageCount);
+
+        setTags(mappedTags);
       } catch (err: any) {
         toast.error('Erro ao carregar tags: ' + err.message);
       } finally {
@@ -48,45 +72,75 @@ export default function Tags() {
 
   const filtered = tags.filter(t => t.name.toLowerCase().includes(searchTerm.toLowerCase()));
 
+  // Group by cluster
+  const clusters = filtered.reduce((acc, tag) => {
+    if (!acc[tag.cluster]) acc[tag.cluster] = [];
+    acc[tag.cluster].push(tag);
+    return acc;
+  }, {} as Record<string, TagStats[]>);
+
   return (
-    <div className="flex flex-col h-full bg-vf-bg overflow-hidden">
-      <div className="flex items-center justify-between px-6 py-4 bg-white border-b border-vf-border z-10 shrink-0">
-        <div>
-          <h1 className="text-lg font-black text-vf-black tracking-tight flex items-center gap-2">
-            <Tag className="w-4 h-4 text-emerald-600" /> Tags
-          </h1>
-          <p className="text-[11px] text-vf-text-3 font-semibold">Derivadas das tags das experiências atuais.</p>
-        </div>
-        <div className="flex items-center gap-3">
-          <div className="relative">
-            <Search className="w-4 h-4 text-vf-text-3 absolute left-3 top-1/2 -translate-y-1/2" />
-            <Input 
-              type="text" 
-              placeholder="Buscar tag..." 
+    <div className="flex flex-col h-full bg-[#F7F7F2] font-sans overflow-auto selection:bg-[#D7F24B] selection:text-[#171717]">
+      <AdminHeader
+        title="Taxonomia (Clusters)"
+        subtitle="Agrupamento semântico de Tags usado pelo Motor de Recomendação para processar interesses dos usuários."
+        icon={<Network className="w-4 h-4 text-[#171717]" />}
+        badgeText="Módulo de Inteligência"
+        gradient="from-[#E0C3FC] to-[#8EC5FC]" // Purple to Blue for Intelligence
+        loading={loading}
+        metrics={[
+          { label: 'Total de Tags Únicas', value: tags.length, color: 'bg-white/40' },
+          { label: 'Categorias Master', value: Object.keys(CLUSTER_MAP).length, color: 'bg-white/30' },
+        ]}
+        actions={
+          <div className="flex items-center gap-2 bg-white/40 backdrop-blur-md rounded-xl p-1 border border-white/40 shadow-sm relative w-[280px]">
+            <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-[#171717]/40" />
+            <input 
+              type="text"
+              placeholder="Buscar tag..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="pl-9 w-64 h-9 text-[13px]"
+              className="w-full pl-11 pr-4 h-10 bg-transparent border-0 text-[13px] font-bold text-[#171717] placeholder:text-[#171717]/40 outline-none"
             />
           </div>
-        </div>
-      </div>
+        }
+      />
 
-      <div className="flex-1 overflow-auto p-6">
+      <div className="flex-1 p-8">
         {loading ? (
-          <div className="text-center py-20 text-slate-400 font-bold text-sm">Carregando tags...</div>
+          <div className="text-center py-20 text-[#171717]/40 font-bold text-sm">Analisando taxonomia do banco de dados...</div>
         ) : (
-          <div className="max-w-[1000px] mx-auto bg-white rounded-xl border border-vf-border overflow-hidden">
-            <div className="grid grid-cols-2 md:grid-cols-3 gap-4 p-6">
-              {filtered.map(t => (
-                <div key={t.name} className="flex justify-between items-center bg-[#F7F7F2] p-3 rounded-lg border border-vf-border shadow-sm">
-                  <span className="font-bold text-vf-black text-sm">{t.name}</span>
-                  <span className="px-2 py-1 bg-emerald-100 text-emerald-800 rounded text-xs font-black">{t.usageCount} usos</span>
+          <div className="max-w-[1200px] mx-auto space-y-8">
+            {Object.entries(clusters).map(([clusterName, clusterTags]) => (
+              <div key={clusterName} className="bg-white rounded-3xl border border-[#171717]/5 shadow-sm p-8">
+                <div className="flex items-center justify-between mb-6 pb-6 border-b border-[#171717]/5">
+                  <div>
+                    <h2 className="text-xl font-black text-[#171717] flex items-center gap-2">
+                      <Tag className="w-5 h-5 text-purple-500" />
+                      {clusterName}
+                    </h2>
+                    <p className="text-xs font-semibold text-[#171717]/40 mt-1">
+                      {clusterTags.length} tags associadas
+                    </p>
+                  </div>
                 </div>
-              ))}
-              {filtered.length === 0 && (
-                <div className="col-span-full text-center py-10 text-slate-400 font-bold">Nenhuma tag encontrada.</div>
-              )}
-            </div>
+                
+                <div className="flex flex-wrap gap-2">
+                  {clusterTags.map(tag => (
+                    <div key={tag.name} className="inline-flex items-center gap-2 px-3 py-1.5 bg-[#F7F7F2] rounded-lg border border-[#171717]/5 hover:border-[#171717]/20 transition-colors">
+                      <span className="text-[13px] font-bold text-[#171717]">{tag.name}</span>
+                      <span className="text-[10px] font-black bg-[#171717]/10 text-[#171717]/60 px-1.5 py-0.5 rounded-md">
+                        {tag.usageCount}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
+            
+            {Object.keys(clusters).length === 0 && (
+              <div className="text-center py-10 text-[#171717]/40 font-bold">Nenhuma tag correspondente encontrada.</div>
+            )}
           </div>
         )}
       </div>

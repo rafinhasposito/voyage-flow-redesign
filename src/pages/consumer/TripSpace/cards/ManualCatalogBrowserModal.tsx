@@ -9,9 +9,11 @@ interface ManualCatalogBrowserModalProps {
   onConfirm: (item: any) => void;
   isLoading?: boolean;
   addError?: string | null;
+  activeDayNumber?: number;
+  replacingTitle?: string;
 }
 
-export function ManualCatalogBrowserModal({ isOpen, onClose, catalog, onConfirm, isLoading, addError }: ManualCatalogBrowserModalProps) {
+export function ManualCatalogBrowserModal({ isOpen, onClose, catalog, onConfirm, isLoading, addError, activeDayNumber, replacingTitle }: ManualCatalogBrowserModalProps) {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [selectedItem, setSelectedItem] = useState<any | null>(null);
@@ -45,8 +47,19 @@ export function ManualCatalogBrowserModal({ isOpen, onClose, catalog, onConfirm,
         <div className="bg-white p-6 pb-4 border-b border-slate-200 shrink-0 relative z-10 shadow-sm">
           <div className="flex items-center justify-between mb-4">
             <div>
+              {replacingTitle ? (
+                <span className="inline-block text-[10px] font-extrabold text-violet-700 bg-violet-50 border border-violet-200 px-2.5 py-1 rounded-full uppercase tracking-wider mb-2">
+                  Substituindo "{replacingTitle}"
+                </span>
+              ) : activeDayNumber && (
+                <span className="inline-block text-[10px] font-extrabold text-violet-700 bg-violet-50 border border-violet-200 px-2.5 py-1 rounded-full uppercase tracking-wider mb-2">
+                  Adicionando ao Dia {activeDayNumber}
+                </span>
+              )}
               <h2 className="text-2xl font-black text-slate-900 tracking-tight">Catálogo Livre</h2>
-              <p className="text-sm font-medium text-slate-500 mt-1">Busque e adicione qualquer experiência ao seu dia.</p>
+              <p className="text-sm font-medium text-slate-500 mt-1">
+                {replacingTitle ? 'Escolha a experiência que vai substituir a atual.' : 'Busque e adicione qualquer experiência ao seu dia.'}
+              </p>
             </div>
             <button
               onClick={onClose}

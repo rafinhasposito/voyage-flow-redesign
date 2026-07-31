@@ -9,9 +9,10 @@ interface ImmigrationCardProps {
   onClick?: () => void;
   tripId?: string;
   userId?: string;
+  hideTimelineDot?: boolean;
 }
 
-export function ImmigrationCard({ stop, isSelected, onClick, tripId, userId }: ImmigrationCardProps) {
+export function ImmigrationCard({ stop, isSelected, onClick, tripId, userId, hideTimelineDot }: ImmigrationCardProps) {
   const [expanded, setExpanded] = useState(false);
 
   const imageUrl = "https://viagemeturismo.abril.com.br/wp-content/uploads/2025/07/JFK_Terminal_One_inside.jpg?crop=1&resize=1212,909";
@@ -19,9 +20,11 @@ export function ImmigrationCard({ stop, isSelected, onClick, tripId, userId }: I
   return (
     <div className="relative group">
       {/* Timeline Node Dot */}
-      <div className="absolute -left-[39px] top-6 w-7 h-7 rounded-full border-4 border-white flex items-center justify-center transition-colors z-10 shadow-sm bg-blue-600 text-white">
-        <ShieldCheck className="w-3.5 h-3.5" />
-      </div>
+      {!hideTimelineDot && (
+        <div className="absolute -left-[39px] top-6 w-7 h-7 rounded-full border-4 border-white flex items-center justify-center transition-colors z-10 shadow-sm bg-blue-600 text-white">
+          <ShieldCheck className="w-3.5 h-3.5" />
+        </div>
+      )}
 
       <div
         onClick={() => {

@@ -26,12 +26,24 @@ export function GeneratingScreen({ trip, destination, onError }: { trip: any, de
       if (
         freshTrip &&
         Array.isArray(freshTrip.itinerary) &&
-        freshTrip.itinerary.length > 0 &&
-        freshTrip.preferences?.current_step === 'workspace'
+        freshTrip.itinerary.length > 0
       ) {
+        // Force the update of current_step to 'workspace' just to be safe for other parts of the app
+        if (freshTrip.preferences?.current_step !== 'workspace') {
+          await TripRepository.updateTripOnboarding(trip.id, {
+            preferences: { current_step: 'workspace' }
+          });
+        }
         navigate(`/viagens/${trip.id}/roteiro`, { replace: true });
       } else {
-        setErrorMsg("Não foi possível confirmar a persistência do seu roteiro antes de abrir o espaço da viagem.");
+        console.error('[GATEKEEPER_FAILED]', {
+          hasFreshTrip: !!freshTrip,
+          isItineraryArray: Array.isArray(freshTrip?.itinerary),
+          itineraryLength: freshTrip?.itinerary?.length,
+          currentStep: freshTrip?.preferences?.current_step
+        });
+        const debugDump = freshTrip ? `\n\n[DEBUG] typeof itinerary: ${typeof freshTrip.itinerary}, isArray: ${Array.isArray(freshTrip.itinerary)}, length: ${freshTrip.itinerary?.length}. Dump: ${JSON.stringify(freshTrip).substring(0, 300)}...` : ' [DEBUG] freshTrip is null';
+        setErrorMsg(`Não foi possível confirmar a persistência do seu roteiro antes de abrir o espaço da viagem.${debugDump}`);
         setIsSuccess(false);
         setIsNavigating(false);
       }
@@ -90,7 +102,13 @@ export function GeneratingScreen({ trip, destination, onError }: { trip: any, de
             const { TripItineraryGenerationService } = await import('../../../../services/TripItineraryGenerationService');
             await TripItineraryGenerationService.generateAndPersist(trip.id);
         } catch (engineErr: any) {
-            console.error("Erro na Engine V2:", engineErr);
+            console.error("[SUPABASE_PERSISTENCE_ERROR] Detalhes exatos da falha:", {
+              code: engineErr.code,
+              message: engineErr.message,
+              details: engineErr.details,
+              hint: engineErr.hint,
+              raw: engineErr
+            });
             throw engineErr;
         }
 

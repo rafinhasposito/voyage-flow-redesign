@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Clock, MapPin, Shuffle, Navigation, MoreHorizontal, Trash2, ChevronDown, Sparkles, AlertTriangle } from 'lucide-react';
+import { Clock, MapPin, Shuffle, Navigation, MoreHorizontal, Trash2, ChevronDown, Sparkles, AlertTriangle, Edit2, Check, ExternalLink } from 'lucide-react';
 import { TripSpaceStop } from '@/types/tripSpace.types';
 import { MatchScoreBadge } from '@/components/MatchScoreBadge';
 
@@ -16,6 +16,7 @@ interface DefaultAttractionCardV2Props {
   onNavigate?: () => void;
   onReplace?: () => void;
   onRemove?: () => void;
+  onOpenJournal?: () => void;
 }
 
 export function DefaultAttractionCardV2({
@@ -26,7 +27,8 @@ export function DefaultAttractionCardV2({
   onClick,
   onNavigate,
   onReplace,
-  onRemove
+  onRemove,
+  onOpenJournal
 }: DefaultAttractionCardV2Props) {
   const isLodging = stop.category === 'lodging';
   const [showMenu, setShowMenu] = useState(false);
@@ -54,7 +56,7 @@ export function DefaultAttractionCardV2({
           }`}>
             <Navigation className={`w-3.5 h-3.5 shrink-0 ${travelFromPrevious.isLongHop ? 'text-amber-600' : 'text-indigo-600'}`} />
             <span>
-              {travelFromPrevious.fromBasecamp ? 'Deslocamento do hotel/basecamp: ' : 'Deslocamento da parada anterior: '}
+              {travelFromPrevious.fromBasecamp ? 'Deslocamento da hospedagem: ' : 'Deslocamento da parada anterior: '}
               <strong className="text-slate-900 font-black">{travelFromPrevious.label}</strong>
             </span>
             {travelFromPrevious.isLongHop && (
@@ -67,12 +69,34 @@ export function DefaultAttractionCardV2({
 
         {/* 2. FOTOGRAFIA EDITORIAL 100% LIMPA (Zero Textos ou Badges poluído na foto) */}
         {!isLodging && (
-          <div className="relative w-full h-48 sm:h-56 overflow-hidden bg-slate-100">
-            <img
-              src={stop.imageUrl || 'https://images.unsplash.com/photo-1534430480872-3498386e7856?w=1200&q=85'}
-              alt={stop.title}
-              className="w-full h-full object-cover transition-transform duration-700 group-hover/card:scale-105"
-            />
+          <div className="relative w-full aspect-video overflow-hidden bg-slate-100">
+            {(() => {
+              const imgUrl = (stop as any).media_urls?.[0] || stop.photoUrl || stop.imageUrl || (stop as any).image_url || (stop as any).photo || 'https://images.unsplash.com/photo-1534430480872-3498386e7856?w=1200&q=85';
+              const isVideo = imgUrl.toLowerCase().match(/\.(mp4|mov|webm)(\?.*)?$/) != null;
+              
+              if (isVideo) {
+                return (
+                  <video
+                    src={imgUrl}
+                    autoPlay
+                    loop
+                    muted
+                    playsInline
+                    className="w-full h-full object-cover transition-transform duration-700 group-hover/card:scale-105"
+                  />
+                );
+              }
+              return (
+                <img
+                  src={imgUrl}
+                  alt={stop.title}
+                  className="w-full h-full object-cover transition-transform duration-700 group-hover/card:scale-105"
+                  onError={(e) => {
+                    (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1477959858617-67f30bc4fc38?auto=format&fit=crop&q=80&w=1200';
+                  }}
+                />
+              );
+            })()}
           </div>
         )}
 
@@ -92,12 +116,15 @@ export function DefaultAttractionCardV2({
               )}
             </div>
 
-            <div className="text-right shrink-0 flex items-start gap-2">
+            <div className="text-right shrink-0 flex items-start gap-2 group/time">
               <div>
-                <p className="text-slate-900 font-black text-2xl sm:text-3xl tracking-tighter leading-none">
-                  {stop.time || '10:00'}
-                </p>
-                <p className="text-slate-500 text-[10px] font-extrabold uppercase tracking-wider mt-1">
+                <div className="flex items-center justify-end gap-1.5 cursor-pointer" onClick={(e) => { e.stopPropagation(); onOpenJournal?.(); }}>
+                  <p className="text-slate-900 font-black text-2xl sm:text-3xl tracking-tighter leading-none border-b-2 border-dashed border-transparent hover:border-slate-300 transition-colors pb-0.5">
+                    {stop.time || '10:00'}
+                  </p>
+                  <Edit2 className="w-3.5 h-3.5 text-slate-400 opacity-0 group-hover/time:opacity-100 transition-opacity hover:text-indigo-600" />
+                </div>
+                <p className="text-slate-500 text-[10px] font-extrabold uppercase tracking-wider mt-1 text-right">
                   {stop.duration ? `Duração ${stop.duration}` : 'Horário Estimado'}
                 </p>
               </div>
@@ -124,6 +151,12 @@ export function DefaultAttractionCardV2({
                       className="w-full text-left px-4 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50 flex items-center gap-2"
                     >
                       <Shuffle className="w-3.5 h-3.5 text-amber-500" /> Trocar local
+                    </button>
+                    <button 
+                      onClick={(e) => { e.stopPropagation(); setShowMenu(false); onOpenJournal?.(); }}
+                      className="w-full text-left px-4 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50 flex items-center gap-2"
+                    >
+                      <ExternalLink className="w-3.5 h-3.5" /> Diário de Bordo
                     </button>
                     <button 
                       onClick={(e) => { e.stopPropagation(); setShowMenu(false); onRemove?.(); }}
@@ -154,11 +187,15 @@ export function DefaultAttractionCardV2({
               <span>{stop.neighborhood || 'New York City'}</span>
             </span>
 
-            {stop.cost && (
-              <span className="text-xs font-extrabold text-[#14150F] bg-[#D6FF3F] px-3 py-1.5 rounded-xl border border-[#b8e624]/60 shadow-2xs">
-                {stop.cost}
+            <div className="group/cost flex items-center gap-1" onClick={e => e.stopPropagation()}>
+              <span 
+                onClick={() => onOpenJournal?.()}
+                className="text-xs font-extrabold text-[#14150F] bg-[#D6FF3F] hover:bg-[#cbf731] px-3 py-1.5 rounded-xl border border-[#b8e624]/60 shadow-2xs cursor-pointer flex items-center gap-1 transition-colors"
+              >
+                {stop.cost || 'Grátis'}
+                <Edit2 className="w-3 h-3 opacity-0 group-hover/cost:opacity-100 transition-opacity text-slate-600" />
               </span>
-            )}
+            </div>
 
             {logisticAlert && (
               <span className="text-xs font-bold text-amber-900 bg-amber-100/90 px-3 py-1.5 rounded-xl border border-amber-300/50 flex items-center gap-1.5">

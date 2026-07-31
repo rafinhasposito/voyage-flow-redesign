@@ -11,10 +11,18 @@ export interface TravelExperience {
   description: string;
   emotionalDescription?: string;
   image: string;
+  cover_image_url?: string;
   images?: string[];
   costLevel: "$" | "$$" | "$$$" | "$$$$";
   costUSD: number;
   neighborhood: string;
+  address?: string | null;
+  locationAddress?: string | null;
+  location_address?: string | null;
+  short_description?: string | null;
+  long_description?: string | null;
+  booking_url?: string | null;
+  bookingUrl?: string | null;
   coordinates?: { lat: number; lng: number };
   matchScore: number;
   durationHours: number;
@@ -53,6 +61,7 @@ export interface TravelExperience {
     closes_at: string | null;
   }[];
   rating?: number;
+  is_must_see?: boolean;
   affiliateLink?: string;
   provider?: string;
   tags?: string[];

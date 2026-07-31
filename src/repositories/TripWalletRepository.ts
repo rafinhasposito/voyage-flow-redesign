@@ -73,8 +73,11 @@ export class TripWalletRepository {
     file: File, 
     reservationId?: string
   ): Promise<TripDocument> {
-    const fileName = `${Date.now()}_${file.name}`;
-    const storagePath = `${userId}/${tripId}/${fileName}`;
+    // Sanitiza o nome do arquivo removendo acentos e espaços que quebram a API do Supabase Storage
+    const safeFileName = file.name.normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-zA-Z0-9.-]/g, '_');
+    const fileName = `${Date.now()}_${safeFileName}`;
+    // RLS espera que o primeiro segmento do path seja o tripId: split_part(name, '/', 1)
+    const storagePath = `${tripId}/${userId}/${fileName}`;
 
     const { error: uploadError } = await supabase.storage
       .from('trip-documents')

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Coffee, Croissant, Pizza, MapPin, ChevronDown, ChevronUp, Sparkles, CheckCircle2 } from 'lucide-react';
+import { Coffee, Croissant, Pizza, MapPin, ChevronDown, ChevronUp, Sparkles, CheckCircle2, Trash2 } from 'lucide-react';
 import { TripSpaceStop } from '@/types/tripSpace.types';
 
 interface CoffeeBreakCardProps {
@@ -9,11 +9,13 @@ interface CoffeeBreakCardProps {
   onClick?: () => void;
   /** Callback para adicionar sugestão ao dia — integrado ao executeDirectAction */
   onAddToDay?: (experienceId: string) => void;
+  onRemove?: () => void;
+  hideTimelineDot?: boolean;
 }
 
 type VibeMode = 'cafe' | 'bakery' | 'fast';
 
-export function CoffeeBreakCard({ stop, catalog, isSelected, onClick, onAddToDay }: CoffeeBreakCardProps) {
+export function CoffeeBreakCard({ stop, catalog, isSelected, onClick, onAddToDay, onRemove, hideTimelineDot }: CoffeeBreakCardProps) {
   const [expanded, setExpanded] = useState(false);
   const [mode, setMode] = useState<VibeMode | null>(null);
   const [confirmed, setConfirmed] = useState(false);
@@ -39,9 +41,11 @@ export function CoffeeBreakCard({ stop, catalog, isSelected, onClick, onAddToDay
   return (
     <div className="relative group">
       {/* Timeline Node Dot */}
-      <div className="absolute -left-[39px] top-6 w-7 h-7 rounded-full border-4 border-white flex items-center justify-center transition-colors z-10 shadow-sm bg-orange-100 text-orange-600">
-        <Coffee className="w-3.5 h-3.5" />
-      </div>
+      {!hideTimelineDot && (
+        <div className="absolute -left-[39px] top-6 w-7 h-7 rounded-full border-4 border-white flex items-center justify-center transition-colors z-10 shadow-sm bg-orange-100 text-orange-600">
+          <Coffee className="w-3.5 h-3.5" />
+        </div>
+      )}
 
       <div
         className={`relative rounded-[24px] overflow-hidden border transition-all ${
@@ -51,6 +55,21 @@ export function CoffeeBreakCard({ stop, catalog, isSelected, onClick, onAddToDay
         }`}
       >
         <div onClick={() => { onClick?.(); setExpanded(!expanded); }} className="cursor-pointer p-5 flex items-center gap-4">
+          
+          {/* Botão de Excluir */}
+          {onRemove && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onRemove();
+              }}
+              className="absolute top-4 right-4 p-2 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-full transition-colors opacity-0 group-hover:opacity-100 z-20"
+              title="Remover pausa"
+            >
+              <Trash2 className="w-4 h-4" />
+            </button>
+          )}
+
           <div className="w-12 h-12 rounded-xl flex items-center justify-center shrink-0 bg-orange-50 text-orange-500 border border-orange-100">
             <Coffee className="w-6 h-6" />
           </div>

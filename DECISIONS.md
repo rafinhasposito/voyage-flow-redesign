@@ -46,6 +46,10 @@ Este documento registra as decisões importantes tomadas ao longo do projeto e o
 - **O que foi decidido:** A gestão de *markups* e links de afiliados (como GetYourGuide) será feita em uma interface administrativa dedicada (`PricingManager`) usando a estética Bento Box e mock data na fase atual, antes de persistir globalmente.
 - **Por quê:** O modelo de monetização depende de comissionamento via afiliados e markups embutidos. Ter um painel que permite simular a receita em tempo real assegura agilidade nas campanhas de marketing e previsibilidade de caixa sem necessitar mexer em JSON ou código hardcoded.
 
+## 12. Logística como Âncora Cronológica (Eventos Fixos)
+- **O que foi decidido:** Eventos logísticos essenciais (Chegada de Voo, Imigração, Recolha/Guarda de Bagagem) são **âncoras rígidas** no roteiro. Eles **nunca** podem ser tratados como atrações intercambiáveis ou flutuantes (como restaurantes ou museus).
+- **Por quê:** Fere a lógica básica de viagem colocar "Imigração" depois do almoço na cidade. A logística tem domínio sobre a cronologia. O sistema deve sempre forçar e travar a renderização e o drag-and-drop desses nós para o topo do dia (no caso de chegada) ou para o fim (no caso de retorno). Eles ditam o ponto de partida do primeiro dia, assim como o Hotel (Basecamp) dita os demais dias.
+
 ---
 
 ## 💡 Apêndice: Hipóteses Arquiteturais e YAGNI (You Aren't Gonna Need It)
@@ -270,3 +274,9 @@ Backend comercial — Congelado
   - **Concorrência (Optimistic Locking):** O sistema verifica a `updated_at` atual da viagem antes de salvar. Se a viagem foi alterada no meio tempo, a escrita falha (`ITINERARY_CHANGED_SINCE_PREVIEW`).
   - **Idempotência:** Um hash do draft é embutido nos metadados. Se o Trip Space já contiver exatamente esse hash, a escrita retorna um status limpo (`ALREADY_APPLIED`) sem sujar o banco.
   - **Preservação:** O Mapper e o Repositório validam rigidamente a existência de itens fixos (`isFixed`, `manualLock`). Se um item protegido for removido do Draft acidentalmente, a persistência aborta imediatamente (`BLOCKED_BY_CONFLICT`), garantindo a segurança de reservas financeiras e decisões manuais do viajante.
+
+## 🚨 REGRA DE RISCO DE MORTE (CRÍTICA) 🚨
+**Data:** 30/07/2026
+**Decisão:** Fica absolutamente proibido engessar o roteiro no código para contornar problemas de banco de dados.
+**Motivo:** O Voyage Flow é um **Concierge Digital Premium** e um **Planejador Interativo Dinâmico**. O usuário TEM O DIREITO ABSOLUTO de ADICIONAR, DELETAR e MOVER qualquer experiência em qualquer dia, a qualquer momento, diretamente pela interface. Engessar os dados via código quebra a essência principal do produto e impede o usuário de customizar o próprio planejamento.
+**Ação Obrigatória:** Se o banco de dados apresentar inconsistências, CURE O BANCO DE DADOS. Não crie workarounds que transformem a interface numa tela estática.

@@ -1,7 +1,7 @@
 import { TravelExperience } from '../../repositories/ExperienceRepository';
 
 export interface MatchReason {
-  type: 'must_see' | 'priority_match' | 'budget_match' | 'pace_match' | 'discovery' | 'curation';
+  type: 'must_see' | 'priority_match' | 'budget_match' | 'pace_match' | 'discovery' | 'curation' | 'persona_match';
   weight: number;
   value?: string;
 }
@@ -54,7 +54,8 @@ export class MatchEngine {
       let canonicalName = exp.id;
       if ((exp as any).place_id) canonicalName = (exp as any).place_id;
       else {
-        canonicalName = exp.name
+        const text = exp.name || (exp as any).title || exp.id || '';
+        canonicalName = text
           .normalize('NFD').replace(/[\u0300-\u036f]/g, "") // remove accents
           .toLowerCase()
           .replace(/\s*\(.*?\)\s*/g, '') // remove parentheticals
@@ -105,6 +106,7 @@ export class MatchEngine {
     const priorities = tripPreferences?.must_have || [];
     const budget = tripPreferences?.budget; // ex: 'economic', 'comfortable', 'luxury'
     const pace = tripPreferences?.pace;
+    const userPersona = tripPreferences?.persona || tripPreferences?.traveler_profile; // e.g. 'explorador_visual'
 
     // Helper to score an experience based on affinity
     const scoreExperience = (exp: TravelExperience): { score: number, reasons: MatchReason[] } => {
@@ -139,10 +141,37 @@ export class MatchEngine {
          reasons.push({ type: 'budget_match', value: 'Luxo', weight: 10 });
       }
 
-      // Pace match
-      if (pace === 'relaxed' && exp.physicalEnergyRequired === 'low') {
-        score += 10;
-        reasons.push({ type: 'pace_match', value: 'Ritmo leve', weight: 10 });
+      // Pace match & Neuromarketing Energy Rules
+      const energyLevel = exp.physicalEnergyRequired || (exp as any).energy_level || 'medium';
+      
+      if (pace === 'relaxed') {
+        if (energyLevel === 'low') {
+          score += 15;
+          reasons.push({ type: 'pace_match', value: 'Ritmo leve (Sem fadiga)', weight: 15 });
+        } else if (energyLevel === 'high') {
+          score -= 10; // Neuromarketing Penalty
+        }
+      } else if (pace === 'intense' && energyLevel === 'high') {
+        score += 15;
+        reasons.push({ type: 'pace_match', value: 'Atividade intensa', weight: 15 });
+      } else if (pace === 'relaxed' && energyLevel === 'medium') {
+        score += 5;
+        reasons.push({ type: 'pace_match', value: 'Ritmo moderado', weight: 5 });
+      }
+
+      // IA Persona Match (Neuro-Affinity)
+      if (userPersona) {
+        let intelligenceMeta = (exp as any).intelligence_metadata;
+        if (typeof intelligenceMeta === 'string') {
+          try { intelligenceMeta = JSON.parse(intelligenceMeta); } catch { intelligenceMeta = {}; }
+        }
+        
+        const personaMatch = intelligenceMeta?.personas?.[userPersona]?.value;
+        if (typeof personaMatch === 'number' && personaMatch > 0.5) {
+          const points = Math.round(personaMatch * 25);
+          score += points;
+          reasons.push({ type: 'persona_match', value: userPersona, weight: points });
+        }
       }
 
       if (reasons.length === 0) {
@@ -282,6 +311,8 @@ export class MatchEngine {
         return `Fica perfeitamente dentro do seu orçamento ${top.value || ''}.`;
       case 'pace_match':
         return `Ideal para o seu ${top.value || 'ritmo'}.`;
+      case 'persona_match':
+        return `Combinação profunda com seu perfil de viajante.`;
       case 'discovery':
         return "Foi selecionada como descoberta fora das escolhas mais óbvias.";
       default:

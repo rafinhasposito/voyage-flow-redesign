@@ -46,6 +46,7 @@ const navigation: NavSection[] = [
     items: [
       { name: 'Qualidade',     href: '/admin/quality',        icon: Activity },
       { name: 'IA Concierge',  href: '/admin/ia',             icon: Brain },
+      { name: 'Simulador',     href: '/admin/simulator',      icon: Compass },
       { name: 'Tags',          href: '/admin/tags',           icon: Tag },
       { name: 'Personas',      href: '/admin/personas',       icon: Users },
       { name: 'Regras do Motor',href: '/admin/rules',         icon: Settings },

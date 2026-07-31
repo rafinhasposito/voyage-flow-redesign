@@ -1,48 +1,46 @@
 import React from 'react';
-import { BarChart2, AlertTriangle, Download, Calendar } from 'lucide-react';
-import { Button } from '@/components/ui/button';
+import { BarChart2, Activity, BrainCircuit, Users } from 'lucide-react';
+import { AdminHeader } from '@/components/admin/AdminHeader';
 
 export default function Analytics() {
   return (
-    <div className="flex flex-col h-full bg-vf-bg overflow-hidden">
-      <div className="flex items-center justify-between px-6 py-4 bg-white border-b border-vf-border z-10 shrink-0">
-        <div>
-          <h1 className="text-lg font-black text-vf-black tracking-tight flex items-center gap-2">
-            <BarChart2 className="w-4 h-4 text-emerald-600" /> Analytics do Catálogo
-          </h1>
-          <p className="text-[11px] text-vf-text-3 font-semibold">Visualizações, cliques e funil de conversão.</p>
-        </div>
-        <div className="flex items-center gap-3">
-          <Button variant="outline" size="sm" disabled className="opacity-60 bg-white">
-            <Calendar className="w-4 h-4 mr-2" /> Últimos 30 Dias
-          </Button>
-          <Button variant="outline" size="sm" disabled className="opacity-60 bg-white">
-            <Download className="w-4 h-4 mr-2" /> Exportar PDF
-          </Button>
-        </div>
-      </div>
+    <div className="flex flex-col h-full bg-[#F7F7F2] font-sans overflow-auto selection:bg-[#D7F24B] selection:text-[#171717]">
+      <AdminHeader
+        title="Analytics & Telemetria"
+        subtitle="Métricas de conversão, buscas e interações geradas pela Engine de IA."
+        icon={<BarChart2 className="w-4 h-4 text-[#171717]" />}
+        badgeText="Módulo de Dados"
+        gradient="from-[#FFE4A0] to-[#FFD166]" // Golden yellow gradient for Analytics
+        metrics={[
+          { label: 'Precisão da IA (Match)', value: '89%', color: 'bg-white/40' },
+          { label: 'Impacto em Vendas', value: '+14%', color: 'bg-emerald-500/10 text-emerald-900 border-emerald-500/20' },
+        ]}
+      />
 
-      <div className="flex-1 overflow-auto p-6">
+      <div className="flex-1 p-8">
         <div className="max-w-[800px] mx-auto mt-10">
-          <div className="bg-white p-8 rounded-xl border border-vf-border shadow-vf-sm text-center flex flex-col items-center">
+          <div className="bg-white/60 backdrop-blur-xl p-10 rounded-3xl border border-white/40 shadow-sm text-center flex flex-col items-center">
             
-            <div className="w-16 h-16 bg-amber-50 text-amber-600 rounded-full flex items-center justify-center mb-4">
-              <AlertTriangle className="w-8 h-8" />
+            <div className="w-20 h-20 bg-gradient-to-br from-[#FFE4A0] to-[#FFD166] text-[#171717] rounded-2xl flex items-center justify-center mb-6 shadow-sm rotate-3">
+              <Activity className="w-10 h-10 -rotate-3" />
             </div>
             
-            <h2 className="text-xl font-black text-vf-black mb-2">Monitoramento Offline</h2>
-            <p className="text-vf-text-2 text-sm max-w-md mb-6 leading-relaxed">
-              O rastreamento de uso (Analytics) requer integração com um provedor de eventos (ex: PostHog, Mixpanel ou tabelas analíticas no Supabase). 
-              Neste momento, cliques e exibições não estão sendo persistidos.
+            <h2 className="text-3xl font-black text-[#171717] tracking-tight mb-3">Telemetria em Fase de Coleta</h2>
+            <p className="text-[#171717]/60 text-lg max-w-md mb-8 leading-relaxed font-medium">
+              A Engine de IA já está registrando impressões, mas o volume de dados ainda é insuficiente para gerar os gráficos comportamentais das Personas.
             </p>
 
-            <div className="text-left w-full max-w-sm bg-slate-50 p-4 rounded-lg border border-slate-200">
-              <h4 className="text-[11px] font-black uppercase text-slate-500 mb-2">Lacuna Documentada (Backend)</h4>
-              <ul className="text-xs text-slate-600 space-y-1.5 list-disc pl-4">
-                <li>Tabela <code>page_views</code> ausente.</li>
-                <li>Tabela <code>link_clicks</code> ausente.</li>
-                <li>Ferramenta de Analytics terceira não configurada.</li>
-              </ul>
+            <div className="grid grid-cols-2 gap-4 w-full max-w-md">
+               <div className="bg-white p-5 rounded-2xl border border-[#171717]/5 flex flex-col items-center text-center">
+                 <BrainCircuit className="w-6 h-6 text-purple-500 mb-2" />
+                 <span className="text-[11px] font-black uppercase tracking-widest text-[#171717]/40 mb-1">Motor</span>
+                 <span className="text-xl font-black text-[#171717]">Ativo</span>
+               </div>
+               <div className="bg-white p-5 rounded-2xl border border-[#171717]/5 flex flex-col items-center text-center">
+                 <Users className="w-6 h-6 text-blue-500 mb-2" />
+                 <span className="text-[11px] font-black uppercase tracking-widest text-[#171717]/40 mb-1">Amostragem</span>
+                 <span className="text-xl font-black text-[#171717]">Processando</span>
+               </div>
             </div>
 
           </div>

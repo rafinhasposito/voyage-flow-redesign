@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Plane, ChevronDown, ChevronUp } from 'lucide-react';
 import { TripSpaceStop } from '@/types/tripSpace.types';
 import { DocumentUploadButton } from './DocumentUploadButton';
+import { StatusBadge, getStopStatus } from './StatusBadge';
 
 interface FlightCardProps {
   stop: TripSpaceStop;
@@ -9,9 +10,10 @@ interface FlightCardProps {
   onClick?: () => void;
   tripId?: string;
   userId?: string;
+  hideTimelineDot?: boolean;
 }
 
-export function FlightCard({ stop, isSelected, onClick, tripId, userId }: FlightCardProps) {
+export function FlightCard({ stop, isSelected, onClick, tripId, userId, hideTimelineDot }: FlightCardProps) {
   const [expanded, setExpanded] = useState(false);
 
   const isArrival = stop.title.toLowerCase().includes('chegada');
@@ -19,12 +21,14 @@ export function FlightCard({ stop, isSelected, onClick, tripId, userId }: Flight
 
   return (
     <div className="relative group">
-      {/* Timeline Node Dot */}
-      <div className={`absolute -left-[39px] top-6 w-7 h-7 rounded-full border-4 border-white flex items-center justify-center transition-colors z-10 shadow-sm ${
-        isArrival ? 'bg-indigo-600 text-white' : 'bg-slate-900 text-lime-400'
-      }`}>
-        <Plane className="w-3 h-3" />
-      </div>
+      {/* Timeline Node Dot (apenas se não estiver oculto pelo modo mobile V2) */}
+      {!hideTimelineDot && (
+        <div className={`absolute -left-[39px] top-6 w-7 h-7 rounded-full border-4 border-white flex items-center justify-center transition-colors z-10 shadow-sm ${
+          isArrival ? 'bg-indigo-600 text-white' : 'bg-slate-900 text-lime-400'
+        }`}>
+          <Plane className="w-3 h-3" />
+        </div>
+      )}
 
       <div
         onClick={() => {
@@ -60,6 +64,9 @@ export function FlightCard({ stop, isSelected, onClick, tripId, userId }: Flight
               <h3 className="font-black text-slate-900 text-2xl leading-tight tracking-tight mt-1">
                 {stop.title}
               </h3>
+              <div className="mt-2">
+                <StatusBadge status={getStopStatus(stop)} />
+              </div>
             </div>
             <div className="text-right">
               <p className="text-slate-900 font-black text-3xl tracking-tighter">{stop.time}</p>

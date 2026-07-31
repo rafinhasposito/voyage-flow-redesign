@@ -1,10 +1,12 @@
 import React, { useEffect, useState, useMemo } from "react";
-import { useNavigate, Link } from "react-router-dom";
+import { useNavigate, Link, useSearchParams } from "react-router-dom";
 import {
   Plus, Search, MoreHorizontal, Library, Edit, Copy, Eye, EyeOff, LayoutGrid, LayoutList,
-  UploadCloud, ImageIcon, MapPin, List, Map as MapIcon, ChevronLeft, ChevronRight, X
+  UploadCloud, ImageIcon, MapPin, List, Map as MapIcon, ChevronLeft, ChevronRight, X, Trash2,
+  ChevronDown, Tag, Sparkles
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
+import { ExperienceRepository } from "@/repositories/ExperienceRepository";
 import { Database } from "@/types/supabase.types";
 import { normalizeTechnicalType } from "@/lib/experienceUtils";
 import { cn, isVideoUrl } from "@/lib/utils";
@@ -46,15 +48,15 @@ function QualityBadge({ exp }: { exp: ExperienceRow }) {
 
   if (missing.length === 0) {
     return (
-      <span className="inline-flex items-center gap-1.5 text-[11px] font-black uppercase tracking-wider text-emerald-700 bg-emerald-50 border border-emerald-200 px-2.5 py-1 rounded-full">
+      <Link to={`/admin/experiences/${exp.id}`} className="inline-flex items-center gap-1.5 text-[11px] font-black uppercase tracking-wider text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 px-2.5 py-1 rounded-full cursor-pointer transition-colors shadow-sm">
         <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.8)]"/> Perfeito
-      </span>
+      </Link>
     );
   }
   return (
-    <span className="inline-flex items-center gap-1.5 text-[11px] font-black uppercase tracking-wider text-amber-700 bg-amber-50 border border-amber-200 px-2.5 py-1 rounded-full" title={`Faltando: ${missing.join(', ')}`}>
+    <Link to={`/admin/experiences/${exp.id}`} className="inline-flex items-center gap-1.5 text-[11px] font-black uppercase tracking-wider text-amber-700 bg-amber-50 hover:bg-amber-100 border border-amber-200 px-2.5 py-1 rounded-full cursor-pointer transition-colors shadow-sm" title={`Faltando: ${missing.join(', ')}`}>
       <div className="w-1.5 h-1.5 rounded-full bg-amber-500 shadow-[0_0_8px_rgba(245,158,11,0.8)]"/> {missing.length} Pendências
-    </span>
+    </Link>
   );
 }
 
@@ -83,7 +85,7 @@ function SparklesIcon(props: any) {
   );
 }
 
-function RowMenu({ exp, onDuplicate, onToggleStatus }: { exp: ExperienceRow; onDuplicate: () => void; onToggleStatus: () => void; }) {
+function RowMenu({ exp, onDuplicate, onToggleStatus, onDelete }: { exp: ExperienceRow; onDuplicate: () => void; onToggleStatus: () => void; onDelete?: () => void; }) {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
@@ -105,6 +107,11 @@ function RowMenu({ exp, onDuplicate, onToggleStatus }: { exp: ExperienceRow; onD
         <DropdownMenuItem onClick={onDuplicate} className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-[14px] font-bold text-[#171717] cursor-pointer hover:bg-[#171717]/5 transition-colors">
           <Copy className="w-4 h-4 text-[#171717]/60" /> Duplicar
         </DropdownMenuItem>
+        {exp.status === 'archived' && onDelete && (
+          <DropdownMenuItem onClick={onDelete} className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-[14px] font-bold text-red-600 cursor-pointer hover:bg-red-50 transition-colors">
+            <Trash2 className="w-4 h-4 text-red-600" /> Excluir Permanentemente
+          </DropdownMenuItem>
+        )}
       </DropdownMenuContent>
     </DropdownMenu>
   );
@@ -129,11 +136,19 @@ export default function ExperiencesList({
     return (localStorage.getItem('catalog_view_mode') as 'table' | 'list' | 'cards') || 'table';
   });
 
+  const [searchParams] = useSearchParams();
+  const initialQuality = searchParams.get('quality') || "all";
+  
   const [showMap, setShowMap] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [categoryFilter, setCategoryFilter] = useState<string>("all");
   const [typeFilter, setTypeFilter] = useState<string>(fixedType || "all");
+  const [qualityFilter, setQualityFilter] = useState<string>(initialQuality);
+
+  useEffect(() => {
+    setTypeFilter(fixedType || "all");
+  }, [fixedType]);
 
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 20;
@@ -208,6 +223,7 @@ export default function ExperiencesList({
             setStatusFilter("all");
             setCategoryFilter("all");
             setTypeFilter("all");
+            setQualityFilter("all");
             setTimeout(() => locateAndHighlight(experiences), 150);
           }
         },
@@ -273,11 +289,47 @@ export default function ExperiencesList({
     }
   };
 
-  // Reseta a página ao mudar filtros
+  const handleDelete = async (exp: ExperienceRow) => {
+    if (window.confirm(`Você está prestes a DELETAR PERMANENTEMENTE "${exp.title}".\n\nEssa ação NÃO pode ser desfeita.\nTem certeza absoluta?`)) {
+      try {
+        await ExperienceRepository.delete(exp.id);
+        setExperiences(experiences.filter(e => e.id !== exp.id));
+        toast.success("Experiência excluída definitivamente.");
+      } catch (err: any) {
+        console.error(err);
+        toast.error("Erro ao excluir: " + err.message);
+      }
+    }
+  };
+
+  const handleClearDraftsAndTrash = async () => {
+    const toDelete = experiences.filter(e => e.status === 'draft' || e.status === 'archived');
+    if (toDelete.length === 0) {
+      toast.info("Não há rascunhos ou lixeiras para limpar.");
+      return;
+    }
+    
+    if (window.confirm(`ATENÇÃO: Você vai deletar permanentemente ${toDelete.length} experiências (Rascunhos e Lixeira).\nIsso NÃO pode ser desfeita.\nTem certeza absoluta?`)) {
+      setLoading(true);
+      try {
+        for (const e of toDelete) {
+          await ExperienceRepository.delete(e.id);
+        }
+        setExperiences(experiences.filter(e => e.status !== 'draft' && e.status !== 'archived'));
+        toast.success(`${toDelete.length} experiências excluídas definitivamente.`);
+      } catch (err: any) {
+        console.error(err);
+        toast.error("Erro ao limpar lixeira: " + err.message);
+      } finally {
+        setLoading(false);
+      }
+    }
+  };
+
   useEffect(() => {
     setCurrentPage(1);
     setSelectedExpId(null);
-  }, [searchQuery, statusFilter, categoryFilter, typeFilter]);
+  }, [searchQuery, statusFilter, categoryFilter, typeFilter, qualityFilter]);
 
   const filtered = useMemo(() => {
     return experiences.filter(exp => {
@@ -293,10 +345,19 @@ export default function ExperiencesList({
         
       const matchesCategory = categoryFilter === 'all' || exp.category === categoryFilter;
       const matchesType = typeFilter === 'all' || normalizeTechnicalType(exp.type) === typeFilter;
+      
+      let matchesQuality = true;
+      if (qualityFilter === 'no_media') {
+        matchesQuality = !exp.media_urls || exp.media_urls.length === 0 || !exp.media_urls.some(url => getSafeMediaUrl(url) !== null);
+      } else if (qualityFilter === 'no_gps') {
+        matchesQuality = !exp.location_lat || !exp.location_lng;
+      } else if (qualityFilter === 'pending') {
+        matchesQuality = !exp.location_lat || !exp.neighborhood || !exp.duration_minutes;
+      }
 
-      return matchesSearch && matchesStatus && matchesCategory && matchesType;
+      return matchesSearch && matchesStatus && matchesCategory && matchesType && matchesQuality;
     });
-  }, [experiences, searchQuery, statusFilter, categoryFilter, typeFilter]);
+  }, [experiences, searchQuery, statusFilter, categoryFilter, typeFilter, qualityFilter]);
 
   const totalPages = Math.ceil(filtered.length / itemsPerPage);
   const currentData = filtered.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
@@ -355,6 +416,9 @@ export default function ExperiencesList({
               <Link to="/admin/experiences/new" className="h-12 px-6 bg-[#171717] hover:bg-[#171717]/90 text-white rounded-xl font-bold flex items-center gap-2 transition-all shadow-[0_8px_20px_rgba(23,23,23,0.2)]">
                 <Plus className="w-4 h-4" /> Nova Experiência
               </Link>
+              <button onClick={handleClearDraftsAndTrash} className="h-12 px-6 bg-red-50 hover:bg-red-100 text-red-600 rounded-xl font-bold flex items-center gap-2 transition-all border border-red-200 shadow-sm">
+                <Trash2 className="w-4 h-4" /> Esvaziar Lixeira / Rascunhos
+              </button>
             </div>
           </div>
 
@@ -392,33 +456,72 @@ export default function ExperiencesList({
 
           <div className="flex items-center gap-3 overflow-x-auto pb-2 md:pb-0 scrollbar-hide">
             
-            <div className="flex items-center gap-2 bg-[#F7F7F2] p-1 rounded-xl">
-               <select 
-                value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}
-                className="bg-transparent border-0 h-10 px-3 text-[13px] font-bold text-[#171717] outline-none cursor-pointer"
-               >
-                 <option value="all">Status: Todos</option>
-                 <option value="published">Publicado</option>
-                 <option value="draft">Rascunho</option>
-                 <option value="archived">Lixeira</option>
-               </select>
+            <div className="flex items-center gap-3">
+               
+               {/* Status Filter */}
+               <div className="relative group">
+                 <div className="absolute inset-y-0 left-3 flex items-center pointer-events-none">
+                   <div className={cn("w-2 h-2 rounded-full", statusFilter === 'published' ? 'bg-emerald-500' : statusFilter === 'draft' ? 'bg-amber-400' : statusFilter === 'archived' ? 'bg-rose-500' : 'bg-[#171717]/30')} />
+                 </div>
+                 <select 
+                  value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}
+                  className="h-10 pl-8 pr-8 appearance-none bg-white hover:bg-[#F7F7F2] border border-[#171717]/10 rounded-xl text-[13px] font-bold text-[#171717] outline-none cursor-pointer transition-all shadow-sm focus:ring-2 focus:ring-[#D7F24B]"
+                 >
+                   <option value="all">Status: Todos</option>
+                   <option value="published">Publicados</option>
+                   <option value="draft">Rascunhos</option>
+                   <option value="archived">Na Lixeira</option>
+                 </select>
+                 <div className="absolute inset-y-0 right-3 flex items-center pointer-events-none text-[#171717]/40 group-hover:text-[#171717] transition-colors">
+                   <ChevronDown className="w-4 h-4" />
+                 </div>
+               </div>
+
                {!fixedType && (
                  <>
-                   <div className="w-px h-5 bg-[#171717]/10" />
-                   <select 
-                    value={typeFilter} onChange={(e) => setTypeFilter(e.target.value)}
-                    className="bg-transparent border-0 h-10 px-3 text-[13px] font-bold text-[#171717] outline-none cursor-pointer"
-                   >
-                     <option value="all">Tipo Técnico: Todos</option>
-                     {technicalTypes.map(t => <option key={t as string} value={t as string}>{translateTerm(t as string)}</option>)}
-                   </select>
+                   {/* Type Filter */}
+                   <div className="relative group">
+                     <div className="absolute inset-y-0 left-3 flex items-center pointer-events-none text-[#171717]/40 group-hover:text-[#171717] transition-colors">
+                       <Tag className="w-3.5 h-3.5" />
+                     </div>
+                     <select 
+                      value={typeFilter} onChange={(e) => setTypeFilter(e.target.value)}
+                      className="h-10 pl-9 pr-8 appearance-none bg-white hover:bg-[#F7F7F2] border border-[#171717]/10 rounded-xl text-[13px] font-bold text-[#171717] outline-none cursor-pointer transition-all shadow-sm focus:ring-2 focus:ring-[#D7F24B]"
+                     >
+                       <option value="all">Tipo: Todos</option>
+                       {technicalTypes.map(t => <option key={t as string} value={t as string}>{translateTerm(t as string)}</option>)}
+                     </select>
+                     <div className="absolute inset-y-0 right-3 flex items-center pointer-events-none text-[#171717]/40 group-hover:text-[#171717] transition-colors">
+                       <ChevronDown className="w-4 h-4" />
+                     </div>
+                   </div>
                  </>
                )}
+
+               {/* Quality Filter */}
+               <div className="relative group">
+                 <div className="absolute inset-y-0 left-3 flex items-center pointer-events-none text-[#171717]/40 group-hover:text-[#171717] transition-colors">
+                   <Sparkles className="w-3.5 h-3.5" />
+                 </div>
+                 <select 
+                  value={qualityFilter} onChange={(e) => setQualityFilter(e.target.value)}
+                  className="h-10 pl-9 pr-8 appearance-none bg-white hover:bg-[#F7F7F2] border border-[#171717]/10 rounded-xl text-[13px] font-bold text-[#171717] outline-none cursor-pointer transition-all shadow-sm focus:ring-2 focus:ring-[#D7F24B]"
+                 >
+                   <option value="all">Qualidade: Todas</option>
+                   <option value="no_media">Sem Mídia Visual</option>
+                   <option value="no_gps">Coordenadas Ausentes</option>
+                   <option value="pending">Pendências Críticas</option>
+                 </select>
+                 <div className="absolute inset-y-0 right-3 flex items-center pointer-events-none text-[#171717]/40 group-hover:text-[#171717] transition-colors">
+                   <ChevronDown className="w-4 h-4" />
+                 </div>
+               </div>
+
             </div>
 
-            {(searchQuery || statusFilter !== 'all' || categoryFilter !== 'all' || (typeFilter !== 'all' && !fixedType)) && (
+            {(searchQuery || statusFilter !== 'all' || categoryFilter !== 'all' || qualityFilter !== 'all' || (typeFilter !== 'all' && !fixedType)) && (
               <button 
-                onClick={() => { setSearchQuery(""); setStatusFilter("all"); setCategoryFilter("all"); if(!fixedType) setTypeFilter("all"); }}
+                onClick={() => { setSearchQuery(""); setStatusFilter("all"); setCategoryFilter("all"); setQualityFilter("all"); if(!fixedType) setTypeFilter("all"); }}
                 className="h-10 px-4 flex items-center gap-2 text-[12px] font-black uppercase tracking-wider text-rose-500 hover:bg-rose-50 rounded-xl transition-colors"
               >
                 Limpar
@@ -514,6 +617,7 @@ export default function ExperiencesList({
                                     exp={exp}
                                     onDuplicate={() => handleDuplicate(exp)}
                                     onToggleStatus={() => handleToggleStatus(exp)}
+                                    onDelete={() => handleDelete(exp)}
                                   />
                                 </div>
                               </td>
@@ -555,9 +659,15 @@ export default function ExperiencesList({
                            </div>
                          </div>
                          <div className="shrink-0 pl-4 border-l border-[#171717]/5 flex flex-col items-center justify-center gap-2">
-                            <Link to={`/admin/experiences/${exp.id}`} className="w-12 h-12 rounded-full bg-[#171717]/5 flex items-center justify-center text-[#171717]/60 hover:bg-[#D7F24B] hover:text-[#171717] transition-all">
-                              <Edit className="w-5 h-5" />
+                            <Link to={`/admin/experiences/${exp.id}`} title="Editar" className="w-10 h-10 rounded-full bg-[#171717]/5 flex items-center justify-center text-[#171717]/60 hover:bg-[#D7F24B] hover:text-[#171717] transition-all">
+                              <Edit className="w-4 h-4" />
                             </Link>
+                            <button onClick={(e) => { e.stopPropagation(); handleDuplicate(exp); }} title="Duplicar" className="w-10 h-10 rounded-full bg-[#171717]/5 flex items-center justify-center text-[#171717]/60 hover:bg-[#171717] hover:text-white transition-all">
+                              <Copy className="w-4 h-4" />
+                            </button>
+                            <button onClick={(e) => { e.stopPropagation(); handleDelete(exp); }} title="Excluir" className="w-10 h-10 rounded-full bg-red-50 flex items-center justify-center text-red-500 hover:bg-red-500 hover:text-white transition-all">
+                              <Trash2 className="w-4 h-4" />
+                            </button>
                          </div>
                       </div>
                     ))}
@@ -595,9 +705,17 @@ export default function ExperiencesList({
                               <div className="flex flex-col gap-2">
                                 <QualityBadge exp={exp} />
                               </div>
-                              <button onClick={(e) => { e.stopPropagation(); navigate(`/admin/experiences/${exp.id}`); }} className="w-10 h-10 rounded-full bg-[#171717]/5 flex items-center justify-center text-[#171717]/40 hover:bg-[#171717] hover:text-white transition-colors">
-                                <Edit className="w-4 h-4" />
-                              </button>
+                              <div className="flex items-center gap-1.5">
+                                <button onClick={(e) => { e.stopPropagation(); handleDuplicate(exp); }} title="Duplicar" className="w-8 h-8 rounded-full bg-[#171717]/5 flex items-center justify-center text-[#171717]/40 hover:bg-[#171717] hover:text-white transition-colors">
+                                  <Copy className="w-3.5 h-3.5" />
+                                </button>
+                                <button onClick={(e) => { e.stopPropagation(); handleDelete(exp); }} title="Excluir" className="w-8 h-8 rounded-full bg-red-50 flex items-center justify-center text-red-400 hover:bg-red-500 hover:text-white transition-colors">
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                                <button onClick={(e) => { e.stopPropagation(); navigate(`/admin/experiences/${exp.id}`); }} title="Editar" className="w-10 h-10 rounded-full bg-[#171717]/5 flex items-center justify-center text-[#171717]/60 hover:bg-[#D7F24B] hover:text-[#171717] transition-colors">
+                                  <Edit className="w-4 h-4" />
+                                </button>
+                              </div>
                            </div>
                          </div>
                       </div>

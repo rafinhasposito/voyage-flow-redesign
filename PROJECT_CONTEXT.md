@@ -175,3 +175,17 @@ Backend comercial — Congelado
 - **Branch:** feature/itinerary-engine-v2-geography
 - **Implementações:** Provider local determinístico (`local_fallback`), deslocamento temporal incorporado, conflitos evitados via Repair Pass.
 - **Bloqueios Atuais:** API externa de mapas foi preterida intencionalmente. Trip Space permanece bloqueado.
+
+## 🚨 REGRA DE RISCO DE MORTE (CRÍTICA) 🚨
+**NUNCA, SOB NENHUMA HIPÓTESE, ENGESSE O PRODUTO.**
+O Voyage Flow é um **Concierge Digital Premium** e um **Planejador Interativo Dinâmico**.
+O usuário TEM O DIREITO ABSOLUTO de ADICIONAR, DELETAR e MOVER qualquer experiência em qualquer dia, a qualquer momento, diretamente pela interface.
+Se o banco de dados apresentar inconsistências (como sujeira de testes, dias misturados, etc.), **CURE O BANCO DE DADOS**.
+**NUNCA** crie "workarounds" (gambiarras) no código que ignorem o banco de dados e leiam de arquivos estáticos (hardcoded) para fazer a tela parecer bonita.
+Fazer isso desliga o motor principal do Voyage Flow, transformando-o num visualizador inútil e retirando o controle do usuário.
+**Qualquer agente de IA que transformar o Voyage Flow num PDF estático estará destruindo o propósito do produto.**
+
+## 🚨 REGRA DE RASTREAMENTO ABSOLUTO (RAFAEL_LOG) 🚨
+TODO pedido do Rafael (até uma vírgula) e TODA reclamação ou erro reportado deve ser obrigatoriamente registrado no arquivo **`RAFAEL_LOG.md`**.
+Isso garante que um erro nunca seja cometido duas vezes e que exista um histórico transparente do que foi solicitado.
+Ao iniciar qualquer tarefa, o Agente DEVE ler o `RAFAEL_LOG.md` para entender as dores e exigências anteriores do usuário.

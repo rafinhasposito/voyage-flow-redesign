@@ -1,5 +1,4 @@
 import { TripSpaceViewModel, TripSpaceDay, TripSpaceStop, TripSpaceBasecamp, TripSpaceReservation, TripSpaceIdea, TripSpaceChecklistItem, TripSpaceDocument, TripSpaceProfile } from '@/types/tripSpace.types';
-import { FALLBACK_ATTRACTIONS } from '@/data/fallbackData';
 
 export function buildTripSpaceViewModel(
   trip: any,
@@ -33,9 +32,9 @@ export function buildTripSpaceViewModel(
   
   // Filter out V2 metadata
   const validDays = rawItinerary.filter((d: any) => !d._isMetadata);
-
   const days: TripSpaceDay[] = validDays.map((d: any, idx: number) => {
-    const dayNum = d.day || d.dayNumber || idx + 1;
+    // IGNORAR o d.day do banco para não pular dias
+    const dayNum = idx + 1;
     
     let dayDateStr = '';
     let fullDateStr = '';
@@ -65,16 +64,7 @@ export function buildTripSpaceViewModel(
       // Find catalog match if experience_id exists (prioritize sourceExperienceId as att.id might be deterministic draft id)
       const catExp = catalog.find((c: any) => c.id === att.sourceExperienceId || c.id === att.experience_id || c.id === att.id);
 
-      const matchedFallback = FALLBACK_ATTRACTIONS.find((f: any) =>
-        f.id === (att.id || att.sourceExperienceId || att.experience_id) ||
-        f.name.toLowerCase().includes((att.title || att.name || '').toLowerCase())
-      );
 
-      const categoryDefaultImage =
-        (att.type === 'nature' || att.category === 'nature') ? 'https://images.unsplash.com/photo-1501594907352-04cda38ebc29?w=600&q=80' :
-        (att.type === 'museum' || att.category === 'culture' || att.type === 'culture') ? 'https://images.unsplash.com/photo-1565008447742-97f6f38c985c?w=600&q=80' :
-        (att.type === 'food' || att.category === 'gastronomy') ? 'https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?w=600&q=80' :
-        'https://images.unsplash.com/photo-1534430480872-3498386e7856?w=600&q=80';
 
       let rawTitle = att.title || att.name || catExp?.name || catExp?.title || 'Atividade';
       if (rawTitle.startsWith('Experiência ') && (catExp?.name || catExp?.title)) {
@@ -82,13 +72,13 @@ export function buildTripSpaceViewModel(
       }
 
       const catExpImageUrl = catExp?.cover_image_url || catExp?.cover_media_url || catExp?.photoUrl || catExp?.imageUrl || catExp?.image_url || catExp?.image || catExp?.images?.[0] || (catExp?.media_urls && catExp.media_urls.length > 0 ? catExp.media_urls[0] : null);
-      const imageUrl = att.image || att.images?.[0] || att.imageUrl || att.photoUrl || catExpImageUrl || matchedFallback?.image || categoryDefaultImage;
-      const lat = att.coordinates?.lat ?? att.location_lat ?? att.lat ?? catExp?.coordinates?.lat ?? catExp?.location_lat ?? matchedFallback?.coordinates?.lat;
-      const lng = att.coordinates?.lng ?? att.location_lng ?? att.lng ?? catExp?.coordinates?.lng ?? catExp?.location_lng ?? matchedFallback?.coordinates?.lng;
+      const imageUrl = att.image || att.images?.[0] || att.imageUrl || att.photoUrl || catExpImageUrl || undefined;
+      const lat = att.coordinates?.lat ?? att.location_lat ?? att.lat ?? catExp?.coordinates?.lat ?? catExp?.location_lat;
+      const lng = att.coordinates?.lng ?? att.location_lng ?? att.lng ?? catExp?.coordinates?.lng ?? catExp?.location_lng;
 
       // Planned start time calculation fallback if missing
       const fallbackHour = 9 + (stopIdx * 3);
-      let timeStr = att.startTime || att.plannedStartTime || att.time || `${String(fallbackHour).padStart(2, '0')}:00`;
+      let timeStr = att.plannedStartTime || att.time || att.startTime || `${String(fallbackHour).padStart(2, '0')}:00`;
       if (typeof timeStr === 'string' && timeStr.includes('T')) {
         timeStr = timeStr.split('T')[1].substring(0, 5);
       }
@@ -99,25 +89,14 @@ export function buildTripSpaceViewModel(
         desc = desc.substring(0, 197) + '...';
       }
 
-      const isTransit = rawTitle.includes('→') || rawTitle.includes('->');
-      
-      // Skip rendering pure transit nodes as cards
-      if (isTransit) return;
-
-      let category = att.type || att.category || catExp?.category || 'Atração';
-      const lowerTitle = rawTitle.toLowerCase();
-      
-      // Convert generic pauses into gamified AI Prompts so the user has the power to choose what to do in gaps
-      if (lowerTitle.includes('pausa') || lowerTitle.includes('descanso') || lowerTitle.includes('café')) {
-         category = 'gamified_prompt';
-      }
+      const category = att.type || att.category || catExp?.category || 'Atração';
 
       stops.push({
         id: att.id || att.sourceExperienceId || att.experience_id || `stop_${dayNum}_${stopIdx}`,
-        title: category === 'gamified_prompt' ? 'O que você quer fazer agora?' : rawTitle,
+        title: rawTitle,
         category: category,
         neighborhood: att.location || att.neighborhood || catExp?.neighborhood || destination?.name || 'Centro',
-        description: category === 'gamified_prompt' ? 'Eu separei algumas opções perfeitas para este momento da sua viagem. Escolha uma para continuarmos montando o seu dia!' : desc,
+        description: desc,
         duration: att.durationMinutes ? `${att.durationMinutes} min` : (att.durationHours ? `${att.durationHours * 60} min` : (att.duration ? `${att.duration}` : '1h 30min')),
         cost: att.costUSD !== undefined ? (att.costUSD === 0 ? 'Grátis' : `US$ ${att.costUSD}`) : (att.cost || 'Grátis'),
         imageUrl: imageUrl || undefined,
@@ -128,10 +107,10 @@ export function buildTripSpaceViewModel(
         bookingUrl: att.bookingUrl || catExp?.booking_url || catExp?.bookingUrl || catExp?.tickets_url || catExp?.website || undefined,
         contactPhone: att.contactPhone || catExp?.contactPhone || catExp?.phone || undefined,
         externalLink: att.externalLink || catExp?.externalLink || catExp?.website || undefined,
-        rating: att.rating || catExp?.rating || catExp?.score || 4.9,
-        reviewCount: att.reviewCount || catExp?.review_count || catExp?.reviews || Math.floor(Math.random() * 500) + 100,
+        rating: att.rating || catExp?.rating || catExp?.score || undefined,
+        reviewCount: att.reviewCount || catExp?.review_count || catExp?.reviews || undefined,
         time: timeStr,
-        isBooked: !!att.isBooked || !!att.isFixed || !!att.manualLock || reservations.some((r: any) => r.title?.toLowerCase().includes((att.title || att.name || '').toLowerCase())),
+        isBooked: !!att.isBooked || !!att.isFixed || !!att.manualLock || (() => { const t = (att.title || att.name || '').toLowerCase(); return t.length > 2 && reservations.some((r: any) => (r.title || '').toLowerCase().includes(t)); })(),
         isLocked: !!att.manualLock || !!att.manualMetadata?.locked,
         isFixed: !!att.isFixed,
         matchScore: att.matchScore || catExp?.score || undefined,
@@ -139,21 +118,7 @@ export function buildTripSpaceViewModel(
       });
     });
 
-    // INJECT GAMIFIED PROMPT FOR DEMONSTRATION ON DAY 1
-    if (dayNum === 1 && stops.length > 1) {
-      // Find a good place to insert (after the first or second activity)
-      const insertIdx = Math.min(2, stops.length);
-      stops.splice(insertIdx, 0, {
-        id: 'gamified_prompt_1',
-        title: 'O que fazer agora à tarde?',
-        category: 'gamified_prompt',
-        time: '14:30',
-        description: 'Tenho sugestões incríveis que combinam com o seu perfil. Qual delas você prefere encaixar agora?',
-        metadata: {
-           promptOptions: catalog.slice(2, 5)
-        }
-      });
-    }
+
 
     return {
       dayNumber: dayNum,

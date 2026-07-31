@@ -42,12 +42,26 @@ export interface ItineraryEditDraft {
 // ─────────────────────────────────────────────────────────────────────────────
 export function normalizeItineraryDays(itinerary: any[]): any[] {
   if (!Array.isArray(itinerary)) return [];
+
+  // Índice de dias reais (excluindo metadados) para calcular dayNumber sequencial
+  let dayIdx = 0;
   
   return itinerary.map((day: any) => {
     // Metadados não são dias — preservar intactos
     if (day._isMetadata) return { ...day };
     
     const clone = { ...day };
+
+    // ── Garantir dayNumber canônico ──────────────────────────────────────────
+    // O banco pode gravar `day` (V1) ou `dayNumber` (V2).
+    // A engine sempre opera sobre `dayNumber`.
+    // Regra: day.dayNumber > day.day > posição sequencial (1-based)
+    if (!clone.dayNumber && !clone.day) {
+      clone.dayNumber = dayIdx + 1;
+    } else if (!clone.dayNumber) {
+      clone.dayNumber = clone.day;
+    }
+    dayIdx++;
 
     // V1: usa `attractions`, V2: usa `activities`
     const fromActivities: any[] = Array.isArray(clone.activities) ? clone.activities : [];
@@ -167,6 +181,9 @@ export function applyEditIntentDraft(
   const warnings: string[] = [];
   const catalog: any[] = (intent as any).catalogContext || [];
 
+  // Helper: resolve dayNumber de um objeto de dia (aceita `dayNumber` ou `day`)
+  const resolveDayNum = (d: any): number => d.dayNumber ?? d.day ?? -1;
+
   // ── Helper: encontrar atividade por id ──────────────────────────────────
   const findActivityInfo = (id: string) => {
     for (let dIdx = 0; dIdx < draftItinerary.length; dIdx++) {
@@ -242,19 +259,19 @@ export function applyEditIntentDraft(
 
     info.day.activities.splice(info.aIdx, 1);
     const targetDayObj = draftItinerary.find(
-      (d: any) => !d._isMetadata && d.dayNumber === intent.targetDay
+      (d: any) => !d._isMetadata && resolveDayNum(d) === intent.targetDay
     ) as PersistedDayV2;
     if (targetDayObj && Array.isArray(targetDayObj.activities)) {
       targetDayObj.activities.splice(intent.targetPosition, 0, info.activity);
     }
 
     const targetDayForCalc = draftItinerary.find(
-      (d: any) => !d._isMetadata && d.dayNumber === intent.targetDay
+      (d: any) => !d._isMetadata && resolveDayNum(d) === intent.targetDay
     ) as PersistedDayV2;
     if (targetDayForCalc) recalculateDay(targetDayForCalc);
     if (intent.sourceDay !== undefined && intent.sourceDay !== intent.targetDay) {
       const sourceDayObj = draftItinerary.find(
-        (d: any) => !d._isMetadata && d.dayNumber === intent.sourceDay
+        (d: any) => !d._isMetadata && resolveDayNum(d) === intent.sourceDay
       ) as PersistedDayV2;
       if (sourceDayObj) recalculateDay(sourceDayObj);
     }
@@ -288,7 +305,7 @@ export function applyEditIntentDraft(
 
     // Recalcular o dia após remoção
     const dayToRecalc = draftItinerary.find(
-      (d: any) => !d._isMetadata && d.dayNumber === (info.day as any).dayNumber
+      (d: any) => !d._isMetadata && resolveDayNum(d) === resolveDayNum(info.day as any)
     ) as PersistedDayV2;
     if (dayToRecalc) recalculateDay(dayToRecalc);
   }
@@ -346,7 +363,7 @@ export function applyEditIntentDraft(
     }
 
     const targetDayObj = draftItinerary.find(
-      (d: any) => !d._isMetadata && d.dayNumber === intent.targetDay
+      (d: any) => !d._isMetadata && resolveDayNum(d) === intent.targetDay
     ) as any;
 
     if (!targetDayObj) {

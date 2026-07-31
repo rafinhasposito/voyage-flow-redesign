@@ -44,22 +44,24 @@ export function TripCollections({ savedIdeas, maybeIdeas, recommendations, onAdd
             </p>
           </div>
         ) : (
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
             {savedIdeas.map((idea) => (
-              <div key={idea.id} onClick={() => setSelectedIdea(idea)} className="bg-white border border-slate-200/80 rounded-2xl p-3 shadow-xs hover:shadow-md transition-all group cursor-pointer flex flex-col justify-between">
-                <div>
-                  <div className="relative h-32 rounded-xl overflow-hidden mb-3 bg-slate-100">
-                    {idea.photoUrl ? (
-                      <img src={idea.photoUrl} alt={idea.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform" />
-                    ) : (
-                      <div className="w-full h-full flex items-center justify-center text-slate-400 font-bold text-xs">Sem foto</div>
-                    )}
-                  </div>
-                  <div>
-                    <h4 className="font-extrabold text-slate-900 text-xs mb-1 line-clamp-2">{idea.title}</h4>
-                    <div className="flex items-center gap-1.5 text-[10px] font-bold text-slate-400 mb-3">
-                      <MapPin className="w-3 h-3" />
-                      <span className="truncate">{idea.location || 'Localização não informada'}</span>
+              <div key={idea.id} onClick={() => setSelectedIdea(idea)} className="bg-white border border-slate-100 rounded-[28px] p-2 shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all duration-300 group cursor-pointer flex flex-col justify-between">
+                <div className="relative h-48 sm:h-56 rounded-[20px] overflow-hidden mb-3 bg-slate-100">
+                  {idea.photoUrl ? (
+                    <img src={idea.photoUrl} alt={idea.title} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700 ease-out" />
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center text-slate-400 font-bold text-xs bg-slate-100">Sem foto</div>
+                  )}
+                  {/* Overlay gradient for text readability */}
+                  <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-900/40 to-transparent opacity-90" />
+                  
+                  {/* Text on Image */}
+                  <div className="absolute bottom-4 left-4 right-4 text-white">
+                    <h4 className="font-extrabold text-sm md:text-base mb-1.5 line-clamp-2 leading-tight drop-shadow-md">{idea.title}</h4>
+                    <div className="flex items-center gap-1.5 text-[10px] font-bold text-slate-200 uppercase tracking-widest drop-shadow-md">
+                      <MapPin className="w-3 h-3 text-lime-400" />
+                      <span className="truncate">{idea.location || 'Local'}</span>
                     </div>
                   </div>
                 </div>
@@ -70,9 +72,9 @@ export function TripCollections({ savedIdeas, maybeIdeas, recommendations, onAdd
                       e.stopPropagation();
                       onAddIdea(idea.id);
                     }}
-                    className="w-full py-1.5 px-3 bg-lime-100 hover:bg-lime-200 text-lime-900 text-[11px] font-extrabold rounded-xl flex items-center justify-center gap-1 transition-colors"
+                    className="w-full py-3 px-4 bg-slate-900 hover:bg-lime-400 text-white hover:text-slate-950 text-xs font-extrabold rounded-2xl flex items-center justify-center gap-2 transition-all shadow-sm"
                   >
-                    <Plus className="w-3.5 h-3.5" /> Adicionar
+                    <Plus className="w-4 h-4" /> Adicionar ao Dia
                   </button>
                 )}
               </div>
@@ -90,22 +92,24 @@ export function TripCollections({ savedIdeas, maybeIdeas, recommendations, onAdd
               <p className="text-xs text-slate-500 font-medium">Ideias que você marcou como Talvez, mas que não entraram no roteiro principal.</p>
             </div>
           </div>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
             {maybeIdeas.map((idea) => (
-              <div key={idea.id} onClick={() => setSelectedIdea(idea)} className="bg-white border border-slate-200/80 rounded-2xl p-3 shadow-xs hover:shadow-md transition-all group cursor-pointer flex flex-col justify-between">
-                <div>
-                  <div className="relative h-32 rounded-xl overflow-hidden mb-3 bg-slate-100">
-                    {idea.photoUrl ? (
-                      <img src={idea.photoUrl} alt={idea.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform" />
-                    ) : (
-                      <div className="w-full h-full flex items-center justify-center text-slate-400 font-bold text-xs">Sem foto</div>
-                    )}
-                  </div>
-                  <div>
-                    <h4 className="font-extrabold text-slate-900 text-xs mb-1 line-clamp-2">{idea.title}</h4>
-                    <div className="flex items-center gap-1.5 text-[10px] font-bold text-slate-400 mb-3">
-                      <MapPin className="w-3 h-3" />
-                      <span className="truncate">{idea.location || 'Localização não informada'}</span>
+              <div key={idea.id} onClick={() => setSelectedIdea(idea)} className="bg-white border border-slate-100 rounded-[28px] p-2 shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all duration-300 group cursor-pointer flex flex-col justify-between">
+                <div className="relative h-48 sm:h-56 rounded-[20px] overflow-hidden mb-3 bg-slate-100">
+                  {idea.photoUrl ? (
+                    <img src={idea.photoUrl} alt={idea.title} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700 ease-out grayscale hover:grayscale-0" />
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center text-slate-400 font-bold text-xs bg-slate-100">Sem foto</div>
+                  )}
+                  {/* Overlay gradient for text readability */}
+                  <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-900/40 to-transparent opacity-90" />
+                  
+                  {/* Text on Image */}
+                  <div className="absolute bottom-4 left-4 right-4 text-white">
+                    <h4 className="font-extrabold text-sm md:text-base mb-1.5 line-clamp-2 leading-tight drop-shadow-md text-slate-200">{idea.title}</h4>
+                    <div className="flex items-center gap-1.5 text-[10px] font-bold text-slate-400 uppercase tracking-widest drop-shadow-md">
+                      <MapPin className="w-3 h-3 text-slate-400" />
+                      <span className="truncate">{idea.location || 'Local'}</span>
                     </div>
                   </div>
                 </div>
@@ -116,9 +120,9 @@ export function TripCollections({ savedIdeas, maybeIdeas, recommendations, onAdd
                       e.stopPropagation();
                       onAddIdea(idea.id);
                     }}
-                    className="w-full py-1.5 px-3 bg-lime-100 hover:bg-lime-200 text-lime-900 text-[11px] font-extrabold rounded-xl flex items-center justify-center gap-1 transition-colors"
+                    className="w-full py-3 px-4 bg-slate-100 hover:bg-slate-200 text-slate-600 hover:text-slate-950 text-xs font-extrabold rounded-2xl flex items-center justify-center gap-2 transition-all shadow-sm"
                   >
-                    <Plus className="w-3.5 h-3.5" /> Adicionar
+                    <Plus className="w-4 h-4" /> Resgatar Talvez
                   </button>
                 )}
               </div>

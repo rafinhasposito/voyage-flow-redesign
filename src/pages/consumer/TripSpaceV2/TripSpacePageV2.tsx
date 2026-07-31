@@ -14,13 +14,14 @@ import { MobileMoreDrawer } from '../TripSpace/MobileMoreDrawer';
 import { TripHeroHeaderV2 } from './components/TripHeroHeaderV2';
 import { TripScheduleNavV2, TripViewMode } from './components/TripScheduleNavV2';
 import { WeeklyOverviewGridV2 } from './components/WeeklyOverviewGridV2';
+import { TripWalletV2 } from './components/TripWalletV2';
 export default function TripSpacePageV2() {
   const { tripId } = useParams<{ tripId: string }>();
   const navigate = useNavigate();
 
   const { 
     data, loading, error, activeDay, setActiveDay, reloadData,
-    handleToggleLock, createDraft, commitDraft, clearDraft, editDraft, draftLoading, executeDirectAction,
+    handleToggleLock, updateActivityDetails, uploadWalletDocument, deleteWalletDocument, deleteWalletReservation, createDraft, commitDraft, clearDraft, editDraft, draftLoading, executeDirectAction,
     regenerateItinerary, previewRegeneration
   } = useTripSpaceData(tripId);
 
@@ -59,8 +60,8 @@ export default function TripSpacePageV2() {
         <div className="w-12 h-12 bg-slate-900 rounded-2xl flex items-center justify-center text-lime-400 mb-4 shadow-lg animate-pulse">
           <Sparkles className="w-6 h-6" />
         </div>
-        <p className="font-extrabold text-slate-800 text-lg mb-1">Preparando seu espaço da viagem (V2)...</p>
-        <p className="text-xs text-slate-500 font-medium">Carregando a nova interface experimental.</p>
+        <p className="font-extrabold text-slate-800 text-lg mb-1">Organizando seu roteiro...</p>
+        <p className="text-xs text-slate-500 font-medium">Seu Concierge Digital está preparando todos os detalhes.</p>
       </div>
     );
   }
@@ -138,6 +139,7 @@ export default function TripSpacePageV2() {
                       basecamp={data.basecamp}
                       catalog={data.catalog}
                       onToggleLock={handleToggleLock}
+                      onUpdateActivity={updateActivityDetails}
                       onCreateDraft={createDraft}
                       onExecuteDirectAction={executeDirectAction}
                       onCommitDraft={commitDraft}
@@ -166,14 +168,13 @@ export default function TripSpacePageV2() {
 
           {activeModule === 'carteira' && (
             <TripSpaceErrorBoundary sectionName="Carteira">
-              <div className="max-w-4xl">
-                <TripPreparations
-                  activeTabOverride="reservations"
-                  tripId={data.tripId}
-                  checklist={data.checklist}
+              <div className="max-w-4xl mx-auto">
+                <TripWalletV2
                   reservations={data.reservations}
                   documents={data.documents}
-                  onChecklistUpdate={reloadData}
+                  onUploadDocument={uploadWalletDocument}
+                  onDeleteDocument={deleteWalletDocument}
+                  onDeleteReservation={deleteWalletReservation}
                 />
               </div>
             </TripSpaceErrorBoundary>

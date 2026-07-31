@@ -1,7 +1,7 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { 
   Clock, MapPin, DollarSign, CheckCircle2, ChevronRight, ChevronDown,
-  ArrowUp, ArrowDown, Shuffle, CloudRain, Navigation, AlertCircle, Info, Plane, Plus, Lock, Unlock, Zap, Calendar, CloudSun, Sun, Moon, Search, Sparkles
+  ArrowUp, ArrowDown, Shuffle, CloudRain, Navigation, AlertCircle, Info, Plane, Plus, Lock, Unlock, Zap, Calendar, CloudSun, Sun, Moon, Sparkles
 } from 'lucide-react';
 import { TripSpaceDay, TripSpaceStop, TripSpaceBasecamp } from '@/types/tripSpace.types';
 import MapLibreMap from '@/components/MapLibreMap';
@@ -15,6 +15,10 @@ import { ConciergePromptCard } from './cards/ConciergePromptCard';
 import { ExperienceDetailModal } from './ExperienceDetailModal';
 import { GamifiedConciergeModal } from './cards/GamifiedConciergeModal';
 import { ManualCatalogBrowserModal } from './cards/ManualCatalogBrowserModal';
+import { NextStepCard } from './cards/NextStepCard';
+import { MobileNowCard } from './cards/MobileNowCard';
+import { MobileDaySelector } from './cards/MobileDaySelector';
+import { isDateToday } from './utils/dayProgress';
 
 interface DayWorkspaceProps {
   tripId: string;
@@ -51,6 +55,67 @@ function parseTimeStr(timeStr?: string): number {
   return hh * 60 + mm;
 }
 
+function parseDurationMins(duration?: string): number | null {
+  if (!duration) return null;
+  const trimmed = duration.trim();
+  if (/^\d+$/.test(trimmed)) return parseInt(trimmed, 10);
+  const match = trimmed.match(/(\d+)\s*(h|min)/g);
+  if (match) {
+    let total = 0;
+    match.forEach(m => {
+      if (m.includes('h')) total += parseInt(m) * 60;
+      if (m.includes('min')) total += parseInt(m);
+    });
+    if (total > 0) return total;
+  }
+  return null;
+}
+
+function getMealHint(startMins: number): string | null {
+  if (startMins >= 8 * 60 && startMins < 10 * 60) return 'o café da manhã';
+  if (startMins >= 12 * 60 && startMins < 14 * 60) return 'o almoço';
+  if (startMins >= 19 * 60 && startMins < 21 * 60) return 'o jantar';
+  return null;
+}
+
+function formatFreeDuration(mins: number): string {
+  const h = Math.floor(mins / 60);
+  const m = mins % 60;
+  if (h > 0 && m > 0) return `${h}h${m} livres`;
+  if (h > 0) return `${h} hora${h > 1 ? 's' : ''} livre${h > 1 ? 's' : ''}`;
+  return `${m} minutos livres`;
+}
+
+// Priority for the arrival-day logistics cluster: chegada -> imigração -> malas -> transporte -> hotel
+function getStopPriority(stop: TripSpaceStop): number {
+  const lower = stop.title.toLowerCase();
+  if (stop.category === 'flight' || lower.includes('voo')) return 0;
+  if (lower.includes('imigração')) return 1;
+  if (lower.includes('bagagem') || lower.includes('guarda-volumes') || lower.includes('guarda de bagagem')) return 2;
+  if (lower.includes('deslocamento')) return 3;
+  if (stop.category === 'lodging') return 4;
+  return 5;
+}
+
+// Only reorders inside contiguous runs of "special logistics" stops (priority <= 4),
+// never moves a stop across a regular attraction — avoids scrambling the rest of the day.
+function reorderLogisticClusters(stops: TripSpaceStop[]): TripSpaceStop[] {
+  const result = [...stops];
+  let i = 0;
+  while (i < result.length) {
+    if (getStopPriority(result[i]) <= 4) {
+      let j = i;
+      while (j < result.length && getStopPriority(result[j]) <= 4) j++;
+      const cluster = result.slice(i, j).sort((a, b) => getStopPriority(a) - getStopPriority(b));
+      for (let k = 0; k < cluster.length; k++) result[i + k] = cluster[k];
+      i = j;
+    } else {
+      i++;
+    }
+  }
+  return result;
+}
+
 export function DayWorkspace({ 
   tripId, userId, days, activeDay, onDayChange, basecamp, catalog,
   onToggleLock, onCreateDraft, onExecuteDirectAction, onCommitDraft, onClearDraft, editDraft, draftLoading 
@@ -63,6 +128,11 @@ export function DayWorkspace({
   const [isManualModalOpen, setIsManualModalOpen] = useState(false);
   const [isAdding, setIsAdding] = useState(false);
   const [addError, setAddError] = useState<string | null>(null);
+  const [showFullDayMobile, setShowFullDayMobile] = useState(false);
+
+  useEffect(() => {
+    setShowFullDayMobile(false);
+  }, [activeDay]);
 
   // Accordion state
   const [openSections, setOpenSections] = useState<Record<string, boolean>>({
@@ -75,8 +145,117 @@ export function DayWorkspace({
     setOpenSections(prev => ({ ...prev, [section]: !prev[section] }));
   };
 
+  // Opened from the page header's "Adicionar ao Dia X" button (TripSpacePage.tsx)
+  useEffect(() => {
+    const handleOpenAddModal = () => setIsManualModalOpen(true);
+    window.addEventListener('OPEN_ADD_EXPERIENCE_MODAL', handleOpenAddModal);
+    return () => window.removeEventListener('OPEN_ADD_EXPERIENCE_MODAL', handleOpenAddModal);
+  }, []);
+
   const currentDay = days.find(d => d.dayNumber === activeDay) || days[0];
   const catalogItems = catalog || [];
+
+  const orderedDayStops = useMemo(
+    () => reorderLogisticClusters(currentDay?.stops || []),
+    [currentDay]
+  );
+
+  const stopMapPoints = orderedDayStops.filter(s => s.lat && s.lng).map(s => ({
+    id: s.id,
+    name: s.title,
+    neighborhood: s.neighborhood,
+    coordinates: { lat: s.lat!, lng: s.lng! },
+  }));
+  const hasBasecampCoords = !!(basecamp?.lat && basecamp?.lng);
+  const mapPoints = [
+    ...(hasBasecampCoords ? [{
+      id: 'basecamp',
+      name: basecamp!.name,
+      neighborhood: 'Basecamp',
+      coordinates: { lat: basecamp!.lat!, lng: basecamp!.lng! },
+      isBasecamp: true,
+    }] : []),
+    ...stopMapPoints,
+  ];
+
+  const periodCopy: Record<string, string> = {
+    morning: 'pela manhã',
+    afternoon: 'à tarde',
+    night: 'à noite',
+  };
+
+  const sectionBounds: Record<string, [number, number]> = {
+    morning: [0, 12 * 60],
+    afternoon: [12 * 60, 18 * 60],
+    night: [18 * 60, 24 * 60],
+  };
+
+  const dayTimeline = orderedDayStops;
+
+  const getFreeSlotMessage = (sectionKey: string, sectionStops: TripSpaceStop[]) => {
+    const periodLabel = periodCopy[sectionKey] || 'neste período';
+
+    let prevStop: TripSpaceStop | undefined;
+    let nextStop: TripSpaceStop | undefined;
+
+    if (sectionStops.length > 0) {
+      prevStop = sectionStops[sectionStops.length - 1];
+      const idx = dayTimeline.findIndex(s => s.id === prevStop!.id);
+      nextStop = idx >= 0 ? dayTimeline[idx + 1] : undefined;
+    } else {
+      const [start, end] = sectionBounds[sectionKey] || [0, 24 * 60];
+      const before = dayTimeline.filter(s => parseTimeStr(s.time) < start);
+      const after = dayTimeline.filter(s => parseTimeStr(s.time) >= end);
+      prevStop = before[before.length - 1];
+      nextStop = after[0];
+    }
+
+    let durationMins: number | null = null;
+    let slotStartMins: number | null = null;
+    if (prevStop?.time) {
+      slotStartMins = parseTimeStr(prevStop.time) + (parseDurationMins(prevStop.duration) ?? 60);
+    } else if (sectionStops.length === 0) {
+      slotStartMins = (sectionBounds[sectionKey] || [0, 24 * 60])[0];
+    }
+    if (prevStop?.time && nextStop?.time) {
+      const prevStart = parseTimeStr(prevStop.time);
+      const prevDuration = parseDurationMins(prevStop.duration) ?? 60;
+      const nextStart = parseTimeStr(nextStop.time);
+      const gap = nextStart - (prevStart + prevDuration);
+      if (gap > 0) durationMins = gap;
+    }
+
+    const anchorStop = prevStop || nextStop;
+    const anchorLabel = anchorStop?.neighborhood || anchorStop?.title || basecamp?.name;
+
+    const quantityPhrase = durationMins ? formatFreeDuration(durationMins) : 'tempo livre';
+    const anchorSuffix = anchorLabel ? `, próximo a ${anchorLabel}` : '';
+    const mealHint = slotStartMins !== null ? getMealHint(slotStartMins) : null;
+    const mealSuffix = mealHint ? ` Também é um bom horário para ${mealHint}.` : '';
+
+    return `Você tem ${quantityPhrase} ${periodLabel}${anchorSuffix}.${mealSuffix}`;
+  };
+
+  const renderFreeSlotAction = (sectionKey: string, sectionStops: TripSpaceStop[]) => (
+    <div className="bg-slate-50 border-2 border-dashed border-slate-200 rounded-2xl p-4 flex flex-col items-center gap-3 text-center">
+      <p className="text-xs font-bold text-slate-500">{getFreeSlotMessage(sectionKey, sectionStops)}</p>
+      <button
+        onClick={() => setIsGamifiedModalOpen(true)}
+        className="bg-white border border-slate-200 shadow-sm hover:border-purple-300 hover:shadow-md rounded-xl py-2.5 px-5 flex items-center justify-center gap-2 transition-all"
+      >
+        <div className="w-6 h-6 rounded-full bg-purple-100 flex items-center justify-center text-purple-600">
+          <Sparkles className="w-3 h-3" />
+        </div>
+        <span className="text-xs font-extrabold text-slate-700">Sugestão da IA</span>
+      </button>
+      <button
+        onClick={() => setIsManualModalOpen(true)}
+        className="text-[11px] font-bold text-slate-400 hover:text-slate-600 underline underline-offset-2"
+      >
+        ou busque no catálogo completo
+      </button>
+    </div>
+  );
 
   const getLogisticAlert = (stop: TripSpaceStop, nextStop: TripSpaceStop) => {
     if (!stop.lat || !stop.lng || !nextStop.lat || !nextStop.lng || !stop.time || !nextStop.time) return null;
@@ -106,40 +285,56 @@ export function DayWorkspace({
     return null;
   };
 
-  // Group stops by time
-  const morningStops = currentDay?.stops?.filter(s => {
+  // Group stops by time (already reordered within logistic clusters)
+  const morningStops = orderedDayStops.filter(s => {
     const t = parseTimeStr(s.time);
     return t >= 0 && t < 12 * 60;
-  }) || [];
-  
-  const afternoonStops = currentDay?.stops?.filter(s => {
+  });
+
+  const afternoonStops = orderedDayStops.filter(s => {
     const t = parseTimeStr(s.time);
     return t >= 12 * 60 && t < 18 * 60;
-  }) || [];
+  });
 
-  const nightStops = currentDay?.stops?.filter(s => {
+  const nightStops = orderedDayStops.filter(s => {
     const t = parseTimeStr(s.time);
     return t >= 18 * 60;
-  }) || [];
+  });
 
-  // Helper to get formatted day of week
-  const getDayOfWeek = (dateStr: string) => {
-    if (!dateStr) return 'Dia Especial';
-    // dateStr is usually MM/DD/YYYY from engine or something else. We'll just provide a mock or parsed date.
-    // Assuming DD/MM/YYYY or similar for pt-BR. Let's just use a clean fallback.
-    const parts = dateStr.split('/');
-    if (parts.length === 3) {
-      // Assuming DD/MM/YYYY for Brazil
-      const date = new Date(Number(parts[2]), Number(parts[1])-1, Number(parts[0]));
-      if (!isNaN(date.getTime())) {
-        return date.toLocaleDateString('pt-BR', { weekday: 'long' }).replace('-feira', '');
-      }
-    }
-    return 'Terça'; // Fallback mockup
+  // Full-text date ("Segunda-feira, 3 de agosto") parsed from the real fullDateStr (DD/MM/YYYY)
+  const getFullDateLabel = (fullDateStr?: string) => {
+    if (!fullDateStr) return null;
+    const parts = fullDateStr.split('/');
+    if (parts.length !== 3) return null;
+    const date = new Date(Number(parts[2]), Number(parts[1]) - 1, Number(parts[0]));
+    if (isNaN(date.getTime())) return null;
+    const label = date.toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' });
+    return label.charAt(0).toUpperCase() + label.slice(1);
   };
 
-  const dayOfWeek = getDayOfWeek(currentDay?.fullDateStr || currentDay?.dateStr || '');
-  const displayDate = currentDay?.fullDateStr || currentDay?.dateStr || 'Em breve';
+  const fullDateLabel = getFullDateLabel(currentDay?.fullDateStr) || currentDay?.dateStr || `Dia ${currentDay?.dayNumber ?? ''}`;
+  const isToday = isDateToday(currentDay?.fullDateStr);
+
+  // Arrival-day detection: no `direction` field exists on stops, so reuse the same
+  // title heuristic FlightCard already uses ("chegada") — no invented field.
+  const arrivalFlightStop = orderedDayStops.find(s => s.category === 'flight' && s.title.toLowerCase().includes('chegada'));
+  const otherFlightStop = orderedDayStops.find(s => s.category === 'flight');
+  const isArrivalDay = !!arrivalFlightStop;
+
+  const contextualSubtitle = (() => {
+    if (arrivalFlightStop) {
+      const checkInSuffix = basecamp?.checkIn ? ` · Check-in no ${basecamp.name} a partir de ${basecamp.checkIn}` : '';
+      return `Chegada: ${arrivalFlightStop.title}${arrivalFlightStop.time ? ` às ${arrivalFlightStop.time}` : ''}${checkInSuffix}`;
+    }
+    if (otherFlightStop) {
+      return `Voo: ${otherFlightStop.title}${otherFlightStop.time ? ` às ${otherFlightStop.time}` : ''}`;
+    }
+    const firstStop = orderedDayStops[0];
+    if (firstStop) {
+      return `Primeira parada: ${firstStop.title}${firstStop.time ? ` às ${firstStop.time}` : ''}`;
+    }
+    return currentDay?.locationSubtitle;
+  })();
 
   const renderStop = (stop: TripSpaceStop, idx: number, arr: TripSpaceStop[]) => {
     const isSelected = selectedStopId === stop.id;
@@ -152,10 +347,29 @@ export function DayWorkspace({
       return <ImmigrationCard key={stop.id} stop={stop} tripId={tripId} userId={userId} isSelected={isSelected} onClick={() => setSelectedStopId(stop.id)} />;
     }
     if (lowerTitle.includes('deslocamento')) {
-      return <TransportCard key={stop.id} stop={stop} basecamp={basecamp} isSelected={isSelected} onClick={() => setSelectedStopId(stop.id)} />;
+      const prevStop = arr[idx - 1];
+      const nextStop = arr[idx + 1];
+      const originLabel = prevStop?.title;
+      const originAddress = prevStop?.locationAddress || prevStop?.neighborhood;
+      const nextIsLodgingOrMissing = !nextStop || nextStop.category === 'lodging';
+      const destinationLabel = nextIsLodgingOrMissing ? basecamp?.name : nextStop?.title;
+      const destinationAddress = nextIsLodgingOrMissing ? basecamp?.address : (nextStop?.locationAddress || nextStop?.neighborhood);
+      return (
+        <TransportCard
+          key={stop.id}
+          stop={stop}
+          basecamp={basecamp}
+          isSelected={isSelected}
+          onClick={() => setSelectedStopId(stop.id)}
+          originLabel={originLabel}
+          originAddress={originAddress}
+          destinationLabel={destinationLabel}
+          destinationAddress={destinationAddress}
+        />
+      );
     }
     if (lowerTitle.includes('bagagem') || lowerTitle.includes('guarda-volumes') || lowerTitle.includes('guarda de bagagem')) {
-      return <LuggageCard key={stop.id} stop={stop} isSelected={isSelected} onClick={() => setSelectedStopId(stop.id)} />;
+      return <LuggageCard key={stop.id} stop={stop} basecamp={basecamp} isSelected={isSelected} onClick={() => setSelectedStopId(stop.id)} />;
     }
     if (lowerTitle.includes('pausa') || lowerTitle.includes('café') || lowerTitle.includes('descanso')) {
       return <CoffeeBreakCard key={stop.id} stop={stop} catalog={catalog} isSelected={isSelected} onClick={() => setSelectedStopId(stop.id)} />;
@@ -219,52 +433,17 @@ export function DayWorkspace({
         {isOpen && (
           <div className="p-6 pt-2 animate-in slide-in-from-top-4 fade-in duration-300">
             {isEmpty ? (
-              <div className="py-6 flex flex-col sm:flex-row gap-3">
-                <button 
-                  onClick={() => setIsGamifiedModalOpen(true)}
-                  className="flex-1 bg-purple-50 hover:bg-purple-100 border border-purple-200 rounded-2xl p-4 flex flex-col items-center justify-center gap-2 text-purple-700 transition-colors"
-                >
-                  <Sparkles className="w-6 h-6" />
-                  <span className="text-xs font-bold text-center">Pedir Sugestão da IA</span>
-                </button>
-                <button 
-                  onClick={() => setIsManualModalOpen(true)}
-                  className="flex-1 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-2xl p-4 flex flex-col items-center justify-center gap-2 text-slate-700 transition-colors"
-                >
-                  <Search className="w-6 h-6" />
-                  <span className="text-xs font-bold text-center">Adicionar Manualmente</span>
-                </button>
+              <div className="py-2">
+                {renderFreeSlotAction(sectionKey, stops)}
               </div>
             ) : (
               <div className="relative pl-6 space-y-6 before:absolute before:left-[11px] before:top-4 before:bottom-4 before:w-0.5 before:bg-slate-200">
                 {stops.map((stop, idx) => renderStop(stop, idx, stops))}
-                
-                {/* Timeline Dashed Slot for adding more */}
+
+                {/* Timeline slot for remaining free time in this period */}
                 <div className="relative pl-6 pt-4">
                   <div className="absolute left-[11px] top-1/2 -translate-y-1/2 w-2 h-2 rounded-full border-2 border-slate-300 bg-white z-10" />
-                  <div className="bg-slate-50 border-2 border-dashed border-slate-200 hover:border-purple-300 hover:bg-purple-50/30 transition-colors rounded-2xl p-4 flex flex-col gap-3">
-                    <p className="text-xs font-bold text-slate-500 text-center">O que vamos fazer agora?</p>
-                    <div className="flex flex-col sm:flex-row gap-2">
-                      <button 
-                        onClick={() => setIsGamifiedModalOpen(true)}
-                        className="flex-1 bg-white border border-slate-200 shadow-sm hover:border-purple-300 hover:shadow-md rounded-xl py-2.5 px-3 flex items-center justify-center gap-2 transition-all"
-                      >
-                        <div className="w-6 h-6 rounded-full bg-purple-100 flex items-center justify-center text-purple-600">
-                          <Sparkles className="w-3 h-3" />
-                        </div>
-                        <span className="text-xs font-extrabold text-slate-700">Sugestão da IA</span>
-                      </button>
-                      <button 
-                        onClick={() => setIsManualModalOpen(true)}
-                        className="flex-1 bg-white border border-slate-200 shadow-sm hover:border-slate-300 hover:shadow-md rounded-xl py-2.5 px-3 flex items-center justify-center gap-2 transition-all"
-                      >
-                        <div className="w-6 h-6 rounded-full bg-slate-100 flex items-center justify-center text-slate-600">
-                          <Search className="w-3 h-3" />
-                        </div>
-                        <span className="text-xs font-extrabold text-slate-700">Catálogo Completo</span>
-                      </button>
-                    </div>
-                  </div>
+                  {renderFreeSlotAction(sectionKey, stops)}
                 </div>
               </div>
             )}
@@ -276,7 +455,8 @@ export function DayWorkspace({
 
   return (
     <section className="mb-8">
-      <div className="flex gap-2 overflow-x-auto pb-4 mb-6 scrollbar-hide border-b border-slate-200">
+      {/* Desktop day tabs */}
+      <div className="hidden md:flex gap-2 overflow-x-auto pb-4 mb-6 scrollbar-hide border-b border-slate-200">
         {days.map((day) => (
           <button
             key={day.dayNumber}
@@ -292,13 +472,18 @@ export function DayWorkspace({
         ))}
       </div>
 
+      {/* Mobile day selector */}
+      <div className="md:hidden mb-4">
+        <MobileDaySelector days={days} activeDay={activeDay} onDayChange={onDayChange} />
+      </div>
+
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
         <div className="space-y-6">
           {currentDay && (
             <div className="bg-slate-50/50 p-2 sm:p-0 sm:bg-transparent border-none sm:border-none rounded-[32px] sm:rounded-none">
-              
-              {/* Premium Header */}
-              <div className="bg-white border border-slate-200 rounded-[28px] p-6 shadow-sm mb-6 relative overflow-hidden">
+
+              {/* Premium Header (desktop only — mobile has its own compact header below) */}
+              <div className="hidden md:block bg-white border border-slate-200 rounded-[28px] p-6 shadow-sm mb-6 relative overflow-hidden">
                 <div className="absolute top-0 right-0 p-6 opacity-5">
                   <Calendar className="w-32 h-32" />
                 </div>
@@ -306,28 +491,80 @@ export function DayWorkspace({
                   <div>
                     <div className="inline-flex items-center gap-1.5 text-[10px] font-extrabold text-slate-400 uppercase tracking-wider mb-2">
                       <span className="bg-slate-100 px-2 py-1 rounded-md">Dia {currentDay.dayNumber}</span>
-                      <span>•</span>
-                      <span>{displayDate}</span>
+                      {isArrivalDay && (
+                        <span className="bg-indigo-100 text-indigo-700 px-2 py-1 rounded-md">Chegada</span>
+                      )}
                     </div>
-                    <h2 className="text-4xl font-black text-slate-900 tracking-tight capitalize">
-                      {dayOfWeek}
+                    <h2 className="text-3xl font-black text-slate-900 tracking-tight capitalize">
+                      {fullDateLabel}
                     </h2>
                     <div className="flex items-center gap-1.5 mt-2 text-sm font-bold text-slate-500">
-                      <MapPin className="w-4 h-4 text-lime-500" /> {currentDay.locationSubtitle}
+                      <MapPin className="w-4 h-4 text-lime-500" /> {contextualSubtitle}
                     </div>
                   </div>
                   <div className="bg-slate-50 border border-slate-100 px-4 py-3 rounded-2xl flex items-center gap-3 shrink-0">
-                    <CloudSun className="w-8 h-8 text-amber-500" />
+                    <CloudSun className="w-8 h-8 text-slate-300" />
                     <div>
                       <p className="text-[10px] font-bold text-slate-400 uppercase">Previsão</p>
-                      <p className="text-sm font-extrabold text-slate-900">24°C <span className="text-slate-400 font-medium">/ 18°C</span></p>
+                      <p className="text-sm font-extrabold text-slate-400">Clima não disponível</p>
                     </div>
                   </div>
                 </div>
               </div>
 
-              {/* Accordions */}
-              <div className="space-y-4">
+              <div className="hidden md:block">
+                <NextStepCard
+                  stops={orderedDayStops}
+                  isToday={isToday}
+                  onViewDetails={(stop) => setDetailModalStop(stop)}
+                />
+
+                {isArrivalDay && (
+                  <div className="bg-indigo-50 border border-indigo-200 rounded-2xl p-4 mb-6 flex items-start gap-3">
+                    <Plane className="w-5 h-5 text-indigo-600 shrink-0 mt-0.5" />
+                    <p className="text-sm font-medium text-indigo-900">
+                      Hoje é dia de chegada — priorize a logística (imigração, malas e deslocamento até o hotel) antes de planejar passeios.
+                    </p>
+                  </div>
+                )}
+              </div>
+
+              {/* Mobile compact header */}
+              <div className="md:hidden mb-4">
+                <div className="flex items-center gap-2 mb-1.5 flex-wrap">
+                  <span className="text-[10px] font-extrabold text-slate-400 uppercase bg-slate-100 px-2 py-1 rounded-md">Dia {currentDay.dayNumber}</span>
+                  {isArrivalDay && (
+                    <span className="text-[10px] font-extrabold text-indigo-700 bg-indigo-100 px-2 py-1 rounded-md">Chegada</span>
+                  )}
+                </div>
+                <h2 className="text-xl font-black text-slate-900 tracking-tight capitalize truncate">{fullDateLabel}</h2>
+                <p className="text-xs font-bold text-slate-500 mt-1 truncate">{contextualSubtitle}</p>
+              </div>
+
+              {/* Mobile: compact "next 2 steps" preview, expandable to the full day */}
+              <div className="md:hidden mb-6">
+                {!showFullDayMobile ? (
+                  <div className="space-y-4">
+                    <MobileNowCard allStops={orderedDayStops} isToday={isToday} renderStop={renderStop} />
+                    <button
+                      onClick={() => setShowFullDayMobile(true)}
+                      className="w-full bg-white border border-slate-200 text-slate-700 font-extrabold text-sm py-3 rounded-2xl shadow-sm"
+                    >
+                      Ver dia completo
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    onClick={() => setShowFullDayMobile(false)}
+                    className="w-full bg-slate-900 text-white font-extrabold text-sm py-3 rounded-2xl mb-4"
+                  >
+                    Ver resumo
+                  </button>
+                )}
+              </div>
+
+              {/* Accordions: always visible on desktop; on mobile only inside "Ver dia completo" */}
+              <div className={`${showFullDayMobile ? 'block' : 'hidden'} md:block space-y-4`}>
                 {renderSection('Manhã', <Sun className="w-5 h-5 text-amber-500" />, morningStops, 'morning')}
                 {renderSection('Tarde', <CloudSun className="w-5 h-5 text-orange-500" />, afternoonStops, 'afternoon')}
                 {renderSection('Noite', <Moon className="w-5 h-5 text-indigo-500" />, nightStops, 'night')}
@@ -337,21 +574,16 @@ export function DayWorkspace({
           )}
         </div>
 
-        <div className="space-y-6 flex flex-col">
+        <div className="hidden md:flex md:flex-col space-y-6">
           <div className="bg-white border border-slate-200 rounded-[28px] p-5 shadow-sm flex flex-col relative overflow-hidden">
             <div className="flex items-center justify-between mb-4 relative z-10">
               <h3 className="font-extrabold text-slate-900 text-sm flex items-center gap-2">
                 <Navigation className="w-4 h-4 text-lime-500" /> Mapa do dia
               </h3>
             </div>
-            {currentDay?.stops?.some(s => s.lat && s.lng) ? (
+            {mapPoints.length > 0 ? (
               <div className="relative w-full h-[400px] bg-slate-100 rounded-[20px] overflow-hidden border border-slate-200/60 shadow-inner">
-                <MapLibreMap attractions={currentDay.stops.filter(s => s.lat && s.lng).map(s => ({
-                  id: s.id,
-                  name: s.title,
-                  neighborhood: s.neighborhood,
-                  coordinates: { lat: s.lat!, lng: s.lng! }
-                })) as any} />
+                <MapLibreMap attractions={mapPoints as any} />
               </div>
             ) : (
               <div className="relative w-full h-[400px] bg-slate-50 rounded-[20px] overflow-hidden border-2 border-dashed border-slate-200 flex items-center justify-center p-6">
@@ -360,7 +592,9 @@ export function DayWorkspace({
                   <div className="w-12 h-12 bg-white rounded-full flex items-center justify-center mx-auto shadow-sm text-slate-300">
                     <Navigation className="w-6 h-6" />
                   </div>
-                  <h3 className="text-sm font-extrabold text-slate-700">Sem locais no mapa</h3>
+                  <h3 className="text-sm font-extrabold text-slate-700">
+                    {basecamp ? 'Localização do basecamp indisponível' : 'Sem locais no mapa'}
+                  </h3>
                 </div>
               </div>
             )}
@@ -371,30 +605,26 @@ export function DayWorkspace({
                <Zap className="w-4 h-4 text-purple-500" /> Ajustes rápidos
              </h3>
              <div className="grid grid-cols-2 gap-3">
-                <button className="bg-slate-50 border border-slate-200 p-3 rounded-2xl flex flex-col items-start gap-2 hover:bg-slate-100 transition-colors text-left group">
-                  <div className="bg-white p-2 rounded-full shadow-sm group-hover:scale-105 transition-transform">
-                     <Shuffle className="w-4 h-4 text-slate-700" />
-                  </div>
-                  <span className="text-xs font-bold text-slate-900">Reordenar dia</span>
-                </button>
-                <button className="bg-slate-50 border border-slate-200 p-3 rounded-2xl flex flex-col items-start gap-2 hover:bg-slate-100 transition-colors text-left group">
-                  <div className="bg-white p-2 rounded-full shadow-sm group-hover:scale-105 transition-transform">
-                     <CloudRain className="w-4 h-4 text-slate-700" />
-                  </div>
-                  <span className="text-xs font-bold text-slate-900">Plano de chuva</span>
-                </button>
-                <button className="bg-slate-50 border border-slate-200 p-3 rounded-2xl flex flex-col items-start gap-2 hover:bg-slate-100 transition-colors text-left group">
-                  <div className="bg-white p-2 rounded-full shadow-sm group-hover:scale-105 transition-transform">
-                     <Navigation className="w-4 h-4 text-slate-700" />
-                  </div>
-                  <span className="text-xs font-bold text-slate-900">Otimizar rota</span>
-                </button>
-                <button className="bg-slate-50 border border-slate-200 p-3 rounded-2xl flex flex-col items-start gap-2 hover:bg-slate-100 transition-colors text-left group">
-                  <div className="bg-white p-2 rounded-full shadow-sm group-hover:scale-105 transition-transform">
-                     <Clock className="w-4 h-4 text-slate-700" />
-                  </div>
-                  <span className="text-xs font-bold text-slate-900">Ritmo lento</span>
-                </button>
+                {[
+                  { icon: Shuffle, label: 'Reordenar dia', impact: 'Vai reorganizar a ordem das paradas do dia para reduzir deslocamento.' },
+                  { icon: CloudRain, label: 'Plano de chuva', impact: 'Vai sugerir alternativas cobertas para os planos ao ar livre do dia.' },
+                  { icon: Navigation, label: 'Otimizar rota', impact: 'Vai recalcular a rota entre as paradas para economizar tempo de deslocamento.' },
+                  { icon: Clock, label: 'Ritmo lento', impact: 'Vai espaçar os horários do dia para um passeio mais tranquilo.' },
+                ].map(({ icon: Icon, label, impact }) => (
+                  <button
+                    key={label}
+                    type="button"
+                    disabled
+                    title={`${impact} Em breve.`}
+                    className="relative bg-slate-50 border border-slate-200 p-3 rounded-2xl flex flex-col items-start gap-2 text-left opacity-60 cursor-not-allowed"
+                  >
+                    <span className="absolute top-2 right-2 text-[9px] font-bold text-slate-400 bg-white px-1.5 py-0.5 rounded-full border border-slate-200">Em breve</span>
+                    <div className="bg-white p-2 rounded-full shadow-sm">
+                      <Icon className="w-4 h-4 text-slate-400" />
+                    </div>
+                    <span className="text-xs font-bold text-slate-500">{label}</span>
+                  </button>
+                ))}
              </div>
           </div>
         </div>
@@ -547,6 +777,7 @@ export function DayWorkspace({
         catalog={catalogItems}
         isLoading={isAdding}
         addError={addError}
+        activeDayNumber={currentDay?.dayNumber}
         onConfirm={async (item) => {
           if (!onExecuteDirectAction) {
             setAddError('Erro interno: ação de adição não está disponível.');

@@ -7,6 +7,8 @@ import { Database } from "@/types/supabase.types";
 type ExperienceRow = Database["public"]["Tables"]["experiences"]["Row"];
 const getAI = (e: ExperienceRow) => { try { return JSON.parse(e.short_description || '{}'); } catch { return {}; } };
 import { cn } from "@/lib/utils";
+import { getSafeMediaUrl } from "@/utils/safeMediaUrl";
+import FastFillModal, { IssueType } from "@/components/admin/catalog/FastFillModal";
 
 // ─── SVG Circular Score ───────────────────────────────────────────────────────
 function ScoreRing({ score, size = 120 }: { score: number; size?: number }) {
@@ -85,9 +87,9 @@ function normalizeTitle(title: string): string {
     .trim();
 }
 
-function findDuplicatePairs(experiences: ContentNodeRow[]): Array<[ContentNodeRow, ContentNodeRow]> {
-  const pairs: Array<[ContentNodeRow, ContentNodeRow]> = [];
-  const seen = new Map<string, ContentNodeRow>();
+function findDuplicatePairs(experiences: ExperienceRow[]): Array<[ExperienceRow, ExperienceRow]> {
+  const pairs: Array<[ExperienceRow, ExperienceRow]> = [];
+  const seen = new Map<string, ExperienceRow>();
   for (const exp of experiences) {
     const key = normalizeTitle(exp.title);
     if (key.length < 4) continue;
@@ -107,9 +109,20 @@ export default function QualityDashboard() {
   const [isEnriching, setIsEnriching] = useState(false);
   const [isReframing, setIsReframing] = useState(false);
   const [showDuplicates, setShowDuplicates] = useState(false);
+  
+  const [fastFillOpen, setFastFillOpen] = useState(false);
+  const [fastFillType, setFastFillType] = useState<IssueType>('gps');
+  const [fastFillExperiences, setFastFillExperiences] = useState<ExperienceRow[]>([]);
+  
   const navigate = useNavigate();
 
   useEffect(() => { fetchExperiences(); }, []);
+
+  const openFastFill = (type: IssueType, items: ExperienceRow[]) => {
+    setFastFillType(type);
+    setFastFillExperiences(items);
+    setFastFillOpen(true);
+  };
 
   const handleEnrichCatalog = async () => {
     setIsEnriching(true);
@@ -163,7 +176,7 @@ export default function QualityDashboard() {
   const noCategory   = experiences.filter(e => !e.category);
   const noNeighbor   = experiences.filter(e => !e.neighborhood);
   const noDesc       = experiences.filter(e => !e.description || e.description.length < 20);
-  const noMedia      = experiences.filter(e => !e.media_urls || e.media_urls.length === 0);
+  const noMedia      = experiences.filter(e => !e.media_urls || e.media_urls.length === 0 || !e.media_urls.some(url => getSafeMediaUrl(url) !== null));
   const noRating     = experiences.filter(e => !getAI(e).rating);
   const noAddress    = experiences.filter(e => !e.address);
   const noBookingUrl = experiences.filter(e => !e.booking_url);
@@ -186,7 +199,7 @@ export default function QualityDashboard() {
         !e.description && 'Descrição',
         !ai.rating && 'Avaliações',
         !e.address && 'Endereço',
-        (!e.media_urls || e.media_urls.length === 0) && 'Fotos',
+        (!e.media_urls || e.media_urls.length === 0 || !e.media_urls.some(url => getSafeMediaUrl(url) !== null)) && 'Fotos',
         !e.booking_url && 'Link de Venda',
         !ai.personaWeights && 'IA Profiling (Engine)',
       ].filter(Boolean) as string[];
@@ -249,28 +262,29 @@ export default function QualityDashboard() {
             onClick={() => navigate('/admin/experiences')} />
           <IssueCard title="Sem Coordenadas GPS" count={noCoords.length} total={total}
             icon={MapPin} bg="#FFF1F1" color="text-rose-500"
-            onClick={() => navigate('/admin/experiences')} />
+            onClick={() => openFastFill('gps', noCoords)} />
           <IssueCard title="Sem Tags ou Categorias" count={noCategory.length} total={total}
             icon={Tag} bg="#FFF5ED" color="text-orange-500"
-            onClick={() => navigate('/admin/experiences')} />
+            onClick={() => openFastFill('category', noCategory)} />
           <IssueCard title="Sem Duração/Tempo" count={noDuration.length} total={total}
             icon={Clock} bg="#FEFCE8" color="text-amber-500"
-            onClick={() => navigate('/admin/experiences')} />
+            onClick={() => openFastFill('duration', noDuration)} />
         </div>
       </div>
 
       {/* ── Secondary metrics ────────────────────────────────────────── */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         {[
-          { title: 'Sem Descrição Longa', count: noDesc.length,      bg: '#FAF8F3' },
-          { title: 'Sem Mídias/Vídeos',  count: noMedia.length,     bg: '#FAF8F3' },
-          { title: 'Sem Rating do Google', count: noRating.length,  bg: '#FFF1F1' },
-          { title: 'Sem Endereço Exato', count: noAddress.length,   bg: '#FEFCE8' },
-          { title: 'Sem Bairro Definido',count: noNeighbor.length,  bg: '#F0EDFF' },
-          { title: '100% Otimizados IA', count: total - critical.length, bg: '#F4FBF7' },
+          { title: 'Sem Descrição Longa', count: noDesc.length,      bg: '#FAF8F3', action: () => openFastFill('description', noDesc) },
+          { title: 'Sem Mídias/Vídeos',  count: noMedia.length,     bg: '#FAF8F3', action: () => navigate('/admin/experiences?quality=no_media') },
+          { title: 'Sem Rating do Google', count: noRating.length,  bg: '#FFF1F1', action: () => openFastFill('rating', noRating) },
+          { title: 'Sem Endereço Exato', count: noAddress.length,   bg: '#FEFCE8', action: () => openFastFill('address', noAddress) },
+          { title: 'Sem Bairro Definido',count: noNeighbor.length,  bg: '#F0EDFF', action: () => openFastFill('neighborhood', noNeighbor) },
+          { title: '100% Otimizados IA', count: total - critical.length, bg: '#F4FBF7', action: () => {} },
         ].map(item => (
-          <div key={item.title} className="rounded-[24px] px-5 py-4"
-            style={{ background: item.bg, boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
+          <div key={item.title} className={cn("rounded-[24px] px-5 py-4 transition-all", item.action ? "cursor-pointer hover:shadow-md" : "")}
+            style={{ background: item.bg, boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}
+            onClick={item.action}>
             <p className="text-2xl font-black text-[#0F1117]">{item.count}</p>
             <p className="text-[11px] font-semibold text-black/40 mt-0.5">{item.title}</p>
           </div>
@@ -280,7 +294,7 @@ export default function QualityDashboard() {
         <div
           className="rounded-[24px] px-5 py-4 cursor-pointer hover:shadow-md transition-all duration-200"
           style={{ background: '#FFFBEB', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}
-          onClick={() => navigate('/admin/experiences')}
+          onClick={() => openFastFill('booking_url', noBookingUrl)}
         >
           <div className="flex items-center gap-1.5 mb-1">
             <Link2 className="w-3.5 h-3.5 text-amber-500" />
@@ -334,18 +348,17 @@ export default function QualityDashboard() {
             {duplicatePairs.map(([a, b], i) => (
               <div key={i} className="px-6 py-4 grid grid-cols-2 gap-4">
                 {[a, b].map(exp => {
-                  const tr = getTr(exp);
                   return (
                   <div key={exp.id} className="flex items-start gap-3 group">
                     <div className="w-9 h-9 rounded-[12px] flex-shrink-0 overflow-hidden bg-slate-100">
-                      {tr.media_urls?.[0]
-                        ? <img src={tr.media_urls[0]} alt={exp.title} className="w-full h-full object-cover" />
+                      {exp.media_urls?.[0]
+                        ? <img src={exp.media_urls[0]} alt={exp.title} className="w-full h-full object-cover" />
                         : <div className="w-full h-full flex items-center justify-center text-slate-300 text-xs">?</div>
                       }
                     </div>
                     <div className="flex-1 min-w-0">
                       <p className="font-bold text-xs text-[#0F1117] line-clamp-1">{exp.title}</p>
-                      <p className="text-[10px] text-slate-400 mt-0.5">{exp.status} · {tr.neighborhood || '—'}</p>
+                      <p className="text-[10px] text-slate-400 mt-0.5">{exp.status} · {exp.neighborhood || '—'}</p>
                     </div>
                     <Link to={`/admin/experiences/${exp.id}`}
                       className="flex items-center gap-1 text-[10px] font-black text-slate-300 hover:text-violet-600 transition-colors opacity-0 group-hover:opacity-100 shrink-0">
@@ -370,13 +383,12 @@ export default function QualityDashboard() {
           </div>
           <div className="divide-y divide-[#F0F2F5]">
             {critical.map(exp => {
-              const tr = getTr(exp);
               return (
               <div key={exp.id}
                 className="px-6 py-4 flex items-center gap-4 hover:bg-[#F0F2F5]/50 transition-colors group">
                 <div className="w-9 h-9 rounded-[12px] flex-shrink-0 overflow-hidden bg-slate-100">
-                  {tr.media_urls?.[0]
-                    ? <img src={tr.media_urls[0]} alt={exp.title} className="w-full h-full object-cover" />
+                  {exp.media_urls?.[0]
+                    ? <img src={exp.media_urls[0]} alt={exp.title} className="w-full h-full object-cover" />
                     : <div className="w-full h-full flex items-center justify-center text-slate-300 text-xs">?</div>
                   }
                 </div>
@@ -402,6 +414,14 @@ export default function QualityDashboard() {
           </div>
         </div>
       )}
+
+      <FastFillModal
+        isOpen={fastFillOpen}
+        onClose={() => setFastFillOpen(false)}
+        issueType={fastFillType}
+        experiences={fastFillExperiences}
+        onRefresh={fetchExperiences}
+      />
     </div>
   );
 }

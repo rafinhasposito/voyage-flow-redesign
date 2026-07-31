@@ -4,13 +4,43 @@ import {
   Sparkles, DollarSign, Footprints, Clock, AlertCircle, Plus 
 } from 'lucide-react';
 import { TripSpaceViewModel } from '@/types/tripSpace.types';
+import { isDateToday, selectNextStep } from './utils/dayProgress';
 
 interface TripContextSidebarProps {
   data: TripSpaceViewModel;
   isOverviewMode?: boolean;
+  activeDay?: number;
+  onModuleChange?: (moduleId: string) => void;
 }
 
-export function TripContextSidebar({ data, isOverviewMode }: TripContextSidebarProps) {
+export function TripContextSidebar({ data, isOverviewMode, activeDay, onModuleChange }: TripContextSidebarProps) {
+  const currentDay = (data.days || []).find(d => d.dayNumber === activeDay);
+
+  const getConciergeMessage = () => {
+    const stops = currentDay?.stops || [];
+    if (!currentDay) return 'Escolha um dia no roteiro para receber sugestões contextuais.';
+    const today = isDateToday(currentDay.fullDateStr);
+    const dayLabel = today ? 'Hoje' : 'Neste dia';
+
+    if (stops.length === 0) {
+      return `O Dia ${currentDay.dayNumber} ainda está livre. Quer sugestões para começar a montar o roteiro?`;
+    }
+
+    const next = selectNextStep(stops, today);
+    if (next) {
+      const { stop, isNow } = next;
+      if (isNow) {
+        return `Você está em "${stop.title}" agora. Quando terminar, posso sugerir o que combina com o restante do seu roteiro.`;
+      }
+      if (today) {
+        return `Sua próxima parada hoje é "${stop.title}"${stop.time ? ` às ${stop.time}` : ''}. Quer sugestões para o tempo livre até lá?`;
+      }
+      return `${dayLabel} seu roteiro começa em "${stop.title}"${stop.time ? ` às ${stop.time}` : ''}. Quer sugestões para completar o restante do dia?`;
+    }
+
+    return 'Você já passou por todas as paradas planejadas para hoje. Quer sugestões para os próximos dias?';
+  };
+
   const formatDateRange = () => {
     if (!data.startDate || !data.endDate) return 'Datas a definir';
     const startParts = data.startDate.split('-').map(Number);
@@ -128,23 +158,58 @@ export function TripContextSidebar({ data, isOverviewMode }: TripContextSidebarP
         </div>
 
         <div className="grid grid-cols-2 gap-3 text-xs font-bold">
-          <div className="bg-slate-50 p-3 rounded-2xl border border-slate-100 flex flex-col justify-center">
+          <button
+            type="button"
+            onClick={() => onModuleChange?.('carteira')}
+            className="bg-slate-50 p-3 rounded-2xl border border-slate-100 flex flex-col justify-center items-start text-left hover:bg-slate-100 hover:border-slate-200 transition-colors"
+          >
             <p className="text-slate-900 font-extrabold text-lg leading-none mb-1">{data.reservations?.length || 0}</p>
             <p className="text-slate-400 font-medium text-[10px]">reservas confirmadas</p>
-          </div>
-          <div className="bg-slate-50 p-3 rounded-2xl border border-slate-100 flex flex-col justify-center">
-            <p className="text-slate-900 font-extrabold text-lg leading-none mb-1">{(data.days || []).reduce((acc, day) => acc + (day.activities || day.stops || []).length, 0)}</p>
+          </button>
+          <button
+            type="button"
+            onClick={() => onModuleChange?.('roteiro')}
+            className="bg-slate-50 p-3 rounded-2xl border border-slate-100 flex flex-col justify-center items-start text-left hover:bg-slate-100 hover:border-slate-200 transition-colors"
+          >
+            <p className="text-slate-900 font-extrabold text-lg leading-none mb-1">{(data.days || []).reduce((acc, day) => acc + (day.stops || []).length, 0)}</p>
             <p className="text-slate-400 font-medium text-[10px]">atividades no roteiro</p>
-          </div>
-          <div className="bg-slate-50 p-3 rounded-2xl border border-slate-100 flex flex-col justify-center">
+          </button>
+          <button
+            type="button"
+            onClick={() => onModuleChange?.('documentos')}
+            className="bg-slate-50 p-3 rounded-2xl border border-slate-100 flex flex-col justify-center items-start text-left hover:bg-slate-100 hover:border-slate-200 transition-colors"
+          >
             <p className="text-slate-900 font-extrabold text-lg leading-none mb-1">{data.documents?.length || 0}</p>
             <p className="text-slate-400 font-medium text-[10px]">documentos</p>
-          </div>
-          <div className="bg-slate-50 p-3 rounded-2xl border border-slate-100 flex flex-col justify-center">
+          </button>
+          <button
+            type="button"
+            onClick={() => onModuleChange?.('preparativos')}
+            className="bg-slate-50 p-3 rounded-2xl border border-slate-100 flex flex-col justify-center items-start text-left hover:bg-slate-100 hover:border-slate-200 transition-colors"
+          >
             <p className="text-slate-900 font-extrabold text-lg leading-none mb-1">{(data.checklist || []).filter(c => !c.completed).length}</p>
             <p className="text-slate-400 font-medium text-[10px]">preparativos pendentes</p>
-          </div>
+          </button>
         </div>
+      </div>
+
+      {/* 4. IA Concierge */}
+      <div className="bg-slate-950 border border-slate-900 rounded-[28px] p-5 shadow-xl relative overflow-hidden">
+        <div className="absolute top-0 right-0 w-32 h-32 bg-purple-600/20 blur-3xl rounded-full pointer-events-none" />
+        <div className="absolute bottom-0 left-0 w-24 h-24 bg-lime-400/10 blur-2xl rounded-full pointer-events-none" />
+
+        <h3 className="font-extrabold text-white text-sm mb-3 flex items-center gap-2 relative z-10">
+          <Sparkles className="w-4 h-4 text-purple-400" /> IA Concierge
+        </h3>
+        <p className="text-sm font-medium text-slate-300 leading-relaxed relative z-10">
+          {getConciergeMessage()}
+        </p>
+        <button
+          onClick={() => onModuleChange?.('roteiro')}
+          className="mt-4 w-full bg-white/10 hover:bg-white/20 text-white font-extrabold text-xs py-3 rounded-xl transition-colors border border-white/10 relative z-10"
+        >
+          Ver sugestões
+        </button>
       </div>
     </aside>
   );

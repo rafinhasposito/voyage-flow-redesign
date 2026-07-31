@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Settings as SettingsIcon, Save, Database, Shield, Zap, Map, Layout, Key, Palette, AlertCircle } from 'lucide-react';
-import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
+import { AdminHeader } from '@/components/admin/AdminHeader';
 
 export default function Settings() {
   const [saving, setSaving] = useState(false);
@@ -9,7 +9,7 @@ export default function Settings() {
   // Mapeamento das configurações verdadeiras baseadas no estado atual do projeto
   const [config, setConfig] = useState({
     appName: 'Voyage Flow',
-    brandColor: '#E2F18A',
+    brandColor: '#E2F18A', // D7F24B in our new theme, but keeping legacy default for display
     brandDarkColor: '#171717',
     mapProvider: 'MapLibre / OpenFreeMap',
     engineVersion: 'v2 (EI-9)',
@@ -27,141 +27,179 @@ export default function Settings() {
   };
 
   return (
-    <div className="flex flex-col h-full bg-vf-bg overflow-hidden">
-      <div className="flex items-center justify-between px-6 py-4 bg-white border-b border-vf-border z-10 shrink-0">
-        <div>
-          <h1 className="text-lg font-black text-vf-black tracking-tight flex items-center gap-2">
-            <SettingsIcon className="w-4 h-4 text-emerald-600" /> Configurações do Sistema
-          </h1>
-          <p className="text-[11px] text-vf-text-3 font-semibold">Gerencie os parâmetros globais da aplicação.</p>
-        </div>
-        <Button variant="lime" onClick={handleSave} disabled={saving} size="sm">
-          <Save className="w-4 h-4 mr-2" />
-          {saving ? 'Salvando...' : 'Salvar Alterações'}
-        </Button>
-      </div>
+    <div className="flex flex-col h-full bg-[#F7F7F2] font-sans overflow-auto selection:bg-[#D7F24B] selection:text-[#171717]">
+      <AdminHeader
+        title="Configurações do Sistema"
+        subtitle="Gerencie parâmetros globais da aplicação, identidades visuais e chaves de API externas."
+        icon={<SettingsIcon className="w-4 h-4 text-[#171717]" />}
+        badgeText="Módulo de Controle"
+        gradient="from-[#E2D1C3] to-[#FDFCFB]" // Beige/White gradient
+        loading={false}
+        metrics={[
+          { label: 'Versão do App', value: '1.0.0', color: 'bg-white/40' },
+          { label: 'Ambiente', value: 'Produção', color: 'bg-emerald-500/10 text-emerald-900 border-emerald-500/20' },
+        ]}
+        actions={
+          <button 
+            onClick={handleSave} 
+            disabled={saving}
+            className="px-8 py-3 bg-[#171717] hover:bg-[#2a2a2a] text-[#D7F24B] font-black rounded-xl text-sm transition-all shadow-[0_4px_14px_0_rgb(0,0,0,0.1)] active:scale-95 disabled:opacity-50 disabled:pointer-events-none flex items-center gap-2"
+          >
+            <Save className="w-4 h-4" />
+            {saving ? 'Salvando...' : 'Salvar Alterações'}
+          </button>
+        }
+      />
 
-      <div className="flex-1 overflow-auto p-6">
-        <div className="max-w-[1000px] mx-auto space-y-8 pb-10">
+      <div className="flex-1 p-8">
+        <div className="max-w-[1200px] mx-auto space-y-8 pb-10">
           
-          <div className="bg-amber-50 text-amber-800 p-4 rounded-xl border border-amber-200 flex items-start gap-4">
-            <AlertCircle className="w-6 h-6 shrink-0 mt-0.5" />
+          <div className="bg-amber-50 text-amber-800 p-6 rounded-3xl border border-amber-200 flex items-start gap-4 shadow-sm">
+            <div className="w-10 h-10 rounded-full bg-amber-100 flex items-center justify-center shrink-0">
+               <AlertCircle className="w-5 h-5 text-amber-600" />
+            </div>
             <div>
-              <h3 className="font-bold text-sm">Dependência de Backend (Lacuna)</h3>
-              <p className="text-xs mt-1 opacity-80 leading-relaxed">
-                As configurações globais do sistema ainda não estão persistidas no banco. A tabela <code>system_settings</code> ou equivalente precisa ser criada. 
-                Os valores apresentados refletem o estado codificado do projeto atual (Environment/Código). Edições aqui são aplicadas na memória (Local).
+              <h3 className="font-black text-lg text-amber-900">Dependência de Backend (Lacuna)</h3>
+              <p className="text-sm mt-1 text-amber-800/80 font-medium leading-relaxed">
+                As configurações globais do sistema ainda não estão persistidas no banco. A tabela <code className="bg-amber-100/50 px-1.5 py-0.5 rounded text-[11px] font-mono">system_settings</code> ou equivalente precisa ser criada. 
+                Os valores apresentados refletem o estado codificado do projeto atual (Environment/Código). Edições aqui são aplicadas apenas na memória (Sessão Local).
               </p>
             </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
             
             {/* Aplicação & Identidade */}
-            <div className="bg-white p-6 rounded-xl border border-vf-border shadow-vf-sm space-y-4">
-              <div className="flex items-center gap-2 mb-4 border-b border-vf-border pb-2">
-                <Palette className="w-4 h-4 text-vf-text-2" />
-                <h2 className="font-black text-vf-black text-sm uppercase tracking-widest">Identidade Visual</h2>
-              </div>
-              <div>
-                <label className="block text-xs font-bold text-vf-black mb-1">Nome da Aplicação</label>
-                <input 
-                  type="text" 
-                  value={config.appName}
-                  onChange={(e) => setConfig({ ...config, appName: e.target.value })}
-                  className="w-full h-10 px-3 border border-vf-border rounded-lg text-sm bg-slate-50"
-                />
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs font-bold text-vf-black mb-1">Cor Primária (Lime)</label>
-                  <div className="flex items-center gap-2">
-                    <input type="color" value={config.brandColor} onChange={(e) => setConfig({ ...config, brandColor: e.target.value })} className="w-8 h-8 rounded cursor-pointer" />
-                    <span className="text-xs font-mono">{config.brandColor}</span>
-                  </div>
+            <div className="bg-white p-8 rounded-3xl border border-[#171717]/5 shadow-sm space-y-6">
+              <div className="flex items-center gap-3 mb-6 border-b border-[#171717]/5 pb-4">
+                <div className="w-10 h-10 rounded-full bg-rose-50 flex items-center justify-center shrink-0 border border-rose-100">
+                  <Palette className="w-5 h-5 text-rose-600" />
                 </div>
+                <h2 className="font-black text-xl text-[#171717]">Identidade Visual</h2>
+              </div>
+              <div className="space-y-6">
                 <div>
-                  <label className="block text-xs font-bold text-vf-black mb-1">Cor Escura</label>
-                  <div className="flex items-center gap-2">
-                    <input type="color" value={config.brandDarkColor} onChange={(e) => setConfig({ ...config, brandDarkColor: e.target.value })} className="w-8 h-8 rounded cursor-pointer" />
-                    <span className="text-xs font-mono">{config.brandDarkColor}</span>
+                  <label className="block text-[11px] font-black uppercase tracking-widest text-[#171717]/40 mb-2">Nome da Aplicação</label>
+                  <input 
+                    type="text" 
+                    value={config.appName}
+                    onChange={(e) => setConfig({ ...config, appName: e.target.value })}
+                    className="w-full h-12 px-4 border border-[#171717]/10 rounded-xl text-[13px] font-bold text-[#171717] bg-[#171717]/[0.02] focus:border-[#171717]/40 focus:ring-0 outline-none transition-colors"
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-6">
+                  <div>
+                    <label className="block text-[11px] font-black uppercase tracking-widest text-[#171717]/40 mb-2">Cor Primária (Lime)</label>
+                    <div className="flex items-center gap-3">
+                      <input 
+                        type="color" 
+                        value={config.brandColor} 
+                        onChange={(e) => setConfig({ ...config, brandColor: e.target.value })} 
+                        className="w-10 h-10 rounded-lg cursor-pointer border-0 bg-transparent p-0" 
+                      />
+                      <span className="text-[13px] font-mono font-bold text-[#171717] uppercase">{config.brandColor}</span>
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-black uppercase tracking-widest text-[#171717]/40 mb-2">Cor Escura</label>
+                    <div className="flex items-center gap-3">
+                      <input 
+                        type="color" 
+                        value={config.brandDarkColor} 
+                        onChange={(e) => setConfig({ ...config, brandDarkColor: e.target.value })} 
+                        className="w-10 h-10 rounded-lg cursor-pointer border-0 bg-transparent p-0" 
+                      />
+                      <span className="text-[13px] font-mono font-bold text-[#171717] uppercase">{config.brandDarkColor}</span>
+                    </div>
                   </div>
                 </div>
               </div>
             </div>
 
             {/* Mapas & Integrações */}
-            <div className="bg-white p-6 rounded-xl border border-vf-border shadow-vf-sm space-y-4">
-              <div className="flex items-center gap-2 mb-4 border-b border-vf-border pb-2">
-                <Map className="w-4 h-4 text-vf-text-2" />
-                <h2 className="font-black text-vf-black text-sm uppercase tracking-widest">Integrações & Mapas</h2>
+            <div className="bg-white p-8 rounded-3xl border border-[#171717]/5 shadow-sm space-y-6">
+              <div className="flex items-center gap-3 mb-6 border-b border-[#171717]/5 pb-4">
+                <div className="w-10 h-10 rounded-full bg-blue-50 flex items-center justify-center shrink-0 border border-blue-100">
+                  <Map className="w-5 h-5 text-blue-600" />
+                </div>
+                <h2 className="font-black text-xl text-[#171717]">Integrações & Mapas</h2>
               </div>
-              <div>
-                <label className="block text-xs font-bold text-vf-black mb-1">Provedor de Mapas</label>
-                <input 
-                  type="text" 
-                  value={config.mapProvider}
-                  disabled
-                  className="w-full h-10 px-3 border border-vf-border rounded-lg text-sm bg-slate-100 opacity-70"
-                />
-                <p className="text-[10px] text-vf-text-3 mt-1">O projeto adota MapLibre + OpenFreeMap para renders sem Google Maps.</p>
-              </div>
-              <div>
-                <label className="block text-xs font-bold text-vf-black mb-1">Integração de Importação via IA</label>
-                <div className="flex items-center gap-2 mt-2">
+              <div className="space-y-6">
+                <div>
+                  <label className="block text-[11px] font-black uppercase tracking-widest text-[#171717]/40 mb-2">Provedor de Mapas</label>
                   <input 
-                    type="checkbox" 
-                    checked={config.importAIEnabled} 
-                    onChange={(e) => setConfig({ ...config, importAIEnabled: e.target.checked })}
-                    className="w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500" 
+                    type="text" 
+                    value={config.mapProvider}
+                    disabled
+                    className="w-full h-12 px-4 border border-[#171717]/10 rounded-xl text-[13px] font-bold text-[#171717] bg-[#171717]/5 opacity-60"
                   />
-                  <span className="text-sm font-medium">Edge Function (import-bulk) ativada</span>
+                  <p className="text-[11px] font-medium text-[#171717]/60 mt-2">O projeto adota MapLibre + OpenFreeMap para renders sem Google Maps.</p>
+                </div>
+                <div>
+                  <label className="block text-[11px] font-black uppercase tracking-widest text-[#171717]/40 mb-2">Integração de Importação via IA</label>
+                  <div className="flex items-center gap-3 mt-3">
+                    <input 
+                      type="checkbox" 
+                      checked={config.importAIEnabled} 
+                      onChange={(e) => setConfig({ ...config, importAIEnabled: e.target.checked })}
+                      className="w-5 h-5 rounded border-[#171717]/20 text-[#171717] focus:ring-[#171717]" 
+                    />
+                    <span className="text-[13px] font-bold text-[#171717]">Edge Function (import-bulk) ativada</span>
+                  </div>
                 </div>
               </div>
             </div>
 
             {/* Engine & Cache */}
-            <div className="bg-white p-6 rounded-xl border border-vf-border shadow-vf-sm space-y-4">
-              <div className="flex items-center gap-2 mb-4 border-b border-vf-border pb-2">
-                <Database className="w-4 h-4 text-vf-text-2" />
-                <h2 className="font-black text-vf-black text-sm uppercase tracking-widest">Engine & Cache</h2>
+            <div className="bg-white p-8 rounded-3xl border border-[#171717]/5 shadow-sm space-y-6">
+              <div className="flex items-center gap-3 mb-6 border-b border-[#171717]/5 pb-4">
+                <div className="w-10 h-10 rounded-full bg-purple-50 flex items-center justify-center shrink-0 border border-purple-100">
+                  <Database className="w-5 h-5 text-purple-600" />
+                </div>
+                <h2 className="font-black text-xl text-[#171717]">Engine & Cache</h2>
               </div>
-              <div>
-                <label className="block text-xs font-bold text-vf-black mb-1">Versão do Motor</label>
-                <input 
-                  type="text" 
-                  value={config.engineVersion}
-                  disabled
-                  className="w-full h-10 px-3 border border-vf-border rounded-lg text-sm bg-slate-100 opacity-70"
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-bold text-vf-black mb-1">Duração do Cache (segundos)</label>
-                <input 
-                  type="number" 
-                  value={config.cacheDuration}
-                  onChange={(e) => setConfig({ ...config, cacheDuration: parseInt(e.target.value) })}
-                  className="w-full h-10 px-3 border border-vf-border rounded-lg text-sm bg-slate-50"
-                />
+              <div className="space-y-6">
+                <div>
+                  <label className="block text-[11px] font-black uppercase tracking-widest text-[#171717]/40 mb-2">Versão do Motor</label>
+                  <input 
+                    type="text" 
+                    value={config.engineVersion}
+                    disabled
+                    className="w-full h-12 px-4 border border-[#171717]/10 rounded-xl text-[13px] font-bold text-[#171717] bg-[#171717]/5 opacity-60"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-black uppercase tracking-widest text-[#171717]/40 mb-2">Duração do Cache (segundos)</label>
+                  <input 
+                    type="number" 
+                    value={config.cacheDuration}
+                    onChange={(e) => setConfig({ ...config, cacheDuration: parseInt(e.target.value) })}
+                    className="w-full h-12 px-4 border border-[#171717]/10 rounded-xl text-[13px] font-bold text-[#171717] bg-[#171717]/[0.02] focus:border-[#171717]/40 focus:ring-0 outline-none transition-colors"
+                  />
+                </div>
               </div>
             </div>
 
             {/* Funcionalidades Experimentais */}
-            <div className="bg-white p-6 rounded-xl border border-vf-border shadow-vf-sm space-y-4">
-              <div className="flex items-center gap-2 mb-4 border-b border-vf-border pb-2">
-                <Zap className="w-4 h-4 text-vf-text-2" />
-                <h2 className="font-black text-vf-black text-sm uppercase tracking-widest">Labs (Experimentais)</h2>
+            <div className="bg-white p-8 rounded-3xl border border-[#171717]/5 shadow-sm space-y-6">
+              <div className="flex items-center gap-3 mb-6 border-b border-[#171717]/5 pb-4">
+                <div className="w-10 h-10 rounded-full bg-orange-50 flex items-center justify-center shrink-0 border border-orange-100">
+                  <Zap className="w-5 h-5 text-orange-600" />
+                </div>
+                <h2 className="font-black text-xl text-[#171717]">Labs (Experimentais)</h2>
               </div>
-              <div>
-                <label className="block text-xs font-bold text-vf-black mb-1">Edição Visual (Drag and Drop)</label>
-                <div className="flex items-center gap-2 mt-2">
-                  <input 
-                    type="checkbox" 
-                    checked={config.experimentalDragDrop} 
-                    onChange={(e) => setConfig({ ...config, experimentalDragDrop: e.target.checked })}
-                    className="w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500" 
-                  />
-                  <span className="text-sm font-medium">Ativar DnD e edição parcial (EI-9/EI-10)</span>
+              <div className="space-y-6">
+                <div>
+                  <label className="block text-[11px] font-black uppercase tracking-widest text-[#171717]/40 mb-2">Edição Visual (Drag and Drop)</label>
+                  <div className="flex items-center gap-3 mt-3">
+                    <input 
+                      type="checkbox" 
+                      checked={config.experimentalDragDrop} 
+                      onChange={(e) => setConfig({ ...config, experimentalDragDrop: e.target.checked })}
+                      className="w-5 h-5 rounded border-[#171717]/20 text-[#171717] focus:ring-[#171717]" 
+                    />
+                    <span className="text-[13px] font-bold text-[#171717]">Ativar DnD e edição parcial (EI-9/EI-10)</span>
+                  </div>
                 </div>
               </div>
             </div>

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Sparkles, Briefcase, ChevronRight, Check, Heart, UsersRound, Tent, ArrowRight, Loader2, Lightbulb, Calendar } from 'lucide-react';
+import { Sparkles, Briefcase, ChevronRight, Check, Loader2, Lightbulb } from 'lucide-react';
 import { DestinationRepository, DestinationRow } from '@/repositories/DestinationRepository';
 import TripPeriodCard from './TripPeriodCard';
 
@@ -20,6 +20,7 @@ export default function StepTripStart({ initialData, onDestinationSelect, onChan
   const [startDate, setStartDate] = useState<string>(initialData?.start_date || '');
   const [endDate, setEndDate] = useState<string>(initialData?.end_date || '');
   const [companionship, setCompanionship] = useState<string>(initialData?.companionship || '');
+  const [budgetLevel, setBudgetLevel] = useState<string>(initialData?.budget_level || '');
   const [startMode, setStartMode] = useState<string>(initialData?.preferences?.startMode || '');
 
   useEffect(() => {
@@ -56,10 +57,12 @@ export default function StepTripStart({ initialData, onDestinationSelect, onChan
         start_date: startDate,
         end_date: endDate,
         companionship,
+        budget_level: budgetLevel,
+        currency: 'USD',
         preferences: { startMode }
       });
     }
-  }, [selectedDestinationId, startDate, endDate, companionship, startMode]);
+  }, [selectedDestinationId, startDate, endDate, companionship, budgetLevel, startMode]);
 
   const handleStartDateChange = (val: string) => {
     if (!val) { setStartDate(''); return; }
@@ -107,10 +110,16 @@ export default function StepTripStart({ initialData, onDestinationSelect, onChan
   ];
 
   const companionshipOptions = [
-    { id: 'Só eu', icon: Heart },
-    { id: 'Casal', icon: Heart },
-    { id: 'Família', icon: UsersRound },
-    { id: 'Amigos', icon: Tent }
+    { id: 'Só eu',   emoji: '🧍', label: 'Solo',    desc: 'Aventura solo, total liberdade' },
+    { id: 'Casal',   emoji: '👫', label: 'Casal',   desc: 'A dois, romance e cumplicidade' },
+    { id: 'Família', emoji: '👨‍👩‍👧‍👦', label: 'Família', desc: 'Diversão para todas as idades' },
+    { id: 'Amigos',  emoji: '👥', label: 'Amigos',  desc: 'Grupo unido, energia total' },
+  ];
+
+  const budgetOptions = [
+    { id: 'budget',   emoji: '🎒', label: 'Econômico',   desc: 'Aproveitar muito gastando pouco' },
+    { id: 'moderate', emoji: '✈️', label: 'Equilibrado',  desc: 'Conforto sem exageros' },
+    { id: 'luxury',   emoji: '🏆', label: 'Premium',      desc: 'O melhor de cada experiência' },
   ];
 
   if (isLoadingDestinations) {
@@ -203,25 +212,53 @@ export default function StepTripStart({ initialData, onDestinationSelect, onChan
       {/* 4. QUEM EMBARCA COM VOCÊ? */}
       <section>
         <h2 className="text-2xl font-extrabold text-[#171717] mb-6">Com quem você vai?</h2>
-        <div className="flex overflow-x-auto pb-4 -mx-6 px-6 lg:mx-0 lg:px-0 lg:overflow-visible lg:grid lg:grid-cols-4 gap-3 snap-x">
+        <div className="grid grid-cols-2 gap-3">
           {companionshipOptions.map(opt => {
             const isSelected = companionship === opt.id;
-            const Icon = opt.icon;
             return (
               <button
                 key={opt.id}
                 onClick={() => setCompanionship(opt.id)}
-                className={`relative shrink-0 snap-start w-[110px] lg:w-auto flex flex-col items-center justify-center p-4 lg:p-5 rounded-[20px] border-2 transition-all duration-300 ${isSelected ? 'border-[#D7F24B] bg-lime-50/50 shadow-sm' : 'border-slate-100 bg-white hover:border-slate-200 hover:bg-slate-50'}`}
+                className={`relative flex items-center gap-3 p-4 rounded-[20px] border-2 transition-all duration-300 text-left ${isSelected ? 'border-[#D7F24B] bg-lime-50/50 shadow-sm' : 'border-slate-100 bg-white hover:border-slate-200 hover:bg-slate-50'}`}
               >
                 {isSelected && (
                   <div className="absolute top-2 right-2 bg-[#D7F24B] w-5 h-5 rounded-full flex items-center justify-center animate-in zoom-in">
                     <Check className="w-3 h-3 text-[#171717]" />
                   </div>
                 )}
-                <Icon className={`w-8 h-8 mb-3 transition-colors ${isSelected ? 'text-[#171717]' : 'text-slate-400'}`} />
-                <span className={`font-bold text-sm lg:text-base ${isSelected ? 'text-[#171717]' : 'text-slate-500'}`}>{opt.id}</span>
+                <span className="text-2xl shrink-0">{opt.emoji}</span>
+                <div>
+                  <p className={`font-bold text-sm leading-tight ${isSelected ? 'text-[#171717]' : 'text-slate-700'}`}>{opt.label}</p>
+                  <p className="text-[11px] text-slate-400 font-medium mt-0.5 leading-snug">{opt.desc}</p>
+                </div>
               </button>
-            )
+            );
+          })}
+        </div>
+      </section>
+
+      {/* 5. ORÇAMENTO */}
+      <section>
+        <h2 className="text-2xl font-extrabold text-[#171717] mb-6">Qual é o seu estilo de gasto?</h2>
+        <div className="grid grid-cols-3 gap-3">
+          {budgetOptions.map(opt => {
+            const isSelected = budgetLevel === opt.id;
+            return (
+              <button
+                key={opt.id}
+                onClick={() => setBudgetLevel(opt.id)}
+                className={`relative flex flex-col items-center text-center p-4 lg:p-5 rounded-[20px] border-2 transition-all duration-300 ${isSelected ? 'border-[#D7F24B] bg-lime-50/50 shadow-sm' : 'border-slate-100 bg-white hover:border-slate-200 hover:bg-slate-50'}`}
+              >
+                {isSelected && (
+                  <div className="absolute top-2 right-2 bg-[#D7F24B] w-5 h-5 rounded-full flex items-center justify-center animate-in zoom-in">
+                    <Check className="w-3 h-3 text-[#171717]" />
+                  </div>
+                )}
+                <span className="text-3xl mb-2">{opt.emoji}</span>
+                <p className={`font-bold text-sm leading-tight ${isSelected ? 'text-[#171717]' : 'text-slate-700'}`}>{opt.label}</p>
+                <p className="text-[11px] text-slate-400 font-medium mt-1 leading-snug">{opt.desc}</p>
+              </button>
+            );
           })}
         </div>
       </section>

@@ -155,7 +155,7 @@ export default function MyTrips() {
                   </span>
                 </div>
                 <Button variant="outline" className="w-full rounded-xl" asChild>
-                  <Link to={Array.isArray(trip.itinerary) && trip.itinerary.length > 0 ? `/viagens/${trip.id}/roteiro` : `/viagens/${trip.id}/onboarding`}>
+                  <Link to={Array.isArray(trip.itinerary) && trip.itinerary.length > 0 ? `/viagens/${trip.id}/v2` : `/viagens/${trip.id}/onboarding`}>
                     {Array.isArray(trip.itinerary) && trip.itinerary.length > 0 ? "Abrir meu espaço" : "Continuar planejamento"}
                   </Link>
                 </Button>

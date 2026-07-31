@@ -1,11 +1,75 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { 
   Clock, MapPin, DollarSign, CheckCircle2, ChevronRight, ChevronDown,
-  ArrowUp, ArrowDown, Shuffle, CloudRain, Navigation, AlertCircle, Info, Plane, Plus, Lock, Unlock, Zap, Calendar, CloudSun, Sun, Moon, Sparkles
+  ArrowUp, ArrowDown, Shuffle, CloudRain, Navigation, AlertCircle, Info, Plane, Plus, Lock, Unlock, Zap, Calendar, CloudSun, Sun, Moon, Sparkles, X, Bookmark, Banknote, TrainFront
 } from 'lucide-react';
+import { CONCIERGE_NOTES } from '@/pages/consumer/BdayRafaRoteiroNY/conciergeNotes';
 import { TripSpaceDay, TripSpaceStop, TripSpaceBasecamp } from '@/types/tripSpace.types';
 import MapLibreMap from '@/components/MapLibreMap';
+import { WeeklyOverviewGridV2 } from './components/WeeklyOverviewGridV2';
+import { FreetimeCardV2 } from './components/FreetimeCardV2';
+import { DecisionCardV2 } from './components/DecisionCardV2';
+import { BoardingJournalModal } from './components/BoardingJournalModal';
+import { DayContextHeaderV2 } from './components/DayContextHeaderV2';
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  DragEndEvent,
+} from '@dnd-kit/core';
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  verticalListSortingStrategy,
+  useSortable
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
 import { DefaultAttractionCardV2 } from './cards/DefaultAttractionCardV2';
+
+function SortableStopItem({ id, children, disabled = false }: { id: string; children: React.ReactNode; disabled?: boolean }) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id, disabled });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    zIndex: isDragging ? 50 : 1,
+    position: 'relative' as const,
+  };
+
+  return (
+    <div ref={setNodeRef} style={style} className={`relative flex group/dnd ${isDragging ? 'opacity-70' : ''}`}>
+      <div className="flex-1 w-full relative">
+        {/* A alça (handle) para arrastar, escondida se o item estiver travado (disabled) */}
+        {!disabled && (
+          <div 
+            {...attributes} 
+            {...listeners}
+            className="absolute -left-3 sm:-left-6 top-1/2 -translate-y-1/2 w-8 h-12 flex items-center justify-center cursor-grab active:cursor-grabbing z-20"
+          >
+            <div className="w-2 h-6 flex flex-wrap gap-[2px] opacity-0 group-hover/dnd:opacity-100 transition-opacity bg-white/50 rounded-full p-0.5 backdrop-blur-sm shadow-sm border border-slate-200">
+              <div className="w-1.5 h-1.5 rounded-full bg-slate-400"></div>
+              <div className="w-1.5 h-1.5 rounded-full bg-slate-400"></div>
+              <div className="w-1.5 h-1.5 rounded-full bg-slate-400"></div>
+              <div className="w-1.5 h-1.5 rounded-full bg-slate-400"></div>
+            </div>
+          </div>
+        )}
+        {children}
+      </div>
+    </div>
+  );
+}
 import { FlightCard } from '@/pages/consumer/TripSpace/cards/FlightCard';
 import { ImmigrationCard } from '@/pages/consumer/TripSpace/cards/ImmigrationCard';
 import { TransportCard } from '@/pages/consumer/TripSpace/cards/TransportCard';
@@ -28,6 +92,7 @@ interface DayWorkspaceV2Props {
   onDayChange: (dayNum: number) => void;
   basecamp?: TripSpaceBasecamp;
   onToggleLock?: (activityId: string, isLocked: boolean) => void;
+  onUpdateActivity?: (activityId: string, updates: { time?: string, cost?: string }) => void;
   onCreateDraft?: (intent: import('@/domain/itinerary-engine/edit-intents').ItineraryEditIntent) => void;
   onExecuteDirectAction?: (intent: import('@/domain/itinerary-engine/edit-intents').ItineraryEditIntent) => void;
   onCommitDraft?: () => void;
@@ -72,7 +137,7 @@ function parseDurationMins(duration?: string): number | null {
 }
 
 function getStopPriority(stop: TripSpaceStop): number {
-  const lower = stop.title.toLowerCase();
+  const lower = stop.title?.toLowerCase() || '';
   if (stop.category === 'flight' || lower.includes('voo')) return 0;
   if (lower.includes('imigração')) return 1;
   if (lower.includes('bagagem') || lower.includes('guarda-volumes') || lower.includes('guarda de bagagem')) return 2;
@@ -100,16 +165,21 @@ function reorderLogisticClusters(stops: TripSpaceStop[]): TripSpaceStop[] {
 
 export function DayWorkspaceV2({ 
   tripId, userId, days, activeDay, onDayChange, basecamp, catalog,
-  onToggleLock, onCreateDraft, onExecuteDirectAction, onCommitDraft, onClearDraft, editDraft, draftLoading 
+  onToggleLock, onUpdateActivity, onCreateDraft, onExecuteDirectAction, onCommitDraft, onClearDraft, editDraft, draftLoading 
 }: DayWorkspaceV2Props) {
   const [selectedStopId, setSelectedStopId] = useState<string | null>(null);
   const [detailModalStop, setDetailModalStop] = useState<TripSpaceStop | null>(null);
   const [directionsStop, setDirectionsStop] = useState<TripSpaceStop | null>(null);
+  const [journalStop, setJournalStop] = useState<TripSpaceStop | null>(null);
+  const [localEdits, setLocalEdits] = useState<Record<string, {time?: string, cost?: string}>>({});
   const [isGamifiedModalOpen, setIsGamifiedModalOpen] = useState(false);
   const [activeGamifiedStop, setActiveGamifiedStop] = useState<TripSpaceStop | null>(null);
   const [isManualModalOpen, setIsManualModalOpen] = useState(false);
   const [isAdding, setIsAdding] = useState(false);
   const [addError, setAddError] = useState<string | null>(null);
+  const [activeMetricModal, setActiveMetricModal] = useState<'km' | 'custo' | 'reservas' | null>(null);
+
+  const [localStopsOrder, setLocalStopsOrder] = useState<string[] | null>(null);
 
   useEffect(() => {
     const handleOpenAddModal = () => setIsManualModalOpen(true);
@@ -117,13 +187,65 @@ export function DayWorkspaceV2({
     return () => window.removeEventListener('OPEN_ADD_EXPERIENCE_MODAL', handleOpenAddModal);
   }, []);
 
+  useEffect(() => {
+    setLocalStopsOrder(null);
+  }, [activeDay, days]);
+
   const currentDay = days.find(d => d.dayNumber === activeDay) || days[0];
+  
   const catalogItems = catalog || [];
 
   const orderedDayStops = useMemo(
-    () => reorderLogisticClusters(currentDay?.stops || []),
-    [currentDay]
+    () => {
+      let stops = reorderLogisticClusters(currentDay?.stops || []);
+      
+      if (localStopsOrder) {
+        const orderMap = new Map(localStopsOrder.map((id, index) => [id, index]));
+        stops = [...stops].sort((a, b) => {
+          const idxA = orderMap.has(a.id) ? orderMap.get(a.id)! : 9999;
+          const idxB = orderMap.has(b.id) ? orderMap.get(b.id)! : 9999;
+          return idxA - idxB;
+        });
+      }
+
+      return stops.map(stop => {
+        const edit = localEdits[stop.id];
+        if (edit) {
+          return { 
+            ...stop, 
+            time: edit.time ?? stop.time, 
+            cost: edit.cost ? `US$ ${parseFloat(edit.cost).toFixed(2).replace('.00', '')}` : stop.cost 
+          };
+        }
+        return stop;
+      });
+    },
+    [currentDay, localEdits, localStopsOrder]
   );
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: {
+        distance: 5,
+      },
+    }),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    })
+  );
+
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+    if (over && active.id !== over.id) {
+      const oldIndex = orderedDayStops.findIndex(s => s.id === active.id);
+      const newIndex = orderedDayStops.findIndex(s => s.id === over.id);
+      
+      if (oldIndex !== -1 && newIndex !== -1) {
+        const newOrder = arrayMove(orderedDayStops.map(s => s.id), oldIndex, newIndex);
+        setLocalStopsOrder(newOrder);
+      }
+    }
+  };
 
   const stopMapPoints = orderedDayStops.filter(s => s.lat && s.lng).map(s => ({
     id: s.id,
@@ -136,7 +258,7 @@ export function DayWorkspaceV2({
     ...(hasBasecampCoords ? [{
       id: 'basecamp',
       name: basecamp!.name,
-      neighborhood: 'Basecamp',
+      neighborhood: 'Hospedagem',
       coordinates: { lat: basecamp!.lat!, lng: basecamp!.lng! },
       isBasecamp: true,
     }] : []),
@@ -146,6 +268,10 @@ export function DayWorkspaceV2({
   const dailyStats = useMemo(() => {
     let totalKm = 0;
     let totalMins = 0;
+    let totalCost = 0;
+    const bookingsNeeded: { title: string; time?: string; url?: string }[] = [];
+    const costDetails: { title: string; cost: number }[] = [];
+
     const validPoints = [
       ...(basecamp?.lat != null && basecamp?.lng != null ? [{ lat: basecamp.lat, lng: basecamp.lng }] : []),
       ...orderedDayStops.filter(s => s.lat != null && s.lng != null).map(s => ({ lat: s.lat!, lng: s.lng! }))
@@ -157,7 +283,29 @@ export function DayWorkspaceV2({
         totalMins += hint.minutes;
       }
     }
-    return { totalKm, totalMins };
+
+    orderedDayStops.forEach(s => {
+      let costVal = 0;
+      if (typeof s.cost === 'number') costVal = s.cost;
+      else if (typeof (s as any).base_cost === 'number') costVal = (s as any).base_cost;
+      else if (typeof (s as any).experience?.base_cost === 'number') costVal = (s as any).experience.base_cost;
+
+      if (costVal > 0) {
+        totalCost += costVal;
+        costDetails.push({ title: s.title, cost: costVal });
+      }
+
+      const t = s.title?.toLowerCase() || '';
+      if ((s as any).reservation_required || (s as any).experience?.reservation_required || s.category === 'restaurant' || t.includes('summit') || t.includes('edge') || t.includes('wicked') || t.includes('aladdin')) {
+        bookingsNeeded.push({
+          title: s.title,
+          time: s.time,
+          url: (s as any).bookingUrl || (s as any).booking_url || (s as any).experience?.booking_url
+        });
+      }
+    });
+
+    return { totalKm, totalMins, totalCost, costDetails, bookingsNeeded };
   }, [basecamp, orderedDayStops]);
 
   const getLogisticAlert = (stop: TripSpaceStop, nextStop: TripSpaceStop) => {
@@ -216,9 +364,9 @@ export function DayWorkspaceV2({
   const fullDateLabel = getFullDateLabel(currentDay?.fullDateStr) || currentDay?.dateStr || `Dia ${currentDay?.dayNumber ?? ''}`;
   const isToday = isDateToday(currentDay?.fullDateStr);
 
-  const arrivalFlightStop = orderedDayStops.find(s => s.category === 'flight' && s.title.toLowerCase().includes('chegada'));
+  const arrivalFlightStop = orderedDayStops.find(s => s.category === 'flight' && (s.title?.toLowerCase() || '').includes('chegada'));
   const otherFlightStop = orderedDayStops.find(s => s.category === 'flight');
-  const isArrivalDay = !!arrivalFlightStop;
+  const isArrivalDay = !!arrivalFlightStop || currentDay.dayNumber === 1;
 
   const contextualSubtitle = (() => {
     if (arrivalFlightStop) {
@@ -237,45 +385,86 @@ export function DayWorkspaceV2({
 
   const renderStop = (stop: TripSpaceStop, idx: number, arr: TripSpaceStop[]) => {
     const isSelected = selectedStopId === stop.id;
-    const lowerTitle = stop.title.toLowerCase();
+    const lowerTitle = stop.title?.toLowerCase() || '';
     
     // Fallback for special cards. If they look weird without the timeline dot, we can adapt them later.
     // We just wrap them in a simple div so they align with the new V2 logic.
     if (stop.category === 'flight' || lowerTitle.includes('voo')) {
       return <div key={stop.id} className="w-full"><FlightCard stop={stop} tripId={tripId} userId={userId} isSelected={isSelected} onClick={() => setSelectedStopId(stop.id)} hideTimelineDot={true} /></div>;
     }
-    if (lowerTitle.includes('imigração')) {
+    if (stop.category === 'immigration' || lowerTitle.includes('imigração') || lowerTitle.includes('imigracao')) {
       return <div key={stop.id} className="w-full"><ImmigrationCard stop={stop} tripId={tripId} userId={userId} isSelected={isSelected} onClick={() => setSelectedStopId(stop.id)} hideTimelineDot={true} /></div>;
     }
-    if (lowerTitle.includes('deslocamento')) {
-      const prevStop = arr[idx - 1];
-      const nextStop = arr[idx + 1];
-      const originLabel = prevStop?.title;
-      const originAddress = prevStop?.locationAddress || prevStop?.neighborhood;
-      const nextIsLodgingOrMissing = !nextStop || nextStop.category === 'lodging';
-      const destinationLabel = nextIsLodgingOrMissing ? basecamp?.name : nextStop?.title;
-      const destinationAddress = nextIsLodgingOrMissing ? basecamp?.address : (nextStop?.locationAddress || nextStop?.neighborhood);
+    if (stop.category === 'transport' || stop.category === 'logistics' || lowerTitle.includes('deslocamento')) {
+      // O cartão da própria atração (ExperienceCardV2) já possui um banner superior amarelo
+      // indicando o tempo e distância da atração anterior. Portanto, renderizar um bloco 
+      // separado na timeline é redundante e visualmente poluído. Ocultamos completamente.
+      return null;
+    }
+    if (stop.category === 'freetime') {
       return (
         <div key={stop.id} className="w-full">
-          <TransportCard
-            stop={stop}
-            basecamp={basecamp}
-            isSelected={isSelected}
-            onClick={() => setSelectedStopId(stop.id)}
-            originLabel={originLabel}
-            originAddress={originAddress}
-            destinationLabel={destinationLabel}
-            destinationAddress={destinationAddress}
-            hideTimelineDot={true}
+          <FreetimeCardV2 
+            stop={stop} 
+            isSelected={isSelected} 
+            onClick={() => setSelectedStopId(stop.id)} 
+            onFill={() => {
+              window.dispatchEvent(new CustomEvent('OPEN_ADD_EXPERIENCE_MODAL', { detail: { day: currentDay.dayNumber } }));
+            }}
+            onRemove={async () => {
+              if (!onExecuteDirectAction) return;
+              try {
+                await onExecuteDirectAction({
+                  tripId,
+                  action: 'REMOVE',
+                  activityId: stop.id,
+                  targetDay: currentDay.dayNumber
+                } as any);
+              } catch (e: any) {
+                console.error('[REMOVE FreetimeCard] falhou:', e);
+                alert('Falha ao remover: ' + (e?.message || 'erro desconhecido'));
+              }
+            }}
           />
         </div>
       );
     }
-    if (lowerTitle.includes('bagagem') || lowerTitle.includes('guarda-volumes') || lowerTitle.includes('guarda de bagagem')) {
+    if (stop.category === 'decision') {
+      return (
+        <div key={stop.id} className="w-full">
+          <DecisionCardV2 stop={stop} isSelected={isSelected} onClick={() => setSelectedStopId(stop.id)} />
+        </div>
+      );
+    }
+    if (stop.category === 'luggage' || lowerTitle.includes('bagagem') || lowerTitle.includes('guarda-volumes') || lowerTitle.includes('guarda de bagagem')) {
       return <div key={stop.id} className="w-full"><LuggageCard stop={stop} basecamp={basecamp} isSelected={isSelected} onClick={() => setSelectedStopId(stop.id)} hideTimelineDot={true} /></div>;
     }
     if (lowerTitle.includes('pausa') || lowerTitle.includes('café') || lowerTitle.includes('descanso')) {
-      return <div key={stop.id} className="w-full"><CoffeeBreakCard stop={stop} catalog={catalog} isSelected={isSelected} onClick={() => setSelectedStopId(stop.id)} hideTimelineDot={true} /></div>;
+      return (
+        <div key={stop.id} className="w-full">
+          <CoffeeBreakCard 
+            stop={stop} 
+            catalog={catalog} 
+            isSelected={isSelected} 
+            onClick={() => setSelectedStopId(stop.id)} 
+            hideTimelineDot={true} 
+            onRemove={async () => {
+              if (!onExecuteDirectAction) return;
+              try {
+                await onExecuteDirectAction({
+                  tripId,
+                  action: 'REMOVE',
+                  activityId: stop.id,
+                  targetDay: currentDay.dayNumber
+                } as any);
+              } catch (e: any) {
+                console.error('[REMOVE CoffeeBreakCard] falhou:', e);
+                alert('Falha ao remover: ' + (e?.message || 'erro desconhecido'));
+              }
+            }}
+          />
+        </div>
+      );
     }
     if (stop.category === 'gamified_prompt') {
       return (
@@ -307,12 +496,23 @@ export function DayWorkspaceV2({
     if (stop.lat != null && stop.lng != null && !isLodging) {
       let origin: { lat?: number | null; lng?: number | null } | undefined = undefined;
       let fromBasecamp = false;
-      if (idx > 0 && arr[idx - 1]?.lat != null && arr[idx - 1]?.lng != null) {
-        origin = { lat: arr[idx - 1].lat, lng: arr[idx - 1].lng };
+      
+      // Encontrar a última parada que possui lat/lng válida (ignorando Freetime/Decision que não tem mapa)
+      let lastValidStop = null;
+      for (let k = idx - 1; k >= 0; k--) {
+        if (arr[k].lat != null && arr[k].lng != null && !arr[k].category?.includes('flight') && !arr[k].category?.includes('lodging')) {
+          lastValidStop = arr[k];
+          break;
+        }
+      }
+
+      if (lastValidStop) {
+        origin = { lat: lastValidStop.lat, lng: lastValidStop.lng };
       } else if (basecamp?.lat != null && basecamp?.lng != null) {
         origin = { lat: basecamp.lat, lng: basecamp.lng };
         fromBasecamp = true;
       }
+      
       if (origin && origin.lat != null && origin.lng != null) {
         const hint = getTravelHint({ lat: origin.lat, lng: origin.lng }, { lat: stop.lat, lng: stop.lng });
         if (hint) {
@@ -331,94 +531,26 @@ export function DayWorkspaceV2({
         onClick={() => setDetailModalStop(stop)}
         onNavigate={() => setDirectionsStop(stop)}
         onReplace={() => {}}
-        onRemove={() => {
-          if (onExecuteDirectAction) {
-            onExecuteDirectAction({
+        onOpenJournal={() => setJournalStop(stop)}
+        onRemove={async () => {
+          if (!onExecuteDirectAction) return;
+          try {
+            await onExecuteDirectAction({
               tripId,
               action: 'REMOVE',
               activityId: stop.id,
               targetDay: currentDay.dayNumber
             } as any);
+          } catch (e: any) {
+            console.error('[REMOVE AttractionCard] falhou:', e);
+            alert('Falha ao remover: ' + (e?.message || 'erro desconhecido'));
           }
         }}
       />
     );
   };
 
-  const renderSectionV2 = (title: string, subtitle: string, icon: React.ReactNode, stops: TripSpaceStop[]) => {
-    return (
-      <div className="mb-12 last:mb-0">
-        <div className="flex items-center justify-between gap-3 mb-5 pl-2 flex-wrap border-b border-slate-200/60 pb-3">
-          <div className="flex items-center gap-3">
-            <div className="w-11 h-11 rounded-2xl bg-white shadow-sm border border-slate-200/80 flex items-center justify-center">
-              {icon}
-            </div>
-            <div>
-              <h3 className="font-black text-slate-900 text-xl font-outfit tracking-tight">{title}</h3>
-              <p className="text-xs font-bold text-slate-500">{subtitle}</p>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-2 ml-auto flex-wrap">
-            {stops.length > 0 && (
-              <>
-                <button
-                  type="button"
-                  onClick={() => alert(`Sincronizando Plano de Chuva com IA para o turno: ${title}`)}
-                  className="text-xs font-bold text-slate-700 bg-white hover:bg-slate-50 border border-slate-200 px-3 py-1.5 rounded-xl shadow-sm transition-all flex items-center gap-1"
-                  title="Substitui paradas abertas por opções cobertas e climatizadas"
-                >
-                  <CloudRain className="w-3.5 h-3.5 text-sky-500" />
-                  <span>Plano de Chuva</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => alert(`Recalculando rotas e deslocamentos otimizados para: ${title}`)}
-                  className="text-xs font-black text-[#14150F] bg-white hover:bg-[#D6FF3F] border border-slate-200 hover:border-[#b8e624] px-3 py-1.5 rounded-xl shadow-sm transition-all flex items-center gap-1.5"
-                  title="Otimiza o tráfego e ordem dos locais com a Engine V2"
-                >
-                  <Navigation className="w-3.5 h-3.5 text-[#14150F]" />
-                  <span>Otimizar Rota</span>
-                </button>
-              </>
-            )}
-            {stops.length === 0 && (
-              <span className="text-[11px] font-bold text-slate-400 bg-slate-100 px-3 py-1.5 rounded-xl uppercase tracking-wider">
-                Turno Livre
-              </span>
-            )}
-          </div>
-        </div>
-        
-        {stops.length === 0 ? (
-          <div className="bg-[#FAF8F1] border-2 border-dashed border-slate-300/80 rounded-[28px] p-8 flex flex-col items-center justify-center text-center gap-3 shadow-inner">
-            <p className="text-sm sm:text-base font-extrabold text-slate-600">Nenhuma programação curada para este turno.</p>
-            <button
-              onClick={() => setIsGamifiedModalOpen(true)}
-              className="bg-[#14150F] text-[#FAF8F1] hover:bg-[#D6FF3F] hover:text-[#14150F] font-black shadow-md rounded-xl py-2.5 px-6 flex items-center justify-center gap-2 transition-all mt-1"
-            >
-              <Sparkles className="w-4 h-4 text-[#D6FF3F] group-hover:text-[#14150F]" />
-              <span className="text-xs sm:text-sm">Explorar Ideias com Concierge IA</span>
-            </button>
-          </div>
-        ) : (
-          <div className="flex flex-col gap-6">
-            {stops.map((stop, idx) => renderStop(stop, idx, stops))}
-            
-            {/* Add action at the end of the shift block */}
-            <div className="flex justify-center mt-2">
-              <button
-                onClick={() => setIsGamifiedModalOpen(true)}
-                className="text-xs font-extrabold text-slate-500 hover:text-slate-900 transition-colors flex items-center gap-1.5 bg-white border border-slate-200/80 hover:border-slate-400 shadow-sm hover:shadow px-5 py-2.5 rounded-xl"
-              >
-                <Plus className="w-4 h-4 text-[#8C7CF0]" /> Adicionar parada nesta janela ({title})
-              </button>
-            </div>
-          </div>
-        )}
-      </div>
-    );
-  };
+  const renderSectionV2 = null; // removido
 
   return (
     <section className="mb-8">
@@ -427,97 +559,69 @@ export function DayWorkspaceV2({
           {currentDay && (
             <div className="bg-transparent border-none rounded-none">
               
-              {/* Card Resumo do Dia (Estilo Copiloto V3 / Verde Neon & Tinta Preta) */}
-              <div className="bg-[#D6FF3F] text-[#14150F] border-2 border-[#b5db2b] rounded-[28px] p-6 sm:p-8 shadow-xl mb-8 relative overflow-hidden transition-all duration-300 hover:shadow-2xl">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4 relative z-10">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <span className="bg-[#14150F] text-[#FAF8F1] font-black text-xs px-3.5 py-1.5 rounded-xl uppercase tracking-wider flex items-center gap-1.5 shadow-sm">
-                      <span className="w-2 h-2 rounded-full bg-[#D6FF3F] animate-pulse" />
-                      Bom dia, Rafael — Dia {currentDay.dayNumber} de {days.length}
-                    </span>
-                    {isArrivalDay && (
-                      <span className="bg-white/90 border border-black/10 text-slate-900 font-extrabold text-xs px-3 py-1.5 rounded-xl shadow-sm">
-                        🛬 Dia de Chegada & Logística
+              {/* Card Resumo do Dia e Contexto (Clima, Dicas, Astronomia) */}
+              <DayContextHeaderV2
+                currentDay={currentDay}
+                totalDays={days.length}
+                isArrivalDay={isArrivalDay}
+                fullDateLabel={fullDateLabel}
+                dailyStats={dailyStats}
+                basecamp={basecamp}
+                orderedDayStops={orderedDayStops}
+                setActiveMetricModal={setActiveMetricModal}
+              />
+
+              {/* Timeline Contínua V2 (sem sanfonas) */}
+              <div className="mt-6 flex flex-col gap-5">
+                {orderedDayStops.length > 0 ? (
+                  <>
+                    <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+                      <SortableContext items={orderedDayStops.map(s => s.id)} strategy={verticalListSortingStrategy}>
+                        {orderedDayStops.map((stop, idx) => {
+                          const isLogisticCard = stop.category === 'flight' || stop.category === 'immigration' || stop.category === 'luggage' || stop.category === 'transport';
+                          return (
+                            <SortableStopItem key={stop.id} id={stop.id} disabled={isLogisticCard}>
+                              {renderStop(stop, idx, orderedDayStops)}
+                            </SortableStopItem>
+                          );
+                        })}
+                      </SortableContext>
+                    </DndContext>
+                    
+                    {/* Botão Fixo de Adicionar Atração no Final do Dia */}
+                    <button
+                      onClick={() => {
+                        window.dispatchEvent(new CustomEvent('OPEN_ADD_EXPERIENCE_MODAL', { detail: { day: currentDay.dayNumber } }));
+                      }}
+                      className="w-full bg-white hover:bg-slate-50 border-2 border-dashed border-slate-300 hover:border-slate-400 text-slate-600 hover:text-slate-800 font-black text-sm px-6 py-5 rounded-[24px] transition-all flex items-center justify-center gap-2 shadow-sm mt-2 group"
+                    >
+                      <span className="w-8 h-8 rounded-full bg-slate-100 group-hover:bg-slate-200 flex items-center justify-center transition-colors">
+                        <Plus className="w-4 h-4 text-slate-600" />
                       </span>
-                    )}
-                    {currentDay.dayNumber === days.length && days.length > 1 && (
-                      <span className="bg-white/90 border border-black/10 text-slate-900 font-extrabold text-xs px-3 py-1.5 rounded-xl shadow-sm">
-                        🛫 Dia de Partida
-                      </span>
-                    )}
+                      INCLUIR ATRAÇÃO NESTE DIA
+                    </button>
+                  </>
+                ) : (
+                  <div className="bg-[#FAF8F1] border-2 border-dashed border-slate-300/80 rounded-[28px] p-10 flex flex-col items-center justify-center text-center gap-4 shadow-inner">
+                    <p className="text-sm sm:text-base font-extrabold text-slate-600">Nenhuma experiência curada para este dia.</p>
+                    <button
+                      onClick={() => {
+                        window.dispatchEvent(new CustomEvent('OPEN_ADD_EXPERIENCE_MODAL', { detail: { day: currentDay.dayNumber } }));
+                      }}
+                      className="bg-[#14150F] text-[#FAF8F1] hover:bg-[#D6FF3F] hover:text-[#14150F] font-black shadow-md rounded-xl py-3 px-8 flex items-center justify-center gap-2 transition-all w-full sm:w-auto"
+                    >
+                      <Plus className="w-4 h-4" />
+                      <span className="text-xs sm:text-sm">Incluir Primeira Atração</span>
+                    </button>
+                    <button
+                      onClick={() => setIsGamifiedModalOpen(true)}
+                      className="bg-transparent text-slate-500 hover:text-slate-800 font-bold py-2 px-6 flex items-center justify-center gap-2 transition-all"
+                    >
+                      <Sparkles className="w-4 h-4" />
+                      <span className="text-xs">Ou pedir sugestões para a IA</span>
+                    </button>
                   </div>
-                  <span className="text-xs font-extrabold text-[#14150F] bg-white/80 px-3 py-1.5 rounded-xl border border-black/10 shadow-sm uppercase tabular-nums">
-                    1 de {currentDay.stops?.length || 7} etapas hoje
-                  </span>
-                </div>
-
-                <h2 className="text-2xl sm:text-3xl font-black text-[#14150F] tracking-tight mb-3 capitalize font-outfit relative z-10">
-                  {isArrivalDay ? 'Imigração e Retirada de Bagagem' : fullDateLabel}
-                </h2>
-                
-                <p className="text-sm sm:text-base text-[#14150F]/90 font-extrabold relative z-10 mb-6 max-w-3xl leading-relaxed">
-                  {isArrivalDay 
-                    ? `Seu voo pousa de manhã. Fila de imigração estimada em ~40min neste horário — depois disso, a próxima decisão é onde deixar as malas antes de fazer o check-in no hotel.`
-                    : `Roteiro otimizado para um ritmo harmônico sem sobrecarga de trânsito. Paradas distribuídas entre os turnos para garantir respiro e contemplação ao longo do dia.`}
-                </p>
-
-                {/* Painel de Instrumentos Tabulares / Medidores Executivos */}
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 relative z-10">
-                  {isArrivalDay ? (
-                    <>
-                      <div className="bg-white/90 backdrop-blur-sm p-3.5 rounded-2xl border border-black/10 shadow-sm flex flex-col justify-center">
-                        <span className="text-lg font-black tabular-nums text-[#14150F]">08:20</span>
-                        <span className="text-[11px] font-black uppercase tracking-wider text-slate-600">Pouso confirmado</span>
-                      </div>
-                      <div className="bg-white/90 backdrop-blur-sm p-3.5 rounded-2xl border border-black/10 shadow-sm flex flex-col justify-center">
-                        <span className="text-lg font-black tabular-nums text-amber-700">~40 min</span>
-                        <span className="text-[11px] font-black uppercase tracking-wider text-slate-600">Fila estimada</span>
-                      </div>
-                      <div className="bg-white/90 backdrop-blur-sm p-3.5 rounded-2xl border border-black/10 shadow-sm flex flex-col justify-center">
-                        <span className="text-lg font-black tabular-nums text-[#14150F]">17:00</span>
-                        <span className="text-[11px] font-black uppercase tracking-wider text-slate-600">Check-in liberado</span>
-                      </div>
-                      <div className="bg-white/90 backdrop-blur-sm p-3.5 rounded-2xl border border-black/10 shadow-sm flex flex-col justify-center">
-                        <span className="text-sm font-black text-[#14150F] truncate">{basecamp?.name || 'citizenM Bowery'}</span>
-                        <span className="text-[11px] font-black uppercase tracking-wider text-slate-600">Basecamp</span>
-                      </div>
-                    </>
-                  ) : (
-                    <>
-                      <div className="bg-white/90 backdrop-blur-sm p-3.5 rounded-2xl border border-black/10 shadow-sm flex flex-col justify-center">
-                        <span className="text-lg font-black tabular-nums text-[#14150F]">09:00</span>
-                        <span className="text-[11px] font-black uppercase tracking-wider text-slate-600">Início do dia</span>
-                      </div>
-                      <div className="bg-white/90 backdrop-blur-sm p-3.5 rounded-2xl border border-black/10 shadow-sm flex flex-col justify-center">
-                        <span className="text-lg font-black tabular-nums text-[#14150F]">4h30</span>
-                        <span className="text-[11px] font-black uppercase tracking-wider text-slate-600">Tempo em vivências</span>
-                      </div>
-                      <div className="bg-white/90 backdrop-blur-sm p-3.5 rounded-2xl border border-black/10 shadow-sm flex flex-col justify-center">
-                        <span className="text-lg font-black tabular-nums text-[#14150F]">
-                          {dailyStats.totalMins > 0 ? `${dailyStats.totalMins} min` : '~30 min'}
-                        </span>
-                        <span className="text-[11px] font-black uppercase tracking-wider text-slate-600">Tempo em trânsito</span>
-                      </div>
-                      <div className="bg-white/90 backdrop-blur-sm p-3.5 rounded-2xl border border-black/10 shadow-sm flex flex-col justify-center">
-                        <span className="text-lg font-black tabular-nums text-[#14150F]">
-                          {dailyStats.totalKm > 0 ? `${dailyStats.totalKm.toFixed(1).replace('.', ',')} km` : '—'}
-                        </span>
-                        <span className="text-[11px] font-black uppercase tracking-wider text-slate-600">Deslocamento no dia</span>
-                      </div>
-                      <div className="bg-white/90 backdrop-blur-sm p-3.5 rounded-2xl border border-black/10 shadow-sm flex flex-col justify-center">
-                        <span className="text-sm font-black text-[#14150F] truncate">{basecamp?.name || 'Seu Hotel'}</span>
-                        <span className="text-[11px] font-black uppercase tracking-wider text-slate-600">Basecamp</span>
-                      </div>
-                    </>
-                  )}
-                </div>
-              </div>
-
-              {/* Roteiro V2: No MobileNowCard gambiarra, just show the sections! */}
-              <div className="mt-4">
-                {renderSectionV2('Manhã', 'Até as 12h', <Sun className="w-5 h-5 text-amber-500" />, morningStops)}
-                {renderSectionV2('Tarde', '12h as 18h', <CloudSun className="w-5 h-5 text-orange-500" />, afternoonStops)}
-                {renderSectionV2('Noite', 'Após as 18h', <Moon className="w-5 h-5 text-indigo-500" />, nightStops)}
+                )}
               </div>
 
             </div>
@@ -525,48 +629,35 @@ export function DayWorkspaceV2({
         </div>
 
         <div className="hidden md:flex md:flex-col space-y-6">
-          <div className="bg-white border border-slate-200 rounded-[28px] p-5 shadow-sm flex flex-col relative overflow-hidden">
-            <div className="flex items-center justify-between mb-4 relative z-10">
-              <h3 className="font-extrabold text-slate-900 text-sm flex items-center gap-2">
-                <Navigation className="w-4 h-4 text-indigo-600" /> Mapa do dia
-              </h3>
+          {/* Ocultado o Mapa do dia conforme pedido */}
+
+          {/* PAINEL LEITURA DO DIA - CONCIERGE IA LOGÍSTICO (Paridade Exemplo NY - Regras 16 e 24) */}
+          <div className="bg-[#FAF8F1] border border-slate-200/80 rounded-[28px] p-6 shadow-xs relative overflow-hidden">
+            <div className="flex items-center gap-2.5 mb-3">
+              <span className="w-7 h-7 bg-indigo-600 rounded-xl flex items-center justify-center text-white shadow-xs shrink-0">
+                <Sparkles className="w-3.5 h-3.5" />
+              </span>
+              <h3 className="font-black text-slate-900 text-sm tracking-tight uppercase">Leitura do Dia · Concierge IA</h3>
             </div>
-            {mapPoints.length > 0 ? (
-              <div className="space-y-3">
-                <div className="relative w-full h-[380px] bg-slate-100 rounded-[20px] overflow-hidden border border-slate-200/60 shadow-inner">
-                  <MapLibreMap attractions={mapPoints as any} />
-                </div>
-                <div className="flex flex-col gap-2 p-3.5 bg-[#FAF8F1] rounded-2xl border border-slate-200/80 text-xs font-bold text-slate-700">
-                  <div className="flex items-center gap-1.5 flex-wrap">
-                    <span className="w-5 h-5 bg-slate-900 text-white rounded-full flex items-center justify-center font-black text-[10px] shrink-0 border border-white shadow-2xs">H</span>
-                    <span className="text-[11px] font-black text-slate-900">Hospedagem</span>
-                    <span className="text-slate-300">|</span>
-                    <span className="w-5 h-5 bg-[#1D6FE0] text-white rounded-full flex items-center justify-center font-black text-[10px] shrink-0 border border-white shadow-2xs">1</span>
-                    <span className="text-slate-400 font-black">➔</span>
-                    <span className="w-5 h-5 bg-[#1D6FE0] text-white rounded-full flex items-center justify-center font-black text-[10px] shrink-0 border border-white shadow-2xs">2</span>
-                    <span className="text-slate-400 font-black">➔</span>
-                    <span className="w-5 h-5 bg-[#1D6FE0] text-white rounded-full flex items-center justify-center font-black text-[10px] shrink-0 border border-white shadow-2xs">3</span>
-                    <span className="text-[11px] font-black text-[#14150F] ml-0.5">Ordem do dia</span>
-                  </div>
-                  <div className="flex items-center justify-between text-[11px] text-slate-700 font-extrabold pt-2 border-t border-slate-200">
-                    <span>Linha tracejada de deslocamento</span>
-                    <strong className="text-[#14150F] font-black bg-[#D6FF3F] px-2 py-0.5 rounded-md border border-[#b8e624]/60">{dailyStats.totalKm > 0 ? `${dailyStats.totalKm.toFixed(1).replace('.', ',')} km` : '—'}</strong>
-                  </div>
-                </div>
-              </div>
-            ) : (
-              <div className="relative w-full h-[400px] bg-slate-50 rounded-[20px] overflow-hidden border-2 border-dashed border-slate-200 flex items-center justify-center p-6">
-                <div className="absolute inset-0 opacity-[0.03]" style={{ backgroundImage: 'radial-gradient(circle at 2px 2px, black 1px, transparent 0)', backgroundSize: '16px 16px' }} />
-                <div className="relative z-10 text-center space-y-3">
-                  <div className="w-12 h-12 bg-white rounded-full flex items-center justify-center mx-auto shadow-sm text-slate-300">
-                    <Navigation className="w-6 h-6" />
-                  </div>
-                  <h3 className="text-sm font-extrabold text-slate-700">
-                    {basecamp ? 'Localização do basecamp indisponível' : 'Sem locais no mapa'}
-                  </h3>
-                </div>
-              </div>
-            )}
+            <p className="text-xs font-black text-[#14150F] leading-relaxed mb-4 pb-3 border-b border-slate-200/80">
+              {CONCIERGE_NOTES[activeDay]?.summary || (
+                orderedDayStops.length > 3 
+                  ? `Dia dinâmico com ${orderedDayStops.length} paradas planejadas. A otimização em cluster evitou zigue-zagues desnecessários e garantiu pausas equilibradas entre as atrações.`
+                  : `Roteiro planejado para uma vivência com ritmo sereno e menos tempo no tráfego urbano. Os deslocamentos iniciais foram concentrados perto de sua base.`
+              )}
+            </p>
+            <ul className="space-y-2.5 text-xs font-medium text-slate-700">
+              {(CONCIERGE_NOTES[activeDay]?.bullets || [
+                `Distância de ${dailyStats.totalKm > 0 ? dailyStats.totalKm.toFixed(1).replace('.', ',') : '~5'} km calculada via malha Manhattan (1,25x Haversine).`,
+                `Paradas distribuídas ordenadamente sem atropelar janelas de refeição ou descanso.`,
+                `Verifique com antecedência os locais de reserva obrigatória sinalizados na barra de controle.`
+              ]).map((bullet, idx) => (
+                <li key={idx} className="flex items-start gap-2 text-slate-800 font-bold">
+                  <span className="w-1.5 h-1.5 rounded-full bg-indigo-600 mt-1.5 shrink-0" />
+                  <span className="leading-snug">{bullet}</span>
+                </li>
+              ))}
+            </ul>
           </div>
 
           <div className="bg-white border border-slate-200 rounded-[28px] p-6 shadow-sm">
@@ -677,14 +768,19 @@ export function DayWorkspaceV2({
         <ExperienceDetailModalV2
           item={detailModalStop}
           onClose={() => setDetailModalStop(null)}
-          onRemoveAndReplace={(id) => {
-             if (onExecuteDirectAction) {
-               onExecuteDirectAction({
+          onRemoveAndReplace={async (id) => {
+             if (!onExecuteDirectAction) return;
+             try {
+               await onExecuteDirectAction({
                  tripId,
                  action: 'REMOVE',
                  activityId: id,
                  targetDay: currentDay.dayNumber
                } as any);
+               setDetailModalStop(null);
+             } catch (e: any) {
+               console.error('[REMOVE Modal] falhou:', e);
+               alert('Falha ao remover: ' + (e?.message || 'erro desconhecido'));
              }
           }}
         />
@@ -774,6 +870,166 @@ export function DayWorkspaceV2({
           }
         }}
       />
+
+      {/* MODAL / EXPLICADOR DE MÉTRICAS LOGÍSTICAS E FINANCEIRAS (Paridade Ouro com Exemplo NY) */}
+      {activeMetricModal && (
+        <div className="fixed inset-0 bg-slate-950/70 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={() => setActiveMetricModal(null)}>
+          <div className="bg-white border border-slate-200 rounded-[32px] p-6 sm:p-8 max-w-lg w-full shadow-2xl space-y-6 animate-in fade-in zoom-in-95 duration-200" onClick={e => e.stopPropagation()}>
+            <header className="flex items-center justify-between border-b border-slate-200 pb-4">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-slate-900 text-white flex items-center justify-center shadow-md shrink-0">
+                  {activeMetricModal === 'km' && <Navigation className="w-5 h-5 text-indigo-400" />}
+                  {activeMetricModal === 'custo' && <DollarSign className="w-5 h-5 text-emerald-400" />}
+                  {activeMetricModal === 'reservas' && <Clock className="w-5 h-5 text-[#D6FF3F]" />}
+                </div>
+                <div>
+                  <h3 className="text-lg font-black text-slate-900 leading-tight">
+                    {activeMetricModal === 'km' && 'Deslocamento do Dia (Trechos)'}
+                    {activeMetricModal === 'custo' && 'Custo Total Estimado'}
+                    {activeMetricModal === 'reservas' && 'Reservas e Ingressos Pendentes'}
+                  </h3>
+                  <p className="text-xs text-slate-500 font-bold mt-0.5">Sem adivinhações: cálculo item a item</p>
+                </div>
+              </div>
+              <button 
+                onClick={() => setActiveMetricModal(null)}
+                className="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 flex items-center justify-center text-slate-600 transition-colors"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </header>
+
+            <div className="space-y-4 max-h-[60vh] overflow-y-auto pr-1">
+              {activeMetricModal === 'km' && (
+                <>
+                  <p className="text-xs font-bold text-slate-600 leading-relaxed bg-slate-50 p-3.5 rounded-2xl border border-slate-200/80">
+                    Soma das distâncias entre as paradas deste dia, calculada pelo algoritmo Haversine e corrigida com fator de 1,25x para a malha ortogonal urbana de Manhattan.
+                  </p>
+                  <ul className="space-y-2.5">
+                    {orderedDayStops.map((stop, idx) => {
+                      const prevPoint = idx === 0 
+                        ? (basecamp?.lat != null && basecamp?.lng != null ? { lat: basecamp.lat, lng: basecamp.lng, name: basecamp.name || 'Seu Hotel' } : null)
+                        : (orderedDayStops[idx - 1]?.lat != null && orderedDayStops[idx - 1]?.lng != null ? { lat: orderedDayStops[idx - 1].lat!, lng: orderedDayStops[idx - 1].lng!, name: orderedDayStops[idx - 1].title } : null);
+                      
+                      const hint = prevPoint && stop.lat != null && stop.lng != null ? getTravelHint(prevPoint, { lat: stop.lat, lng: stop.lng }) : null;
+                      return (
+                        <li key={stop.id || idx} className="p-3.5 bg-white rounded-2xl border border-slate-200 flex items-center justify-between text-xs shadow-2xs">
+                          <div className="min-w-0 flex-1 pr-3">
+                            <span className="font-extrabold text-[#14150F] block truncate">{idx + 1}. {stop.title}</span>
+                            <span className="text-[11px] font-bold text-slate-500 block truncate mt-0.5">
+                              {prevPoint ? `Partindo de: ${prevPoint.name}` : 'Ponto inicial do trajeto'}
+                            </span>
+                          </div>
+                          <span className="px-3 py-1 bg-indigo-50 text-indigo-700 rounded-xl font-black shrink-0 border border-indigo-100">
+                            {hint ? `${hint.km.toFixed(1).replace('.', ',')} km (~${hint.minutes} min)` : '—'}
+                          </span>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                  <div className="flex items-center justify-between p-4 bg-slate-900 text-white rounded-2xl text-sm font-black shadow-lg">
+                    <span>Deslocamento somado hoje</span>
+                    <span className="text-lime-400 font-mono text-base">{dailyStats.totalKm > 0 ? `${dailyStats.totalKm.toFixed(1).replace('.', ',')} km` : '—'}</span>
+                  </div>
+                </>
+              )}
+
+              {activeMetricModal === 'custo' && (
+                <>
+                  <p className="text-xs font-bold text-slate-600 leading-relaxed bg-slate-50 p-3.5 rounded-2xl border border-slate-200/80">
+                    Somatória dos preços e custos base cadastrados pela curadoria no Admin para as atrações e refeições programadas para hoje.
+                  </p>
+                  <ul className="space-y-2.5">
+                    {dailyStats.costDetails.length > 0 ? (
+                      dailyStats.costDetails.map((item, idx) => (
+                        <li key={idx} className="p-3.5 bg-white rounded-2xl border border-slate-200 flex items-center justify-between text-xs shadow-2xs">
+                          <span className="font-black text-[#14150F] truncate pr-3">{item.title}</span>
+                          <span className="px-3 py-1 bg-emerald-50 text-emerald-800 rounded-xl font-black shrink-0 border border-emerald-100">
+                            US$ {item.cost}
+                          </span>
+                        </li>
+                      ))
+                    ) : (
+                      <li className="p-6 text-center text-slate-500 text-xs font-bold bg-slate-50 rounded-2xl border border-slate-200">
+                        Nenhuma vivência com custo em dólar cadastrado para este dia (passeios livres ou valor a consultar).
+                      </li>
+                    )}
+                  </ul>
+                  <div className="flex items-center justify-between p-4 bg-slate-900 text-white rounded-2xl text-sm font-black shadow-lg">
+                    <span>Custo total somado hoje</span>
+                    <span className="text-emerald-400 font-mono text-base">US$ {dailyStats.totalCost}</span>
+                  </div>
+                </>
+              )}
+
+              {activeMetricModal === 'reservas' && (
+                <>
+                  <p className="text-xs font-bold text-slate-600 leading-relaxed bg-slate-50 p-3.5 rounded-2xl border border-slate-200/80">
+                    Locais concorridos deste dia marcados com agendamento obrigatório de horário ou compra de ingresso antecipada.
+                  </p>
+                  <ul className="space-y-2.5">
+                    {dailyStats.bookingsNeeded.length > 0 ? (
+                      dailyStats.bookingsNeeded.map((book, idx) => (
+                        <li key={idx} className="p-3.5 bg-white rounded-2xl border border-slate-200 flex items-center justify-between text-xs shadow-2xs gap-3">
+                          <div className="min-w-0 flex-1">
+                            <span className="font-black text-[#14150F] block truncate">{book.title}</span>
+                            <span className="text-[11px] text-slate-500 font-bold block mt-0.5">Horário da parada: {book.time || 'A confirmar'}</span>
+                          </div>
+                          {book.url ? (
+                            <a href={book.url} target="_blank" rel="noopener noreferrer" className="px-3 py-1.5 bg-[#D6FF3F] hover:bg-[#c3ec2e] text-slate-950 font-black text-[11px] rounded-xl border border-[#b8e624] shrink-0 shadow-2xs transition-all">
+                              Reservar Online
+                            </a>
+                          ) : (
+                            <span className="px-3 py-1 bg-amber-100 text-amber-900 rounded-xl font-black text-[11px] shrink-0">
+                              No local / fone
+                            </span>
+                          )}
+                        </li>
+                      ))
+                    ) : (
+                      <li className="p-6 text-center text-slate-500 text-xs font-bold bg-slate-50 rounded-2xl border border-slate-200">
+                        Todas as paradas deste dia possuem acesso livre sem necessidade de ingresso com hora marcada.
+                      </li>
+                    )}
+                  </ul>
+                </>
+              )}
+            </div>
+
+            <footer className="pt-2 border-t border-slate-100 flex justify-end">
+              <button 
+                onClick={() => setActiveMetricModal(null)}
+                className="px-5 py-2.5 bg-slate-900 hover:bg-slate-800 text-white rounded-xl font-black text-xs transition-colors shadow-sm"
+              >
+                Fechar Painel
+              </button>
+            </footer>
+          </div>
+        </div>
+      )}
+      {journalStop && (
+        <BoardingJournalModal 
+          stop={journalStop}
+          onClose={() => setJournalStop(null)}
+          onSave={(time, cost) => {
+            // Persiste a edição localmente na UI para reflexo imediato no card
+            setLocalEdits(prev => ({
+              ...prev,
+              [journalStop.id]: { time, cost: cost.toString() }
+            }));
+            
+            // Dispara o salvamento permanente no Supabase (Engine/Banco)
+            if (onUpdateActivity) {
+              onUpdateActivity(journalStop.id, { 
+                time, 
+                cost: `US$ ${parseFloat(cost.toString()).toFixed(2).replace('.00', '')}` 
+              });
+            }
+            
+            setJournalStop(null);
+          }}
+        />
+      )}
     </section>
   );
 }

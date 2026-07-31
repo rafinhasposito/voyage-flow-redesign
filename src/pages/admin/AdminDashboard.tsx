@@ -9,6 +9,7 @@ import {
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { cn } from "@/lib/utils";
+import { AdminHeader } from "@/components/admin/AdminHeader";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 interface DashStats {
@@ -159,111 +160,69 @@ export default function AdminDashboard() {
   ] as const;
 
   return (
-    <div className="flex flex-col h-full overflow-auto bg-vf-bg">
-
-      {/* ══ HERO ════════════════════════════════════════════════════════════════ */}
-      <div className="relative overflow-hidden flex-shrink-0 h-[260px]">
-        {/* NYC Skyline Background */}
-        <img
-          src="https://images.unsplash.com/photo-1485871981521-5b1fd3805eee?w=1600&q=80&auto=format&fit=crop"
-          alt="New York City"
-          className="absolute inset-0 w-full h-full object-cover"
-        />
-        {/* Gradient overlay */}
-        <div className="absolute inset-0 bg-gradient-to-r from-vf-black/90 via-vf-black/50 to-transparent" />
-
-        {/* Top Bar */}
-        <div className="absolute top-0 left-0 right-0 flex items-center justify-between px-7 pt-5">
-          <div className="flex items-center gap-2 bg-white/10 backdrop-blur-md rounded-full px-4 py-2 border border-white/15">
-            <Search className="w-3.5 h-3.5 text-white/60" />
-            <span className="text-xs text-white/50 w-48">Buscar no Admin...</span>
-            <span className="text-[10px] text-white/30 ml-2 font-mono">⌘K</span>
+    <div className="flex flex-col h-full overflow-auto bg-[#F7F7F2] font-sans selection:bg-[#D7F24B] selection:text-[#171717]">
+      <AdminHeader
+        title="Centro de Operações IA"
+        subtitle={`${greeting()}, Rafael. Aqui você acompanha a saúde do catálogo, status de processamento da Engine e métricas gerais.`}
+        icon={<Sparkles className="w-4 h-4 text-[#171717]" />}
+        badgeText="Visão Geral"
+        gradient="from-[#D7F24B] to-[#BDF4D6]"
+        loading={loading}
+        metrics={[
+          { label: 'Total Inventário', value: v(stats.total), color: 'bg-white/40' },
+          { label: 'Publicados', value: v(stats.published), color: 'bg-emerald-500/10 text-emerald-900 border-emerald-500/20' },
+          { label: 'Rascunhos', value: v(stats.draft), color: 'bg-white/30' },
+          { label: 'Health Score', value: `${qualityScore}%`, color: qualityScore >= 80 ? 'bg-emerald-500/10 text-emerald-900' : 'bg-amber-500/10 text-amber-900' },
+        ]}
+        actions={
+          <div className="flex flex-col items-end gap-4">
+             <div className="flex items-center gap-3">
+               <button className="relative w-12 h-12 rounded-xl bg-white/40 backdrop-blur-md border border-white/40 flex items-center justify-center hover:bg-white/60 transition-colors shadow-sm">
+                 <Bell className="w-5 h-5 text-[#171717]/80" />
+                 {totalIssues > 0 && (
+                   <span className="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-red-500 text-[10px] font-black text-white flex items-center justify-center shadow-sm">
+                     {Math.min(totalIssues, 9)}
+                   </span>
+                 )}
+               </button>
+               <div className="flex items-center gap-3 bg-white/40 backdrop-blur-md rounded-xl pl-2 pr-4 py-2 border border-white/40 shadow-sm">
+                 <div className="w-8 h-8 rounded-lg flex items-center justify-center text-xs font-black bg-[#171717] text-[#D7F24B]">
+                   RG
+                 </div>
+                 <span className="text-sm font-bold text-[#171717]">Rafael G.</span>
+                 <ChevronDown className="w-4 h-4 text-[#171717]/40" />
+               </div>
+             </div>
+             {/* Tabs */}
+             <div className="flex items-center gap-2 bg-white/30 backdrop-blur-md p-1 rounded-2xl border border-white/40 shadow-sm">
+               {TABS.map(tab => (
+                 tab.id === 'overview' ? (
+                   <button
+                     key={tab.id}
+                     onClick={() => setActiveTab('overview')}
+                     className={cn(
+                        "px-6 py-2 rounded-xl text-[13px] font-black transition-all",
+                        activeTab === 'overview'
+                          ? "bg-white text-[#171717] shadow-sm"
+                          : "text-[#171717]/60 hover:text-[#171717] hover:bg-white/40"
+                      )}
+                   >
+                     {tab.label}
+                   </button>
+                 ) : (
+                   <Link
+                     key={tab.id}
+                     to={(tab as any).to}
+                     className="px-6 py-2 rounded-xl text-[13px] font-black text-[#171717]/60 hover:text-[#171717] hover:bg-white/40 transition-all"
+                   >
+                     {tab.label}
+                   </Link>
+                 )
+               ))}
+             </div>
           </div>
-          <div className="flex items-center gap-3">
-            <button className="relative w-9 h-9 rounded-full bg-white/10 backdrop-blur-md border border-white/15 flex items-center justify-center hover:bg-white/20 transition-colors">
-              <Bell className="w-4 h-4 text-white/80" />
-              {totalIssues > 0 && (
-                <span className="absolute -top-0.5 -right-0.5 w-4 h-4 rounded-full bg-vf-danger text-[9px] font-black text-white flex items-center justify-center">
-                  {Math.min(totalIssues, 9)}
-                </span>
-              )}
-            </button>
-            <div className="flex items-center gap-2 bg-white/10 backdrop-blur-md rounded-full pl-1 pr-3 py-1 border border-white/15">
-              <div className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-black bg-vf-lime text-vf-black">
-                RG
-              </div>
-              <span className="text-xs font-semibold text-white/80">Rafael</span>
-              <ChevronDown className="w-3 h-3 text-white/40" />
-            </div>
-          </div>
-        </div>
-
-        {/* Hero Content */}
-        <div className="absolute bottom-0 left-0 right-0 px-7 pb-5">
-          <div className="flex items-end justify-between">
-            <div>
-              <div className="flex items-center gap-2 mb-2">
-                <span className="text-[10px] font-black uppercase tracking-[0.22em] text-white/40">Centro de Operações</span>
-              </div>
-              <div className="flex items-end gap-4">
-                <div>
-                  <p className="text-[11px] font-bold text-white/50 uppercase tracking-widest mb-0.5">
-                    {greeting()}, Rafael
-                  </p>
-                  <h1 className="text-4xl font-black text-white tracking-tight leading-none">Nova York</h1>
-                </div>
-                {!loading && (
-                  <div className="flex items-center gap-1.5 mb-1.5">
-                    <span className="w-1.5 h-1.5 rounded-full bg-vf-success animate-pulse" />
-                    <span className="text-xs font-bold text-white/60">{v(stats.published)} publicados</span>
-                  </div>
-                )}
-              </div>
-              {/* Tabs */}
-              <div className="flex items-center gap-0.5 mt-4">
-                {TABS.map(tab => (
-                  tab.id === 'overview' ? (
-                    <button
-                      key={tab.id}
-                      onClick={() => setActiveTab('overview')}
-                      className={cn(
-                         "px-5 py-2 rounded-full text-xs font-bold transition-all",
-                         activeTab === 'overview'
-                           ? "bg-white text-vf-black"
-                           : "text-white/60 hover:text-white hover:bg-white/10"
-                       )}
-                    >
-                      {tab.label}
-                    </button>
-                  ) : (
-                    <Link
-                      key={tab.id}
-                      to={(tab as any).to}
-                      className="px-5 py-2 rounded-full text-xs font-bold text-white/60 hover:text-white hover:bg-white/10 transition-all"
-                    >
-                      {tab.label}
-                    </Link>
-                  )
-                ))}
-              </div>
-            </div>
-
-            {/* Mini photo stack */}
-            {recent.some(r => r.media_urls?.[0]) && (
-              <div className="hidden lg:flex items-center mb-1">
-                <div className="flex -space-x-3">
-                  {recent.filter(r => r.media_urls?.[0]).slice(0, 5).map((r, i) => (
-                    <div key={r.id} className="w-10 h-10 rounded-full border-2 border-white/30 overflow-hidden ring-1 ring-white/10" style={{ zIndex: 5 - i }}>
-                      <img src={r.media_urls[0]} alt={r.title} className="w-full h-full object-cover" />
-                    </div>
-                  ))}
-                </div>
-                <span className="ml-3 text-[11px] font-bold text-white/50">+{stats.total} itens</span>
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
+        }
+      />
 
       {/* ══ CONTENT ══════════════════════════════════════════════════════════════ */}
       <div className="flex-1 p-6 space-y-4">

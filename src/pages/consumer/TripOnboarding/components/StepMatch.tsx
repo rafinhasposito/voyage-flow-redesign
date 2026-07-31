@@ -4,6 +4,7 @@ import OnboardingShell from './OnboardingShell';
 import { ExperienceRepository, TravelExperience } from '../../../../repositories/ExperienceRepository';
 import { TripWalletRepository } from '../../../../repositories/TripWalletRepository';
 import { MatchEngine, MatchDeck } from '../../../../lib/intelligence/MatchEngine';
+import { normalizeMatchVote } from '../../../../domain/itinerary-engine/contracts';
 
 export default function StepMatch({
   trip,
@@ -25,6 +26,7 @@ export default function StepMatch({
   const [currentIndex, setCurrentIndex] = useState(0);
   const [votes, setVotes] = useState<Record<string, string>>({}); // id -> vote
   const [isVoting, setIsVoting] = useState(false);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   const [matchDeck, setMatchDeck] = useState<MatchDeck | null>(null);
 
@@ -84,9 +86,12 @@ export default function StepMatch({
     if (isVoting) return; // Prevent concurrent clicks
 
     setIsVoting(true);
+    setErrorMsg(null);
     try {
       const currentExp = experiences[currentIndex];
-      const newVotes = { ...votes, [currentExp.id]: vote };
+      const normResult = normalizeMatchVote(vote);
+      const canonicalVote = normResult.status === 'NORMALIZED' ? normResult.value : vote;
+      const newVotes = { ...votes, [currentExp.id]: canonicalVote };
       setVotes(newVotes);
 
       // If 'bought', check wallet before creating a commitment
@@ -107,8 +112,9 @@ export default function StepMatch({
               structured_data: { source_experience_id: currentExp.id }
             });
           }
-        } catch (walletErr) {
+        } catch (walletErr: any) {
           console.error("Failed to save to wallet:", walletErr);
+          throw new Error(`Falha ao registrar compra: ${walletErr.message || 'Erro desconhecido'}`);
         }
       }
 
@@ -155,8 +161,11 @@ export default function StepMatch({
       } else {
         setCurrentIndex(experiences.length); // Done
       }
-    } catch (err) {
-      console.error("Failed to save vote", err);
+    } catch (err: any) {
+      console.error("Match Engine/Save Error:", err);
+      setErrorMsg(`Falha ao registrar voto: ${err.message || 'Erro de rede'}. Tente novamente.`);
+      // Remove the optimistic state change by NOT advancing currentIndex
+      // The user can try clicking again.
     } finally {
       setIsVoting(false);
     }
@@ -269,6 +278,12 @@ export default function StepMatch({
                ))}
              </div>
           </div>
+
+          {errorMsg && (
+            <div className="absolute top-4 left-4 right-4 z-20 bg-red-100 border border-red-300 text-red-700 px-4 py-2 rounded-xl text-sm font-semibold text-center shadow-lg animate-in fade-in slide-in-from-top-4">
+              {errorMsg}
+            </div>
+          )}
 
           {/* Card */}
           <div className="bg-white rounded-[32px] shadow-lg border border-slate-100 overflow-hidden mb-6 group">

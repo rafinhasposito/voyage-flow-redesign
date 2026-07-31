@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { Users, Search, Activity } from 'lucide-react';
-import { Input } from '@/components/ui/input';
 import { supabase } from '@/lib/supabase';
 import { toast } from 'sonner';
+import { AdminHeader } from '@/components/admin/AdminHeader';
 
 const PERSONAS_CONFIG = [
   { key: 'explorador_visual', name: 'Explorador Visual', desc: 'Foco em estética, fotos e pontos icônicos (Must See).' },
@@ -73,65 +73,83 @@ export default function Personas() {
   const filtered = stats.filter(p => p.name.toLowerCase().includes(searchTerm.toLowerCase()));
 
   return (
-    <div className="flex flex-col h-full bg-vf-bg overflow-hidden">
-      <div className="flex items-center justify-between px-6 py-4 bg-white border-b border-vf-border z-10 shrink-0">
-        <div>
-          <h1 className="text-lg font-black text-vf-black tracking-tight flex items-center gap-2">
-            <Users className="w-4 h-4 text-emerald-600" /> Personas da Engine
-          </h1>
-          <p className="text-[11px] text-vf-text-3 font-semibold">Análise de afinidade das experiências cadastradas.</p>
-        </div>
-        <div className="flex items-center gap-3">
-          <div className="relative">
-            <Search className="w-4 h-4 text-vf-text-3 absolute left-3 top-1/2 -translate-y-1/2" />
-            <Input 
-              type="text" 
-              placeholder="Buscar persona..." 
+    <div className="flex flex-col h-full bg-[#F7F7F2] font-sans overflow-auto selection:bg-[#D7F24B] selection:text-[#171717]">
+      <AdminHeader
+        title="Matriz de Personas"
+        subtitle="Análise de afinidade e distribuição do inventário pelas Personas do Match Engine."
+        icon={<Users className="w-4 h-4 text-[#171717]" />}
+        badgeText="Módulo de Inteligência"
+        gradient="from-[#FFC3A0] to-[#FFAFBD]" // Warm gradient for Personas
+        loading={loading}
+        metrics={[
+          { label: 'Total de Personas', value: PERSONAS_CONFIG.length, color: 'bg-white/40' },
+          { label: 'Cobertura do Catálogo', value: `${stats.reduce((acc, p) => acc + (p.highAffinityCount > 0 ? 1 : 0), 0) > 0 ? 'Alta' : 'Pendente'}`, color: 'bg-emerald-500/10 text-emerald-900 border-emerald-500/20' },
+        ]}
+        actions={
+          <div className="flex items-center gap-2 bg-white/40 backdrop-blur-md rounded-xl p-1 border border-white/40 shadow-sm relative w-[280px]">
+            <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-[#171717]/40" />
+            <input 
+              type="text"
+              placeholder="Buscar persona..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="pl-9 w-64 h-9 text-[13px]"
+              className="w-full pl-11 pr-4 h-10 bg-transparent border-0 text-[13px] font-bold text-[#171717] placeholder:text-[#171717]/40 outline-none"
             />
           </div>
-        </div>
-      </div>
+        }
+      />
 
-      <div className="flex-1 overflow-auto p-6">
+      <div className="flex-1 p-8">
         {loading ? (
-          <div className="text-center py-20 text-slate-400 font-bold text-sm">Carregando personas...</div>
+          <div className="text-center py-20 text-[#171717]/40 font-bold text-sm">Computando afinidade com o catálogo...</div>
         ) : (
           <div className="max-w-[1200px] mx-auto grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {filtered.map(p => (
-              <div key={p.key} className="bg-white rounded-xl border border-vf-border shadow-vf-sm p-6 flex flex-col group">
-                <div className="flex items-start justify-between mb-4">
-                  <div>
-                    <h3 className="text-xl font-black text-vf-black">{p.name}</h3>
-                    <div className="text-[10px] font-black uppercase text-vf-text-3 tracking-widest mt-1">ID: {p.key}</div>
+            {filtered.map(p => {
+              const affinityPct = p.totalExperiences > 0 
+                ? Math.round((p.highAffinityCount / p.totalExperiences) * 100) 
+                : 0;
+
+              return (
+                <div key={p.key} className="bg-white rounded-3xl border border-[#171717]/5 shadow-sm overflow-hidden flex flex-col group p-8 transition-transform hover:-translate-y-1">
+                  <div className="flex items-start justify-between mb-4">
+                    <div className="flex-1">
+                      <h3 className="text-[#171717] font-black text-2xl tracking-tight leading-none mb-2">{p.name}</h3>
+                      <p className="text-[#171717]/60 font-semibold text-xs leading-relaxed line-clamp-2">{p.desc}</p>
+                    </div>
+                    <div className="w-10 h-10 rounded-full bg-orange-50 flex items-center justify-center shrink-0 border border-orange-100">
+                       <Activity className="w-5 h-5 text-orange-500" />
+                    </div>
                   </div>
-                  <div className="p-2 bg-emerald-50 rounded-lg">
-                    <Activity className="w-4 h-4 text-emerald-600" />
+                  
+                  <div className="mt-auto pt-6">
+                    <div className="flex justify-between items-end mb-2">
+                      <span className="text-[10px] font-black uppercase text-[#171717]/40 tracking-widest">Afinidade Alta (≥ 0.7)</span>
+                      <span className="text-sm font-black text-[#171717]">{affinityPct}%</span>
+                    </div>
+                    <div className="w-full bg-[#171717]/5 rounded-full h-2 overflow-hidden">
+                      <div 
+                        className="bg-orange-500 h-2 rounded-full transition-all duration-1000" 
+                        style={{ width: `${affinityPct}%` }}
+                      />
+                    </div>
+                    
+                    <div className="grid grid-cols-2 gap-4 mt-6">
+                      <div className="bg-[#171717]/[0.02] rounded-xl p-3 border border-[#171717]/5">
+                        <div className="text-[10px] font-black uppercase text-[#171717]/40 tracking-widest">Score Alto</div>
+                        <div className="text-lg font-black text-emerald-600">{p.highAffinityCount}</div>
+                      </div>
+                      <div className="bg-[#171717]/[0.02] rounded-xl p-3 border border-[#171717]/5">
+                        <div className="text-[10px] font-black uppercase text-[#171717]/40 tracking-widest">Avaliadas</div>
+                        <div className="text-lg font-black text-[#171717]">{p.totalExperiences}</div>
+                      </div>
+                    </div>
                   </div>
                 </div>
-                
-                <p className="text-sm text-vf-text-2 mb-6 h-10">{p.desc}</p>
-                
-                <div className="grid grid-cols-2 gap-4 mt-auto pt-4 border-t border-vf-border/50">
-                  <div>
-                    <div className="text-[10px] font-black uppercase text-vf-text-3 tracking-widest">Avaliadas</div>
-                    <div className="text-xl font-black text-vf-black">{p.totalExperiences}</div>
-                  </div>
-                  <div>
-                    <div className="text-[10px] font-black uppercase text-vf-text-3 tracking-widest">Alta Afinidade (≥70%)</div>
-                    <div className="text-xl font-black text-emerald-600">{p.highAffinityCount}</div>
-                  </div>
-                </div>
-                
-                {p.totalExperiences === 0 && (
-                  <div className="mt-4 p-3 bg-amber-50 text-amber-800 text-xs font-bold rounded border border-amber-200">
-                    Nenhuma experiência avaliada para esta persona.
-                  </div>
-                )}
-              </div>
-            ))}
+              );
+            })}
+            {filtered.length === 0 && (
+              <div className="col-span-full text-center py-10 text-[#171717]/40 font-bold">Nenhuma persona encontrada.</div>
+            )}
           </div>
         )}
       </div>

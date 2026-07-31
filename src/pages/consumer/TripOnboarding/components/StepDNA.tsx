@@ -30,8 +30,8 @@ export default function StepDNA({
 
   // Mocked counts for summary until real wallet is fully injected
   const matchVotes = trip?.preferences?.match_votes || {};
-  const lovedCount = Object.values(matchVotes).filter(v => v === 'yes').length;
-  const boughtCount = Object.values(matchVotes).filter(v => v === 'bought').length;
+  const lovedCount = Object.values(matchVotes).filter(v => v === 'yes' || v === 'LOVE').length;
+  const boughtCount = Object.values(matchVotes).filter(v => v === 'bought' || v === 'PURCHASED').length;
 
   return (
     <OnboardingShell

@@ -522,6 +522,22 @@ export class SchedulerV1 {
     const localStr = flight.arrivalLocalDateTime;
     if (!localStr) return -1;
 
+    // Inject departure boarding (e.g. leaving home city on Day 1 at night)
+    const depLocalStr = flight.departureLocalDateTime;
+    if (depLocalStr && depLocalStr.includes('T')) {
+      const depDateStr = depLocalStr.split('T')[0];
+      const depDay = draft.days.find(d => d.date === depDateStr);
+      if (depDay) {
+        const depFlightMs = this.parseMs(depLocalStr.split('T')[1]);
+        depDay.activities.push({
+          id: `arr-dep-flight`, type: 'flight', title: `Embarque do Voo ${flight.flightNumber?.toUpperCase() || ''}`,
+          startTime: `${depDateStr}T${this.toTimeStr(Math.max(0, depFlightMs - (2 * 3600000)))}`,
+          endTime: `${depDateStr}T${this.toTimeStr(depFlightMs)}`,
+          isFixed: true, source: 'flight', reason: 'Partida rumo ao destino'
+        });
+      }
+    }
+
     const dateStr = localStr.split('T')[0];
     const day = draft.days.find(d => d.date === dateStr);
 
@@ -535,7 +551,7 @@ export class SchedulerV1 {
     const flightMs = this.parseMs(localStr.split('T')[1]);
 
     day.activities.push({
-      id: `arr-flight`, type: 'flight', title: `Chegada do Voo ${flight.flightNumber}`,
+      id: `arr-flight`, type: 'flight', title: `Chegada do Voo ${flight.flightNumber?.toUpperCase() || ''}`,
       startTime: `${dateStr}T${this.toTimeStr(flightMs)}`,
       endTime: `${dateStr}T${this.toTimeStr(flightMs + 1800000)}`,
       isFixed: true, source: 'flight', reason: 'Aterrissagem confirmada'

@@ -10,6 +10,8 @@ import { TripCollections } from './TripCollections';
 import { TripPreparations } from './TripPreparations';
 import { TripMapView } from './TripMapView';
 import { TripSpaceErrorBoundary } from './TripSpaceErrorBoundary';
+import { BottomNavBar } from './BottomNavBar';
+import { MobileMoreDrawer } from './MobileMoreDrawer';
 
 export default function TripSpacePage() {
   const { tripId } = useParams<{ tripId: string }>();
@@ -25,6 +27,7 @@ export default function TripSpacePage() {
     const hash = window.location.hash.replace('#', '');
     return hash || 'roteiro';
   });
+  const [isMoreDrawerOpen, setIsMoreDrawerOpen] = useState(false);
 
   useEffect(() => {
     window.location.hash = activeModule;
@@ -86,10 +89,18 @@ export default function TripSpacePage() {
         tripId={data.tripId}
       />
 
-      <div className="flex-1 max-w-[1400px] w-full mx-auto p-6 md:p-8 flex flex-col gap-6 overflow-x-hidden">
-        
-        {/* Clean Header (Print 1 Style) */}
-        <div className="flex flex-col md:flex-row md:items-start justify-between gap-4 mb-2">
+      <div className="flex-1 max-w-[1400px] w-full mx-auto p-4 md:p-8 flex flex-col gap-6 overflow-x-hidden pb-24 md:pb-8">
+
+        {/* Compact mobile header */}
+        <div className="md:hidden -mb-2">
+          <h1 className="text-xl font-extrabold text-slate-900 tracking-tight truncate">{data.destinationName}</h1>
+          <p className="text-xs font-bold text-slate-500 truncate">
+            {data.startDate && data.endDate ? `${data.startDate} a ${data.endDate}` : 'Datas a definir'} · {data.travelersCount} viajantes
+          </p>
+        </div>
+
+        {/* Clean Header (Print 1 Style) — desktop only, mobile uses the compact header above */}
+        <div className="hidden md:flex md:flex-row md:items-start justify-between gap-4 mb-2">
           <div>
             <h1 className="text-3xl md:text-4xl font-extrabold text-slate-900 tracking-tight mb-2">
               Seu canto da viagem
@@ -97,7 +108,7 @@ export default function TripSpacePage() {
             <p className="text-slate-500 font-medium text-sm md:text-base max-w-xl mb-4">
               Aqui sua viagem ganha vida. Organize, ajuste e descubra o melhor de cada momento.
             </p>
-            
+
             <div className="flex flex-wrap items-center gap-2">
               <span className="bg-slate-100 text-slate-700 text-xs font-bold px-3 py-1.5 rounded-full flex items-center gap-1.5">
                 <Compass className="w-3.5 h-3.5" />
@@ -115,15 +126,21 @@ export default function TripSpacePage() {
           </div>
 
           <div className="flex items-center gap-3 shrink-0">
-             <button className="bg-lime-400 text-slate-950 font-extrabold text-sm px-5 py-2.5 rounded-full hover:bg-lime-500 transition-colors shadow-sm flex items-center gap-2">
+             <button
+               onClick={() => {
+                 setActiveModule('roteiro');
+                 window.dispatchEvent(new CustomEvent('OPEN_ADD_EXPERIENCE_MODAL', { detail: { day: activeDay } }));
+               }}
+               className="bg-lime-400 text-slate-950 font-extrabold text-sm px-5 py-2.5 rounded-full hover:bg-lime-500 transition-colors shadow-sm flex items-center gap-2"
+             >
                <Sparkles className="w-4 h-4" />
-               + Adicionar ideia
+               Adicionar ao Dia {activeDay}
              </button>
-             <button 
+             <button
                onClick={previewRegeneration}
                className="bg-white border border-slate-200 text-slate-700 font-extrabold text-sm px-5 py-2.5 rounded-full hover:bg-slate-50 transition-colors shadow-sm"
              >
-               Atualizar roteiro
+               Recalcular roteiro
              </button>
           </div>
         </div>
@@ -153,10 +170,10 @@ export default function TripSpacePage() {
                   />
                 </TripSpaceErrorBoundary>
               </div>
-              <div className="xl:col-span-4 min-w-0">
+              <div className="hidden xl:block xl:col-span-4 min-w-0">
                 <div className="sticky top-8">
                   <TripSpaceErrorBoundary sectionName="Painel Lateral" inline>
-                    <TripContextSidebar data={data} />
+                    <TripContextSidebar data={data} activeDay={activeDay} onModuleChange={setActiveModule} />
                   </TripSpaceErrorBoundary>
                 </div>
               </div>
@@ -164,64 +181,91 @@ export default function TripSpacePage() {
           )}
 
           {activeModule === 'descobertas' && (
-            <div className="max-w-5xl">
-              <TripCollections
-                savedIdeas={data.savedIdeas}
-                maybeIdeas={data.maybeIdeas}
-                recommendations={data.recommendations}
-                onAddIdea={(ideaId) => executeDirectAction({ action: 'ADD', sourceExperienceId: ideaId, targetDay: activeDay } as any)}
-              />
-            </div>
+            <TripSpaceErrorBoundary sectionName="Descobertas">
+              <div className="max-w-5xl">
+                <TripCollections
+                  savedIdeas={data.savedIdeas}
+                  maybeIdeas={data.maybeIdeas}
+                  recommendations={data.recommendations}
+                  onAddIdea={(ideaId) => executeDirectAction({ action: 'ADD', sourceExperienceId: ideaId, targetDay: activeDay } as any)}
+                />
+              </div>
+            </TripSpaceErrorBoundary>
           )}
 
           {activeModule === 'carteira' && (
-            <div className="max-w-4xl">
-              <TripPreparations
-                activeTabOverride="reservations"
-                tripId={data.tripId}
-                checklist={data.checklist}
-                reservations={data.reservations}
-                documents={data.documents}
-                onChecklistUpdate={reloadData}
-              />
-            </div>
+            <TripSpaceErrorBoundary sectionName="Carteira">
+              <div className="max-w-4xl">
+                <TripPreparations
+                  activeTabOverride="reservations"
+                  tripId={data.tripId}
+                  checklist={data.checklist}
+                  reservations={data.reservations}
+                  documents={data.documents}
+                  onChecklistUpdate={reloadData}
+                />
+              </div>
+            </TripSpaceErrorBoundary>
           )}
 
           {activeModule === 'preparativos' && (
-            <div className="max-w-4xl">
-              <TripPreparations
-                activeTabOverride="checklist"
-                tripId={data.tripId}
-                checklist={data.checklist}
-                reservations={data.reservations}
-                documents={data.documents}
-                onChecklistUpdate={reloadData}
-              />
-            </div>
+            <TripSpaceErrorBoundary sectionName="Preparativos">
+              <div className="max-w-4xl">
+                <TripPreparations
+                  activeTabOverride="checklist"
+                  tripId={data.tripId}
+                  checklist={data.checklist}
+                  reservations={data.reservations}
+                  documents={data.documents}
+                  onChecklistUpdate={reloadData}
+                />
+              </div>
+            </TripSpaceErrorBoundary>
           )}
 
           {activeModule === 'documentos' && (
-            <div className="max-w-4xl">
-              <TripPreparations
-                activeTabOverride="documents"
-                tripId={data.tripId}
-                checklist={data.checklist}
-                reservations={data.reservations}
-                documents={data.documents}
-                onChecklistUpdate={reloadData}
-              />
-            </div>
+            <TripSpaceErrorBoundary sectionName="Documentos">
+              <div className="max-w-4xl">
+                <TripPreparations
+                  activeTabOverride="documents"
+                  tripId={data.tripId}
+                  checklist={data.checklist}
+                  reservations={data.reservations}
+                  documents={data.documents}
+                  onChecklistUpdate={reloadData}
+                />
+              </div>
+            </TripSpaceErrorBoundary>
           )}
 
           {activeModule === 'mapa' && (
-            <TripMapView
-              data={data}
-              activeDay={activeDay}
-              onDaySelect={setActiveDay}
-            />
+            <TripSpaceErrorBoundary sectionName="Mapa">
+              <TripMapView
+                data={data}
+                activeDay={activeDay}
+                onDaySelect={setActiveDay}
+              />
+            </TripSpaceErrorBoundary>
           )}
         </div>
       </div>
+
+      <BottomNavBar
+        activeModule={activeModule}
+        onModuleChange={setActiveModule}
+        onAddClick={() => {
+          setActiveModule('roteiro');
+          window.dispatchEvent(new CustomEvent('OPEN_ADD_EXPERIENCE_MODAL', { detail: { day: activeDay } }));
+        }}
+        onMoreClick={() => setIsMoreDrawerOpen(true)}
+      />
+
+      <MobileMoreDrawer
+        isOpen={isMoreDrawerOpen}
+        onClose={() => setIsMoreDrawerOpen(false)}
+        onNavigate={(moduleId) => setActiveModule(moduleId)}
+        onRecalculate={previewRegeneration}
+      />
     </div>
   );
 }

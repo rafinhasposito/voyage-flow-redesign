@@ -22,6 +22,13 @@ export function TripMapViewV2({ data, activeDay, onDaySelect }: TripMapViewV2Pro
   const mapRef = useRef<maplibregl.Map | null>(null);
   const markersRef = useRef<maplibregl.Marker[]>([]);
 
+  // Sincroniza o dia ativo caso ele mude pela barra de navegação superior
+  useEffect(() => {
+    if (selectedDayFilter !== 'all') {
+      setSelectedDayFilter(activeDay);
+    }
+  }, [activeDay]);
+
   // Coleta de paradas da viagem
   const allStops = useMemo(() => {
     return (data.days || []).flatMap(day => 
@@ -41,7 +48,9 @@ export function TripMapViewV2({ data, activeDay, onDaySelect }: TripMapViewV2Pro
     if (selectedCategory !== 'all') {
       list = list.filter(s => s.category === selectedCategory);
     }
-    return list;
+    
+    // No mapa, queremos ver apenas paradas reais. Logística (deslocamentos) e tempo livre não entram aqui
+    return list.filter(s => s.category !== 'logistics' && s.category !== 'freetime' && s.category !== 'transit');
   }, [allStops, selectedDayFilter, selectedCategory]);
 
   const activeStop = displayedStops.find(s => s.id === selectedStopId) || displayedStops[0];
@@ -97,10 +106,10 @@ export function TripMapViewV2({ data, activeDay, onDaySelect }: TripMapViewV2Pro
         const el = document.createElement('div');
         el.className = 'w-7 h-7 bg-slate-900 text-white rounded-full border-2 border-white shadow-lg flex items-center justify-center font-black text-xs cursor-pointer select-none transition-transform hover:scale-110 z-20';
         el.innerText = 'H';
-        el.setAttribute('aria-label', `${basecamp.name || 'Hotel'} (Basecamp)`);
+        el.setAttribute('aria-label', `${basecamp.name || 'Hotel'} (Hospedagem)`);
 
         const popup = new maplibregl.Popup({ offset: 18, closeButton: false }).setHTML(
-          `<div style="font-family: sans-serif; padding: 4px 6px; text-align: left;"><b>HOSPEDAGEM / BASECAMP</b><br/><span style="font-size: 13px; font-weight: bold; color: #14150F;">${basecamp.name || 'Seu Hotel'}</span></div>`
+          `<div style="font-family: sans-serif; padding: 4px 6px; text-align: left;"><b>HOSPEDAGEM</b><br/><span style="font-size: 13px; font-weight: bold; color: #14150F;">${basecamp.name || 'Seu Hotel'}</span></div>`
         );
 
         const marker = new maplibregl.Marker({ element: el })
@@ -225,34 +234,18 @@ export function TripMapViewV2({ data, activeDay, onDaySelect }: TripMapViewV2Pro
             </button>
           </div>
 
-          {/* Seletor de Dia */}
+          {/* Seletor de Dia (Simplificado) */}
           <div className="flex items-center gap-1.5 overflow-x-auto pb-1 max-w-full">
             <button
-              onClick={() => setSelectedDayFilter('all')}
+              onClick={() => setSelectedDayFilter(selectedDayFilter === 'all' ? activeDay : 'all')}
               className={`px-3.5 py-1.5 rounded-xl text-xs font-black transition-all ${
                 selectedDayFilter === 'all'
                   ? 'bg-[#D6FF3F] text-slate-950 shadow-xs border border-[#b8e624]/60'
                   : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
               }`}
             >
-              Todos os dias
+              {selectedDayFilter === 'all' ? 'Ver apenas Dia ' + activeDay : 'Ver roteiro completo'}
             </button>
-            {(data.days || []).map(day => (
-              <button
-                key={day.dayNumber}
-                onClick={() => {
-                  setSelectedDayFilter(day.dayNumber);
-                  onDaySelect(day.dayNumber);
-                }}
-                className={`px-3.5 py-1.5 rounded-xl text-xs font-black transition-all ${
-                  selectedDayFilter === day.dayNumber
-                    ? 'bg-[#D6FF3F] text-slate-950 shadow-xs border border-[#b8e624]/60'
-                    : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
-                }`}
-              >
-                Dia {day.dayNumber}
-              </button>
-            ))}
           </div>
         </div>
       </div>
@@ -295,7 +288,7 @@ export function TripMapViewV2({ data, activeDay, onDaySelect }: TripMapViewV2Pro
                 H
               </div>
               <div className="min-w-0 flex-1">
-                <p className="font-black text-xs truncate leading-tight">{data.basecamp.name || 'Seu Hotel / Basecamp'}</p>
+                <p className="font-black text-xs truncate leading-tight">{data.basecamp.name || 'Sua Hospedagem'}</p>
                 <p className="text-[11px] text-slate-400 truncate flex items-center gap-1 mt-0.5">
                   <Bed className="w-3 h-3 shrink-0 text-slate-400" /> Ponto de Partida e Chegada
                 </p>
@@ -354,7 +347,7 @@ export function TripMapViewV2({ data, activeDay, onDaySelect }: TripMapViewV2Pro
       <div className="flex flex-wrap items-center justify-between gap-4 px-5 py-4 bg-white rounded-[24px] text-xs font-bold text-slate-700 border border-slate-200 shadow-2xs">
         <div className="flex items-center gap-2 flex-wrap">
           <span className="w-6 h-6 bg-slate-900 text-white rounded-full flex items-center justify-center font-black text-[11px] border border-white shadow-2xs shrink-0">H</span>
-          <span className="font-black text-slate-900 mr-2">Hospedagem / Basecamp</span>
+          <span className="font-black text-slate-900 mr-2">Hospedagem</span>
           <span className="text-slate-300 hidden sm:inline">|</span>
           <span className="w-6 h-6 bg-[#1D6FE0] text-white rounded-full flex items-center justify-center font-black text-[11px] border border-white shadow-2xs shrink-0">1</span>
           <span className="text-slate-400 font-black">➔</span>

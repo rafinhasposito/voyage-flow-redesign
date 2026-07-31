@@ -241,34 +241,52 @@ function Section({ title, icon: Icon, children }: { title: string; icon: React.E
 // ─── Main ─────────────────────────────────────────────────────────────────────
 
 
-function EditorMap({ lat, lng }: { lat: number | null, lng: number | null }) {
+function EditorMap({ lat, lng, onChange }: { lat: number | null, lng: number | null, onChange?: (lat: number, lng: number) => void }) {
   const mapContainer = useRef<HTMLDivElement>(null);
   const map = useRef<maplibregl.Map | null>(null);
   const marker = useRef<maplibregl.Marker | null>(null);
 
   useEffect(() => {
-    if (!mapContainer.current || lat === null || lng === null) return;
+    if (!mapContainer.current) return;
+
+    const initialLat = lat ?? 40.7128;
+    const initialLng = lng ?? -74.0060;
 
     if (!map.current) {
       map.current = new maplibregl.Map({
         container: mapContainer.current,
         style: 'https://tiles.openfreemap.org/styles/liberty',
-        center: [lng, lat],
-        zoom: 15,
+        center: [initialLng, initialLat],
+        zoom: lat && lng ? 15 : 11,
         attributionControl: true
       });
       map.current.addControl(new maplibregl.NavigationControl(), 'bottom-right');
 
-      const el = document.createElement('div');
-      el.className = "w-4 h-4 bg-[#D7F24B] border-2 border-[#171717] rounded-full shadow-sm";
-      marker.current = new maplibregl.Marker(el).setLngLat([lng, lat]).addTo(map.current);
+      if (lat && lng) {
+        const el = document.createElement('div');
+        el.className = "w-4 h-4 bg-[#D7F24B] border-2 border-[#171717] rounded-full shadow-sm";
+        marker.current = new maplibregl.Marker(el).setLngLat([lng, lat]).addTo(map.current);
+      }
+
+      map.current.on('dblclick', (e) => {
+        if (onChange) {
+          onChange(e.lngLat.lat, e.lngLat.lng);
+        }
+      });
+
     } else {
-      map.current.flyTo({ center: [lng, lat] });
-      if (marker.current) {
-        marker.current.setLngLat([lng, lat]);
+      if (lat && lng) {
+        map.current.flyTo({ center: [lng, lat], zoom: 15 });
+        if (marker.current) {
+          marker.current.setLngLat([lng, lat]);
+        } else {
+          const el = document.createElement('div');
+          el.className = "w-4 h-4 bg-[#D7F24B] border-2 border-[#171717] rounded-full shadow-sm";
+          marker.current = new maplibregl.Marker(el).setLngLat([lng, lat]).addTo(map.current);
+        }
       }
     }
-  }, [lat, lng]);
+  }, [lat, lng, onChange]);
 
   useEffect(() => {
     return () => {
@@ -350,6 +368,7 @@ export default function ExperienceEditor() {
   const [isLoading, setIsLoading] = useState(true);
   const [isSyncingAI, setIsSyncingAI] = useState(false);
   const [enrichUrl, setEnrichUrl] = useState('');
+  const [isGeocoding, setIsGeocoding] = useState(false);
   const [isEnriching, setIsEnriching] = useState(false);
   const [isManualAi, setIsManualAi] = useState(false);
 
@@ -487,6 +506,23 @@ export default function ExperienceEditor() {
     await handleSave({ archive: false, restore: true });
   };
 
+  const handleDelete = async () => {
+    if (!validExperienceId) return;
+    if (window.confirm(`Você está prestes a DELETAR PERMANENTEMENTE "${form.title}".\n\nEssa ação NÃO pode ser desfeita e removerá a experiência do banco de dados definitivamente.\nTem certeza absoluta?`)) {
+      setIsSaving(true);
+      const toastId = toast.loading('Excluindo permanentemente...');
+      try {
+        await ExperienceRepository.delete(validExperienceId);
+        toast.success('Experiência excluída definitivamente.', { id: toastId });
+        navigate('/admin/experiences');
+      } catch (err: any) {
+        toast.error('Erro ao excluir: ' + err.message, { id: toastId });
+      } finally {
+        setIsSaving(false);
+      }
+    }
+  };
+
   const handleDiscard = () => {
     if (form.title || form.booking_url) {
       if (!window.confirm("Deseja realmente descartar esta importação? Os dados não salvos serão perdidos.")) {
@@ -580,6 +616,78 @@ export default function ExperienceEditor() {
       }
     } catch (e: unknown) { toast.error('Erro ao salvar: ' + (e as Error).message, { id: toastId }); }
     finally { setIsSaving(false); }
+  };
+
+  const handleEnrichFromUrl = async () => {
+    if (!enrichUrl) return;
+    setIsSyncingAI(true);
+    const toastId = toast.loading("Buscando dados no mapa...");
+    try {
+      const { data, error } = await supabase.functions.invoke('google-places-extract', {
+        body: { url: enrichUrl }
+      });
+      if (error) throw error;
+      if (data?.result) {
+        const r = data.result;
+        setForm(prev => ({
+          ...prev,
+          title: prev.title || r.name,
+          address: prev.address || r.formatted_address,
+          location_lat: prev.location_lat || r.geometry?.location?.lat,
+          location_lng: prev.location_lng || r.geometry?.location?.lng,
+          rating: prev.rating || r.rating,
+          reviews_count: prev.reviews_count || r.user_ratings_total
+        }));
+        toast.success("Dados preenchidos com sucesso!", { id: toastId });
+      } else {
+        toast.error("Nenhum dado encontrado para esta URL.", { id: toastId });
+      }
+    } catch (e: any) {
+      toast.error(`Erro: ${e.message}`, { id: toastId });
+    } finally {
+      setIsSyncingAI(false);
+    }
+  };
+
+  const handleGeocodeAddress = async () => {
+    if (!form.address) {
+      toast.error("Preencha o endereço primeiro.");
+      return;
+    }
+    setIsGeocoding(true);
+    const toastId = toast.loading("Buscando coordenadas no satélite...");
+    
+    let queries = [form.address];
+    if (!form.address.toLowerCase().includes("new york") && !form.address.toLowerCase().includes("ny")) {
+      queries.push(`${form.address}, New York, NY`);
+    }
+
+    try {
+      let foundData = null;
+      for (const q of queries) {
+        const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(q)}&limit=1`);
+        const data = await res.json();
+        if (data && data.length > 0) {
+          foundData = data[0];
+          break;
+        }
+      }
+
+      if (foundData) {
+        setForm(prev => ({
+          ...prev,
+          location_lat: parseFloat(foundData.lat),
+          location_lng: parseFloat(foundData.lon)
+        }));
+        toast.success("Mapa atualizado com sucesso!", { id: toastId });
+      } else {
+        toast.error("Endereço muito vago. Dica: Dê um CLIQUE DUPLO no local exato do mapa abaixo para preencher automático!", { id: toastId, duration: 6000 });
+      }
+    } catch (e: any) {
+      toast.error("Erro ao buscar coordenadas. Dê um CLIQUE DUPLO no mapa.", { id: toastId });
+    } finally {
+      setIsGeocoding(false);
+    }
   };
 
   const handleUrlEnrich = async () => {
@@ -695,11 +803,24 @@ export default function ExperienceEditor() {
             <>
               <Button variant="ghost" size="sm" onClick={() => navigate(-1)} className="text-gray-500">Voltar ao Catálogo</Button>
               <Button variant="lime" size="sm" onClick={handleRestore} disabled={isSaving}><ArchiveRestore className="w-4 h-4 mr-1"/> Restaurar</Button>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" size="icon" className="h-9 w-9">
+                    <MoreHorizontal className="h-4 w-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem onClick={handleDelete} className="text-red-600 focus:text-red-600 focus:bg-red-50 cursor-pointer font-medium">
+                    <Trash2 className="w-4 h-4 mr-2" /> Excluir Permanentemente
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
             </>
           ) : form.status === 'draft' ? (
             <>
               <Button variant="outline" size="sm" onClick={() => handleSave({})} disabled={isSaving}>Salvar alterações</Button>
-              <Button variant="lime" size="sm" onClick={() => handleSave({ publish: true })} disabled={isSaving}><Check className="w-4 h-4 mr-1"/> Publicar</Button>
+              <Button variant="outline" size="sm" onClick={async () => { await handleSave({}); navigate(-1); }} disabled={isSaving}>Salvar e Voltar</Button>
+              <Button variant="lime" size="sm" onClick={() => handleSave({ publish: true })} disabled={isSaving}><Check className="w-4 h-4 mr-1"/> Salvar e Publicar</Button>
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button variant="ghost" size="icon" className="h-9 w-9">
@@ -715,6 +836,7 @@ export default function ExperienceEditor() {
             </>
           ) : (
             <>
+              <Button variant="outline" size="sm" onClick={async () => { await handleSave({}); navigate(-1); }} disabled={isSaving}>Salvar e Voltar</Button>
               <Button variant="lime" size="sm" onClick={() => handleSave({})} disabled={isSaving}>Salvar alterações</Button>
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
@@ -808,6 +930,7 @@ export default function ExperienceEditor() {
                   <Field label="Tipo de Experiência" hint="Define os campos e regras utilizados pelo sistema.">
                     <select value={form.type} onChange={e => set('type', e.target.value)} className="flex h-10 w-full rounded-md border border-vf-border bg-white px-3.5 py-2.5 text-[13px] text-vf-text-1 focus:border-vf-black focus:outline-none focus:ring-1 focus:ring-vf-black">
                       <option value="attraction">Atração</option>
+                      <option value="event">Evento</option>
                       <option value="restaurant">Restaurante</option>
                       <option value="hotel">Hotel</option>
                     </select>
@@ -823,18 +946,40 @@ export default function ExperienceEditor() {
 
               <Section title="Localização" icon={MapPin}>
                 <div className="grid grid-cols-2 gap-4">
-                  <Field label="Bairro">
-                    <select value={form.neighborhood} onChange={e => set('neighborhood', e.target.value)} className="flex h-10 w-full rounded-md border border-vf-border bg-white px-3.5 py-2.5 text-[13px] text-vf-text-1 focus:border-vf-black focus:outline-none focus:ring-1 focus:ring-vf-black">
-                      {NEW_YORK_NEIGHBORHOODS.map(n => <option key={n} value={n}>{n}</option>)}
-                    </select>
+                  <Field label="Bairro / Região" hint="Bairro ou área (ex: Midtown, SoHo).">
+                    <input list="neighborhoods-list" value={form.neighborhood} onChange={e => set('neighborhood', e.target.value)} className="flex h-10 w-full rounded-md border border-vf-border bg-white px-3.5 py-2.5 text-[13px] text-vf-text-1 focus:border-vf-black focus:outline-none focus:ring-1 focus:ring-vf-black" placeholder="Digite ou selecione..." />
+                    <datalist id="neighborhoods-list">
+                      {NEW_YORK_NEIGHBORHOODS.map(n => <option key={n} value={n} />)}
+                    </datalist>
                   </Field>
-                  <Field label="Endereço Completo">
-                    <Input value={form.address} onChange={e => set('address', e.target.value)} />
+                  <Field label="Endereço Completo" hint="Digite e clique em buscar para atualizar o mapa">
+                    <div className="flex gap-2">
+                      <Input value={form.address} onChange={e => set('address', e.target.value)} placeholder="Ex: 5th Ave, New York, NY" className="flex-1" />
+                      <Button type="button" variant="outline" size="icon" onClick={handleGeocodeAddress} disabled={isGeocoding || !form.address} className="shrink-0" title="Buscar coordenadas">
+                        {isGeocoding ? <div className="w-4 h-4 border-2 border-vf-black border-t-transparent rounded-full animate-spin" /> : <MapPin className="w-4 h-4 text-vf-black" />}
+                      </Button>
+                    </div>
                   </Field>
                 </div>
 
-                <div className="h-48 rounded-xl relative">
-                   <EditorMap lat={form.location_lat} lng={form.location_lng} />
+                <div className="grid grid-cols-2 gap-4 mt-4">
+                  <Field label="Latitude" hint="Ex: 40.7128">
+                    <Input type="number" step="any" value={form.location_lat || ""} onChange={e => set('location_lat', e.target.value ? parseFloat(e.target.value) : null)} placeholder="40.7128" />
+                  </Field>
+                  <Field label="Longitude" hint="Ex: -74.0060">
+                    <Input type="number" step="any" value={form.location_lng || ""} onChange={e => set('location_lng', e.target.value ? parseFloat(e.target.value) : null)} placeholder="-74.0060" />
+                  </Field>
+                </div>
+
+                <div className="h-48 rounded-xl relative mt-2">
+                   <EditorMap 
+                     lat={form.location_lat} 
+                     lng={form.location_lng} 
+                     onChange={(lat, lng) => {
+                       set('location_lat', lat);
+                       set('location_lng', lng);
+                     }}
+                   />
                 </div>
               </Section>
 

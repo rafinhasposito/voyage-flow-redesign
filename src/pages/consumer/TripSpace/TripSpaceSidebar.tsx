@@ -1,8 +1,8 @@
 import React from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
-import { 
-  Compass, MapPin, Calendar, Heart, Bookmark, FolderCheck, 
-  FileText, Map, Sparkles, Settings, LogOut, ChevronRight, User
+import {
+  Compass, MapPin, Calendar, Heart, Bookmark, FolderCheck,
+  FileText, Map, Sparkles, Settings, LogOut, ChevronRight, User, Swords
 } from 'lucide-react';
 import { TripSpaceProfile } from '@/types/tripSpace.types';
 import { useConsumerAuth } from '@/contexts/ConsumerAuthProvider';
@@ -19,15 +19,21 @@ export function TripSpaceSidebar({ profile, tripId }: TripSpaceSidebarProps) {
   const location = useLocation();
 
   const menuItems = [
-    { id: 'minha_viagem', label: 'Minhas viagens', icon: Compass, to: '/minhas-viagens', isHash: false },
+    { id: 'minha_viagem', label: 'Minha viagem', icon: Compass, to: '/minhas-viagens', isHash: false },
     { id: 'roteiro', label: 'Roteiro', icon: Calendar, to: `#roteiro`, isHash: true },
     { id: 'mapa', label: 'Mapa', icon: Map, to: `#mapa`, isHash: true },
+    { id: 'preparativos', label: 'Preparativos', icon: FolderCheck, to: `#preparativos`, isHash: true },
+    { id: 'documentos', label: 'Documentos', icon: FileText, to: `#documentos`, isHash: true },
+    { id: 'campanha', label: 'Campanha', icon: Swords, to: `#campanha`, isHash: true, disabled: true },
+    { id: 'ideias', label: 'Ideias', icon: Sparkles, to: `#ideias`, isHash: true, disabled: true },
+    { id: 'reservas', label: 'Reservas', icon: Bookmark, to: `#reservas`, isHash: true, disabled: true },
+    { id: 'ia_concierge', label: 'IA Concierge', icon: Sparkles, to: `#concierge`, isHash: true, disabled: true },
   ];
 
   const currentHash = location.hash || '#roteiro';
 
   return (
-    <aside className="w-64 bg-white border-r border-slate-200 flex flex-col justify-between p-6 shrink-0 min-h-screen sticky top-0 h-screen overflow-y-auto">
+    <aside className="hidden md:flex w-64 bg-white border-r border-slate-200 flex-col justify-between p-6 shrink-0 min-h-screen sticky top-0 h-screen overflow-y-auto">
       <div>
         {/* Brand */}
         <Link to="/minhas-viagens" className="flex items-center gap-2.5 mb-8 group">
@@ -44,6 +50,22 @@ export function TripSpaceSidebar({ profile, tripId }: TripSpaceSidebarProps) {
             const isActive = item.isHash ? currentHash === item.to : location.pathname === item.to;
 
             if (item.isHash) {
+              if (item.disabled) {
+                return (
+                  <div
+                    key={item.id}
+                    className="w-full flex items-center justify-between gap-3 px-4 py-3 rounded-2xl font-bold text-sm text-slate-300 cursor-not-allowed"
+                    title="Em breve"
+                  >
+                    <div className="flex items-center gap-3">
+                      <Icon className="w-4 h-4 text-slate-300" />
+                      <span>{item.label}</span>
+                    </div>
+                    <span className="text-[9px] uppercase tracking-wider bg-slate-100 text-slate-400 px-1.5 py-0.5 rounded">Breve</span>
+                  </div>
+                );
+              }
+
               return (
                 <a
                   key={item.id}

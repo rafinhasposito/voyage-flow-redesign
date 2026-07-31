@@ -14,11 +14,30 @@ export interface TripSpaceStop {
   isLocked?: boolean;
   isFixed?: boolean;
   matchScore?: number;
+  matchReasons?: string[];
+  locationAddress?: string;
+  openingHours?: string;
+  bookingUrl?: string;
+  contactPhone?: string;
+  rating?: number;
+  reviewCount?: number;
+  externalLink?: string;
+  short_description?: string;
+  long_description?: string;
+  images?: string[];
+  image_gallery?: string[];
+  media_urls?: string[];
+  // Dados extras para suportar injeção do BdayRafaRoteiroNY
+  freetime?: any;
+  decision?: any;
+  flight?: any;
 }
 
 export interface TripSpaceDay {
   dayNumber: number;
-  dateStr: string;
+  dateStr: string; // "12 mai"
+  fullDateStr?: string; // "12/05/2026"
+  locationSubtitle?: string; // "SP - BRASIL 🇧🇷"
   theme: string;
   stops: TripSpaceStop[];
 }
@@ -92,6 +111,7 @@ export interface TripSpaceViewModel {
   budgetLevel: string;
   
   days: TripSpaceDay[];
+  catalog?: any[];
   basecamp?: TripSpaceBasecamp;
   reservations: TripSpaceReservation[];
   savedIdeas: TripSpaceIdea[];

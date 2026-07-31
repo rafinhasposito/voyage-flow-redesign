@@ -241,7 +241,7 @@ export class ExperienceRepository {
       };
     };
 
-    const imageUrl = (row.media_urls && row.media_urls.length > 0) ? row.media_urls[0] : "";
+    const imageUrl = row.cover_image_url || ((row.media_urls && row.media_urls.length > 0) ? row.media_urls[0] : "");
 
     return {
       id: row.id,
@@ -251,10 +251,18 @@ export class ExperienceRepository {
       description: row.description || "",
       emotionalDescription: row.short_description || "",
       image: imageUrl,
+      cover_image_url: row.cover_image_url || null,
       images: row.media_urls || [],
       costLevel: this.mapCostLevel(row.base_cost ?? 0),
       costUSD: row.base_cost ?? 0,
       neighborhood: row.neighborhood || "Centro",
+      address: row.address || null,
+      locationAddress: row.address || null,
+      location_address: row.address || null,
+      short_description: row.short_description || null,
+      long_description: row.description || null,
+      booking_url: row.booking_url || null,
+      bookingUrl: row.booking_url || null,
       coordinates: (row.location_lat != null && row.location_lng != null)
                    ? { lat: row.location_lat, lng: row.location_lng }
                    : undefined,
